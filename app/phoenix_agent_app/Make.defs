@@ -1,0 +1,9 @@
+#
+# Copyright (C) 2026 OpenVela Contest Team 145
+#
+# Make.defs for phoenix_agent_app
+#
+
+ifneq ($(CONFIG_LVX_USE_DEMO_CONTEST2026_145_PHOENIX_AGENT_APP),)
+CONFIGURED_APPS += $(APPDIR)/packages/demos/contest2026_145_phoenix_agent_app
+endif

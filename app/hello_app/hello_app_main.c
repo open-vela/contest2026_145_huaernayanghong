@@ -4,8 +4,7 @@
 
 #include <stdio.h>
 
-int main(int argc, char *argv[])
-{
-  printf("Hello from openvela contest 2026 team 000!\n");
+int main(int argc, char *argv[]) {
+  printf("Hello from openvela contest 2026 team 001!\n");
   return 0;
 }

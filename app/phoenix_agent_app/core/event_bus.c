@@ -1,0 +1,156 @@
+/**
+ * @file event_bus.c
+ * @brief Lightweight Publish-Subscribe Event Bus Implementation
+ * @author OpenVela Contest 2026 Team 145
+ */
+
+#include "event_bus.h"
+#include "../utils/ring_buffer.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+
+#define MAX_SUBSCRIBERS_PER_EVENT 8
+#define EVENT_QUEUE_CAPACITY      32
+
+typedef struct {
+    phoenix_event_cb_t cb;
+    void *user_data;
+} subscriber_entry_t;
+
+typedef struct {
+    subscriber_entry_t entries[MAX_SUBSCRIBERS_PER_EVENT];
+    size_t count;
+} event_slot_t;
+
+static event_slot_t g_event_slots[PHOENIX_EVT_COUNT];
+static phoenix_event_data_t g_queue_storage[EVENT_QUEUE_CAPACITY];
+static ring_buffer_t g_async_ring_buffer;
+static pthread_mutex_t g_queue_lock = PTHREAD_MUTEX_INITIALIZER;
+static bool g_bus_initialized = false;
+
+int phoenix_event_bus_init(void)
+{
+    memset(g_event_slots, 0, sizeof(g_event_slots));
+    pthread_mutex_lock(&g_queue_lock);
+    ring_buffer_init(&g_async_ring_buffer, g_queue_storage, sizeof(phoenix_event_data_t), EVENT_QUEUE_CAPACITY);
+    pthread_mutex_unlock(&g_queue_lock);
+    g_bus_initialized = true;
+    return 0;
+}
+
+int phoenix_event_subscribe(phoenix_event_type_t type, phoenix_event_cb_t cb, void *user_data)
+{
+    if (!g_bus_initialized || type <= PHOENIX_EVT_NONE || type >= PHOENIX_EVT_COUNT || !cb) {
+        return -1;
+    }
+
+    event_slot_t *slot = &g_event_slots[type];
+    if (slot->count >= MAX_SUBSCRIBERS_PER_EVENT) {
+        return -2; /* Capacity full */
+    }
+
+    /* Check duplicate */
+    for (size_t i = 0; i < slot->count; i++) {
+        if (slot->entries[i].cb == cb && slot->entries[i].user_data == user_data) {
+            return 0; /* Already subscribed */
+        }
+    }
+
+    slot->entries[slot->count].cb = cb;
+    slot->entries[slot->count].user_data = user_data;
+    slot->count++;
+    return 0;
+}
+
+void phoenix_event_unsubscribe(phoenix_event_type_t type, phoenix_event_cb_t cb, void *user_data)
+{
+    if (!g_bus_initialized || type <= PHOENIX_EVT_NONE || type >= PHOENIX_EVT_COUNT || !cb) {
+        return;
+    }
+
+    event_slot_t *slot = &g_event_slots[type];
+    for (size_t i = 0; i < slot->count; i++) {
+        if (slot->entries[i].cb == cb && slot->entries[i].user_data == user_data) {
+            /* Shift down */
+            for (size_t j = i; j < slot->count - 1; j++) {
+                slot->entries[j] = slot->entries[j + 1];
+            }
+            slot->count--;
+            break;
+        }
+    }
+}
+
+void phoenix_event_publish(const phoenix_event_data_t *event)
+{
+    if (!g_bus_initialized || !event || event->type <= PHOENIX_EVT_NONE || event->type >= PHOENIX_EVT_COUNT) {
+        return;
+    }
+
+    event_slot_t *slot = &g_event_slots[event->type];
+    size_t cur_count = slot->count;
+    for (size_t i = 0; i < cur_count; i++) {
+        if (slot->entries[i].cb) {
+            slot->entries[i].cb(event, slot->entries[i].user_data);
+        }
+    }
+}
+
+int phoenix_event_post_async(const phoenix_event_data_t *event)
+{
+    if (!g_bus_initialized || !event || event->type <= PHOENIX_EVT_NONE || event->type >= PHOENIX_EVT_COUNT) {
+        return -1;
+    }
+
+    pthread_mutex_lock(&g_queue_lock);
+    bool pushed = ring_buffer_push(&g_async_ring_buffer, event);
+    pthread_mutex_unlock(&g_queue_lock);
+
+    return pushed ? 0 : -2; /* -2: Queue overflow */
+}
+
+size_t phoenix_event_bus_drain(void)
+{
+    if (!g_bus_initialized) {
+        return 0;
+    }
+
+    size_t dispatched = 0;
+    while (1) {
+        phoenix_event_data_t evt;
+        pthread_mutex_lock(&g_queue_lock);
+        bool popped = ring_buffer_pop(&g_async_ring_buffer, &evt);
+        pthread_mutex_unlock(&g_queue_lock);
+
+        if (!popped) {
+            break;
+        }
+
+        phoenix_event_publish(&evt);
+        dispatched++;
+    }
+
+    return dispatched;
+}
+
+size_t phoenix_event_bus_pending_count(void)
+{
+    if (!g_bus_initialized) {
+        return 0;
+    }
+    pthread_mutex_lock(&g_queue_lock);
+    size_t count = ring_buffer_count(&g_async_ring_buffer);
+    pthread_mutex_unlock(&g_queue_lock);
+    return count;
+}
+
+void phoenix_event_bus_deinit(void)
+{
+    pthread_mutex_lock(&g_queue_lock);
+    ring_buffer_clear(&g_async_ring_buffer);
+    pthread_mutex_unlock(&g_queue_lock);
+    memset(g_event_slots, 0, sizeof(g_event_slots));
+    g_bus_initialized = false;
+}

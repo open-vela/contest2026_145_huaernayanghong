@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phoenix HoloDesk-S1 Geek Dashboard</title>
+  <style>
+    :root {
+      --bg: #080c14;
+      --card: #101726;
+      --border: #1c2a44;
+      --accent: #00e5ff;
+      --accent-sub: #00ff88;
+      --text: #e6edf3;
+      --muted: #8b9eb5;
+    }
+    body {
+      margin: 0;
+      padding: 24px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .wrap {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 14px;
+    }
+    h1 {
+      color: var(--accent);
+      font-size: 20px;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+    }
+    .badge {
+      background: #182842;
+      border: 1px solid #233b63;
+      color: var(--accent);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .selector {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .pill-btn {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 16px;
+      border-radius: 24px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: 0.2s;
+      white-space: nowrap;
+    }
+    .pill-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .pill-btn.active {
+      background: linear-gradient(135deg, rgba(0, 229, 255, 0.15), rgba(0, 255, 136, 0.15));
+      border-color: var(--accent);
+      color: #fff;
+      box-shadow: 0 0 16px rgba(0, 229, 255, 0.25);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+    }
+    .card.highlight::before {
+      background: linear-gradient(90deg, var(--accent), var(--accent-sub));
+    }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: bold;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .metric-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .m-block {
+      background: #0a0f1c;
+      padding: 10px;
+      border-radius: 8px;
+      flex: 1;
+      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .m-lbl {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .m-val {
+      font-size: 20px;
+      font-weight: bold;
+      color: var(--accent-sub);
+      margin-top: 4px;
+    }
+    input, button {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #090d16;
+      color: #fff;
+      font-size: 13px;
+    }
+    button {
+      background: var(--accent);
+      color: #04060a;
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: 0.2s;
+    }
+    button:hover {
+      background: #33ebff;
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: #182842;
+      color: #9bc0e7;
+      border: 1px solid #233b63;
+    }
+    .btn-secondary:hover {
+      background: #22375a;
+      color: #fff;
+    }
+    .btn-warn {
+      background: #d29922;
+      color: #000;
+    }
+    .btn-warn:hover {
+      background: #ebb034;
+    }
+    .memo-item {
+      background: #0a0f1c;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      margin-bottom: 6px;
+      color: #c0d2e8;
+      border-left: 2px solid var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>💎 Phoenix HoloDesk-S1 极客伴侣看板</h1>
+      <div class="badge" id="connStatus">● 局域网已连接</div>
+    </header>
+
+    <div class="selector">
+      <div class="pill-btn" id="tab-familiar" onclick="switchCartridge('familiar')">🐱 桌面使魔</div>
+      <div class="pill-btn" id="tab-memo" onclick="switchCartridge('memo')">💡 灵感外脑</div>
+      <div class="pill-btn" id="tab-clock" onclick="switchCartridge('clock')">⏰ 翻页时钟</div>
+      <div class="pill-btn" id="tab-zen" onclick="switchCartridge('zen')">🪷 赛博木鱼</div>
+    </div>
+
+    <div class="grid">
+      <!-- 使魔卡片 -->
+      <div class="card" id="card-familiar">
+        <div class="card-head">
+          <div class="card-title">🐱 桌面使魔萌宠</div>
+          <span class="badge" id="moodTag">陪伴中</span>
+        </div>
+        <div class="metric-row">
+          <div class="m-block"><div class="m-lbl">使魔亲密度</div><div class="m-val" id="affinityVal">--</div></div>
+          <div class="m-block"><div class="m-lbl">元气饱腹度</div><div class="m-val">95%</div></div>
+        </div>
+        <button class="btn-secondary" onclick="doAction('pet')">🐾 远程轻抚使魔撒娇</button>
+      </div>
+
+      <!-- 灵感外脑卡片 -->
+      <div class="card" id="card-memo">
+        <div class="card-head">
+          <div class="card-title">💡 灵感外脑速记</div>
+          <span class="badge" id="memoCountTag">3 条</span>
+        </div>
+        <div class="memo-item" id="lastMemo">正在同步端侧备忘...</div>
+        <input id="memoInput" type="text" placeholder="在此输入闪念，即刻存入端侧外脑">
+        <button onclick="addMemo()">💡 推入灵感外脑</button>
+      </div>
+
+      <!-- 翻页时钟卡片 -->
+      <div class="card" id="card-clock">
+        <div class="card-head">
+          <div class="card-title">⏰ 翻页时钟 & 专注流</div>
+          <span class="badge" id="pomoStatusTag">待命</span>
+        </div>
+        <div class="metric-row">
+          <div class="m-block"><div class="m-lbl">专注倒计时</div><div class="m-val" id="pomoRemain">--:--</div></div>
+          <div class="m-block"><div class="m-lbl">推理延迟</div><div class="m-val" id="latencyVal">-- ms</div></div>
+        </div>
+        <button class="btn-secondary" onclick="doAction('pomo_toggle')">🍅 开启 / 暂停番茄专注</button>
+      </div>
+
+      <!-- 赛博木鱼卡片 -->
+      <div class="card" id="card-zen">
+        <div class="card-head">
+          <div class="card-title">🪷 极客禅意木鱼</div>
+          <span class="badge">消除焦虑</span>
+        </div>
+        <div class="metric-row">
+          <div class="m-block"><div class="m-lbl">累计功德数</div><div class="m-val" id="meritVal">--</div></div>
+          <div class="m-block"><div class="m-lbl">消耗 Tokens</div><div class="m-val" id="tokensVal">--</div></div>
+        </div>
+        <button onclick="doAction('knock_fish')">🪷 敲击木鱼 (功德+1)</button>
+      </div>
+    </div>
+
+    <!-- Agent & 大模型配置中心 -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">⚙️ 云端大模型与 Agent 配置中心</div>
+        <span class="badge" id="cfgStatusBadge">端侧热加载</span>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; margin-bottom:10px;">
+        <div>
+          <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;">大模型 API Key:</div>
+          <input id="apiKey" type="password" placeholder="输入云端 API Key (如 sk-xxxx)">
+        </div>
+        <div>
+          <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;">大模型名称 (Model):</div>
+          <input id="modelName" type="text" placeholder="如 deepseek-chat 或 gpt-4o-mini">
+        </div>
+      </div>
+      <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;">Agent 系统人设提示词 (Prompt):</div>
+      <textarea id="agentPrompt" rows="2" style="width:100%; box-sizing:border-box; padding:10px; border-radius:8px; border:1px solid var(--border); background:#090d16; color:#fff; font-size:13px; resize:none;" placeholder="如：你是一个贴心的赛博桌面极客助手，语气温和简短"></textarea>
+      <div style="display:flex; gap:10px; margin-top:12px;">
+        <button onclick="saveAgentConfig()">💾 保存并热加载至开发板</button>
+        <button class="btn-warn" onclick="resetWifi()">📡 重置 Wi-Fi 并返回热点</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let curCard = 'familiar';
+
+    function refresh() {
+      fetch('/api/status').then(r => r.json()).then(d => {
+        const s = d.stats || {};
+        const c = d.cartridges || {};
+        curCard = d.active_cartridge || 'familiar';
+
+        document.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+        const activeBtn = document.getElementById('tab-' + curCard);
+        if (activeBtn) activeBtn.classList.add('active');
+
+        document.querySelectorAll('.card').forEach(c => c.classList.remove('highlight'));
+        const activeCard = document.getElementById('card-' + curCard);
+        if (activeCard) activeCard.classList.add('highlight');
+
+        if (c.familiar) {
+          document.getElementById('affinityVal').innerText = c.familiar.affinity || 88;
+        }
+        if (c.memo) {
+          document.getElementById('memoCountTag').innerText = (c.memo.count || 0) + ' 条';
+        }
+        if (c.zen) {
+          document.getElementById('meritVal').innerText = c.zen.total_merit || s.merit || 0;
+        }
+        if (c.clock) {
+          const sec = c.clock.remain_s || 0;
+          const m = String(Math.floor(sec / 60)).padStart(2, '0');
+          const sc = String(sec % 60).padStart(2, '0');
+          document.getElementById('pomoRemain').innerText = c.clock.is_pomodoro ? (m + ':' + sc) : '25:00';
+          document.getElementById('pomoStatusTag').innerText = c.clock.is_pomodoro ? '🍅 专注中' : '待机';
+        }
+        document.getElementById('tokensVal').innerText = s.total_tokens || 0;
+        document.getElementById('latencyVal').innerText = (s.last_latency_ms || 0) + ' ms';
+      }).catch(e => {});
+    }
+
+    setInterval(refresh, 1500);
+    refresh();
+
+    function switchCartridge(id) {
+      fetch('/api/cartridge/switch', {
+        method: 'POST',
+        body: JSON.stringify({id: id})
+      }).then(() => refresh());
+    }
+
+    function doAction(act) {
+      fetch('/api/action', {
+        method: 'POST',
+        body: JSON.stringify({action: act})
+      }).then(() => refresh());
+    }
+
+    function addMemo() {
+      const t = document.getElementById('memoInput').value.trim();
+      if (!t) return;
+      fetch('/api/memo/add', {
+        method: 'POST',
+        body: JSON.stringify({content: t})
+      }).then(() => {
+        document.getElementById('lastMemo').innerText = t;
+        document.getElementById('memoInput').value = '';
+        refresh();
+      });
+    }
+
+    function loadConfig() {
+      fetch('/api/config').then(r => r.json()).then(d => {
+        if (d.has_key && d.api_key_masked) {
+          document.getElementById('apiKey').placeholder = '已配置 (' + d.api_key_masked + ')';
+        }
+        if (d.model) {
+          document.getElementById('modelName').value = d.model;
+        }
+        if (d.prompt) {
+          document.getElementById('agentPrompt').value = d.prompt;
+        }
+      }).catch(e => {});
+    }
+
+    function saveAgentConfig() {
+      const k = document.getElementById('apiKey').value.trim();
+      const m = document.getElementById('modelName').value.trim();
+      const pr = document.getElementById('agentPrompt').value.trim();
+      fetch('/api/config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({api_key: k, model: m, prompt: pr})
+      }).then(r => r.json()).then(d => {
+        alert('✅ Agent 配置已保存并热加载至开发板！');
+        loadConfig();
+      }).catch(e => alert('保存失败'));
+    }
+
+    function resetWifi() {
+      if (confirm('确认重置 Wi-Fi 并返回 SoftAP 独立热点配网模式？')) {
+        fetch('/api/wifi/reset', {method: 'POST'}).then(() => alert('设备正在重置网络并开启热点...'));
+      }
+    }
+
+    loadConfig();
+  </script>
+</body>
+</html>

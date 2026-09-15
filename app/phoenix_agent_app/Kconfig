@@ -1,0 +1,12 @@
+#
+# Phoenix Agent App for OpenVela
+# Contest 2026 team 145
+#
+
+config LVX_USE_DEMO_CONTEST2026_145_PHOENIX_AGENT_APP
+	bool "Contest 2026 team 145 Phoenix Agent App"
+	default n
+	depends on GRAPHICS_LVGL
+	select LIBUV
+	---help---
+		Enable the Phoenix Agent (AI IoT Assistant) LVGL application.
