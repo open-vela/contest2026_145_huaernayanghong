@@ -139,6 +139,9 @@ typedef struct {
     lv_obj_t *lbl_hotspot_btn;
     lv_obj_t *sec_sys_box;
     lv_obj_t *card_sys_info;
+    lv_obj_t *lbl_sys_uptime;
+    lv_obj_t *lbl_sys_cpu;
+    lv_obj_t *lbl_sys_fps;
     lv_obj_t *sec_agent_box;
     lv_obj_t *sec_store_box;
     lv_obj_t *handle_bar;

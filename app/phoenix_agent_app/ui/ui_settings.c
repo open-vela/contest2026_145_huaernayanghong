@@ -8,6 +8,7 @@
 #include "../hal/network_mgr.h"
 #include "../hal/ble_prov_service.h"
 #include "../hal/hal_manager.h"
+#include "../hal/hal_system.h"
 #include "../core/config.h"
 #include "../utils/log_utils.h"
 #include <stdio.h>
@@ -814,24 +815,30 @@ void ui_settings_refresh_data(ui_settings_t *settings)
     }
 
     /* 3. 刷新系统遥测与大模型页面 */
-    hal_sys_info_t sys;
-    if (hal_system_get_info(&sys) == 0) {
+    hal_system_telemetry_t sys;
+    memset(&sys, 0, sizeof(sys));
+    if (hal_system_get_telemetry(&sys) == 0) {
         if (settings->lbl_system_uptime) {
-            uint32_t s = sys.uptime_sec;
+            uint64_t s = sys.uptime_seconds;
             char ubuf[64];
-            snprintf(ubuf, sizeof(ubuf), "运行时长: %02u:%02u:%02u", s / 3600, (s % 3600) / 60, s % 60);
+            snprintf(ubuf, sizeof(ubuf), "运行时长: %02u:%02u:%02u",
+                     (unsigned int)(s / 3600),
+                     (unsigned int)((s % 3600) / 60),
+                     (unsigned int)(s % 60));
             lv_label_set_text(settings->lbl_system_uptime, ubuf);
         }
         if (settings->lbl_system_cpu) {
             char cbuf[64];
-            snprintf(cbuf, sizeof(cbuf), "CPU 负载: %u%% | 状态正常", sys.cpu_usage_pct);
+            snprintf(cbuf, sizeof(cbuf), "CPU: %uMHz | 负载: %u%%",
+                     (unsigned int)sys.cpu_freq_mhz,
+                     (unsigned int)sys.mem_used_pct);
             lv_label_set_text(settings->lbl_system_cpu, cbuf);
         }
         if (settings->lbl_system_ram) {
             char rbuf[64];
-            float free_mb = (float)sys.free_ram_bytes / (1024.0f * 1024.0f);
-            float total_mb = (float)sys.total_ram_bytes / (1024.0f * 1024.0f);
-            snprintf(rbuf, sizeof(rbuf), "RAM 剩余: %.1fMB / %.1fMB", free_mb, total_mb);
+            float used_mb = (float)(sys.mem_total_kb - sys.mem_free_kb) / 1024.0f;
+            float total_mb = (float)sys.mem_total_kb / 1024.0f;
+            snprintf(rbuf, sizeof(rbuf), "RAM 内存: %.1fMB / %.1fMB", used_mb, total_mb);
             lv_label_set_text(settings->lbl_system_ram, rbuf);
         }
     }
