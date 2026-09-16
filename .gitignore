@@ -7,3 +7,4 @@ app/phoenix_agent_app/test/phoenix_host_test
 .built
 build/
 out/
+rebuild.sh
