@@ -18,6 +18,19 @@ extern "C" {
 #define PHOENIX_STANDARD_HTTP_PORT 80
 #define PHOENIX_DEFAULT_WEB_PORT   8080
 
+typedef enum {
+    WEB_CMD_NONE = 0,
+    WEB_CMD_SWITCH_CARTRIDGE,
+    WEB_CMD_ADD_MEMO,
+    WEB_CMD_ACTION
+} web_cmd_type_t;
+
+/** 入队异步 Web 远程交互指令 */
+void phoenix_web_portal_enqueue_cmd(web_cmd_type_t type, const char *param);
+
+/** 探测当前调用是否运行在 Web Server 背景工作线程内 */
+bool phoenix_web_portal_in_server_thread(void);
+
 /**
  * @brief Start the background embedded Web Portal HTTP server
  * @param port TCP port (e.g. 8080), or 0 for default

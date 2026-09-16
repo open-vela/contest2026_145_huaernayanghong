@@ -225,6 +225,9 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
         case PHOENIX_EVT_POMODORO_TICK:
             ui->pomodoro_active = event->data.stats.is_active;
             ui->pomodoro_remain_s = event->data.stats.remaining_s;
+            if (ui->capsule) {
+                ui_capsule_update_pomodoro(ui->capsule, ui->pomodoro_active, ui->pomodoro_remain_s);
+            }
             refresh_status_capsule(ui);
             break;
 
@@ -241,7 +244,16 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
             }
             break;
 
-        case PHOENIX_EVT_CARTRIDGE_SWITCHED:
+        case PHOENIX_EVT_CARTRIDGE_SWITCHED: {
+            static size_t s_prev_index = 0;
+            bool slide_to_left = (event->data.cartridge.index >= s_prev_index);
+            s_prev_index = event->data.cartridge.index;
+
+            /* 驱动舞台执行平滑进场动效 */
+            if (ui->stage) {
+                ui_stage_play_enter_anim(ui->stage, slide_to_left);
+            }
+
             if (ui->capsule) {
                 ui_capsule_update_cartridge(ui->capsule, 
                                             event->data.cartridge.name, 
@@ -249,6 +261,7 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
                 ui_capsule_set_status(ui->capsule, "● 已载入", COLOR_HEALTH_GREEN, false);
             }
             break;
+        }
 
         default:
             break;

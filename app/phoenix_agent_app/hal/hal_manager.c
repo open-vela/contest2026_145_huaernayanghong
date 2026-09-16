@@ -52,6 +52,7 @@ int hal_init(const hal_config_t *config)
 
     /* 2. Initialize subsystems */
     hal_system_init();
+    hal_sdcard_init();
     hal_actuator_init(sound_root);
     hal_sensor_init();
 
@@ -67,6 +68,7 @@ void hal_deinit(void)
     printf("[HAL:Manager] 🔄 De-initializing HAL Subsystems...\n");
     hal_sensor_deinit();
     hal_actuator_deinit();
+    hal_sdcard_deinit();
     hal_system_deinit();
 
     g_hal_initialized = false;

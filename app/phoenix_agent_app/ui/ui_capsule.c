@@ -17,6 +17,35 @@
 #define COLOR_ACCENT_CYAN    lv_color_hex(0x00e5ff)
 #define COLOR_HEALTH_GREEN   lv_color_hex(0x00e676)
 
+static void wave_timer_cb(lv_timer_t *t)
+{
+    ui_capsule_t *capsule = (ui_capsule_t *)lv_timer_get_user_data(t);
+    if (!capsule || !capsule->is_wave_active) return;
+
+    for (int i = 0; i < 3; i++) {
+        if (capsule->wave_bars[i]) {
+            int32_t h = 3 + (rand() % 9); /* 3px ~ 11px */
+            lv_obj_set_height(capsule->wave_bars[i], h);
+        }
+    }
+}
+
+static void breath_timer_cb(lv_timer_t *t)
+{
+    ui_capsule_t *capsule = (ui_capsule_t *)lv_timer_get_user_data(t);
+    if (!capsule || !capsule->lbl_telemetry) return;
+
+    capsule->breath_val += capsule->breath_step;
+    if (capsule->breath_val >= 255) {
+        capsule->breath_val = 255;
+        capsule->breath_step = -12;
+    } else if (capsule->breath_val <= 60) {
+        capsule->breath_val = 60;
+        capsule->breath_step = 12;
+    }
+    lv_obj_set_style_text_opa(capsule->lbl_telemetry, (lv_opa_t)capsule->breath_val, LV_PART_MAIN);
+}
+
 ui_capsule_t* ui_capsule_create(lv_obj_t *parent, const lv_font_t *font)
 {
     if (!parent) return NULL;
@@ -29,6 +58,8 @@ ui_capsule_t* ui_capsule_create(lv_obj_t *parent, const lv_font_t *font)
     capsule->current_humi_pct = 60;
     capsule->current_battery = 85;
     strncpy(capsule->current_net_str, "Wi-Fi", sizeof(capsule->current_net_str) - 1);
+    capsule->breath_val = 255;
+    capsule->breath_step = -12;
 
     /* 1. 极窄高透外壳容器 (高度 22px，圆角胶囊风格) */
     capsule->container = lv_obj_create(parent);
@@ -67,6 +98,18 @@ ui_capsule_t* ui_capsule_create(lv_obj_t *parent, const lv_font_t *font)
     lv_obj_set_style_pad_ver(capsule->pill_status, 0, LV_PART_MAIN);
     lv_obj_clear_flag(capsule->pill_status, LV_OBJ_FLAG_SCROLLABLE);
 
+    /* 3 根微型音频跳动波形条 */
+    for (int i = 0; i < 3; i++) {
+        capsule->wave_bars[i] = lv_obj_create(capsule->pill_status);
+        lv_obj_set_size(capsule->wave_bars[i], 2, 4);
+        lv_obj_align(capsule->wave_bars[i], LV_ALIGN_LEFT_MID, 4 + i * 4, 0);
+        lv_obj_set_style_bg_color(capsule->wave_bars[i], lv_color_hex(0x00E5FF), LV_PART_MAIN);
+        lv_obj_set_style_border_width(capsule->wave_bars[i], 0, LV_PART_MAIN);
+        lv_obj_set_style_radius(capsule->wave_bars[i], 1, LV_PART_MAIN);
+        lv_obj_clear_flag(capsule->wave_bars[i], LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(capsule->wave_bars[i], LV_OBJ_FLAG_HIDDEN);
+    }
+
     capsule->lbl_status = lv_label_create(capsule->pill_status);
     lv_obj_center(capsule->lbl_status);
     if (font) lv_obj_set_style_text_font(capsule->lbl_status, font, LV_PART_MAIN);
@@ -84,6 +127,8 @@ ui_capsule_t* ui_capsule_create(lv_obj_t *parent, const lv_font_t *font)
 
     capsule->dim_timer = NULL;
     capsule->is_dimmed = false;
+    capsule->wave_timer = NULL;
+    capsule->breath_timer = NULL;
 
     return capsule;
 }
@@ -91,6 +136,14 @@ ui_capsule_t* ui_capsule_create(lv_obj_t *parent, const lv_font_t *font)
 void ui_capsule_destroy(ui_capsule_t *capsule)
 {
     if (!capsule) return;
+    if (capsule->wave_timer) {
+        lv_timer_del(capsule->wave_timer);
+        capsule->wave_timer = NULL;
+    }
+    if (capsule->breath_timer) {
+        lv_timer_del(capsule->breath_timer);
+        capsule->breath_timer = NULL;
+    }
     if (capsule->container) {
         lv_obj_del(capsule->container);
         capsule->container = NULL;
@@ -129,12 +182,62 @@ void ui_capsule_update_cartridge(ui_capsule_t *capsule, const char *name, const 
 
 void ui_capsule_set_status(ui_capsule_t *capsule, const char *text, lv_color_t color, bool pulse)
 {
-    (void)pulse;
     if (!capsule || !capsule->lbl_status) return;
     ui_capsule_wake(capsule);
 
+    /* 判定是否需要启动声波跳动动画 (如聆听、语音交互、录音、pulse) */
+    bool should_wave = pulse;
+    if (text && (strstr(text, "聆听") || strstr(text, "录") || strstr(text, "🎙️") || strstr(text, "思考"))) {
+        should_wave = true;
+    }
+
+    if (should_wave && !capsule->is_wave_active) {
+        capsule->is_wave_active = true;
+        for (int i = 0; i < 3; i++) {
+            if (capsule->wave_bars[i]) {
+                lv_obj_clear_flag(capsule->wave_bars[i], LV_OBJ_FLAG_HIDDEN);
+            }
+        }
+        if (!capsule->wave_timer) {
+            capsule->wave_timer = lv_timer_create(wave_timer_cb, 80, capsule);
+        } else {
+            lv_timer_resume(capsule->wave_timer);
+        }
+        lv_obj_align(capsule->lbl_status, LV_ALIGN_RIGHT_MID, -2, 0);
+    } else if (!should_wave && capsule->is_wave_active) {
+        capsule->is_wave_active = false;
+        for (int i = 0; i < 3; i++) {
+            if (capsule->wave_bars[i]) {
+                lv_obj_add_flag(capsule->wave_bars[i], LV_OBJ_FLAG_HIDDEN);
+            }
+        }
+        if (capsule->wave_timer) {
+            lv_timer_pause(capsule->wave_timer);
+        }
+        lv_obj_center(capsule->lbl_status);
+    }
+
     lv_label_set_text(capsule->lbl_status, text ? text : "● 待命");
     lv_obj_set_style_text_color(capsule->lbl_status, color, LV_PART_MAIN);
+}
+
+void ui_capsule_update_pomodoro(ui_capsule_t *capsule, bool is_active, uint16_t remaining_s)
+{
+    if (!capsule || !capsule->lbl_status) return;
+    capsule->pomo_active = is_active;
+    capsule->pomo_remaining_s = remaining_s;
+
+    if (is_active && !capsule->is_wave_active) {
+        char pbuf[32];
+        uint16_t min = remaining_s / 60;
+        uint16_t sec = remaining_s % 60;
+        snprintf(pbuf, sizeof(pbuf), "🍅 %02u:%02u", min, sec);
+        lv_label_set_text(capsule->lbl_status, pbuf);
+        lv_obj_set_style_text_color(capsule->lbl_status, lv_color_hex(0xFF7043), LV_PART_MAIN);
+        lv_obj_set_style_border_color(capsule->pill_status, lv_color_hex(0x663319), LV_PART_MAIN);
+    } else if (!is_active && !capsule->is_wave_active) {
+        lv_obj_set_style_border_color(capsule->pill_status, lv_color_hex(0x223650), LV_PART_MAIN);
+    }
 }
 
 void ui_capsule_update_net_battery(ui_capsule_t *capsule, const char *net_status, uint8_t battery_pct)
@@ -146,6 +249,23 @@ void ui_capsule_update_net_battery(ui_capsule_t *capsule, const char *net_status
     capsule->current_battery = battery_pct;
     if (net_status && net_status[0]) {
         strncpy(capsule->current_net_str, net_status, sizeof(capsule->current_net_str) - 1);
+    }
+
+    /* 呼吸微光逻辑：若为 SoftAP 配网或未连接，启动呼吸微光 */
+    bool is_connecting = (strstr(capsule->current_net_str, "SoftAP") != NULL ||
+                          strstr(capsule->current_net_str, "扫") != NULL ||
+                          strstr(capsule->current_net_str, "未") != NULL);
+    if (is_connecting) {
+        if (!capsule->breath_timer) {
+            capsule->breath_timer = lv_timer_create(breath_timer_cb, 60, capsule);
+        } else {
+            lv_timer_resume(capsule->breath_timer);
+        }
+    } else {
+        if (capsule->breath_timer) {
+            lv_timer_pause(capsule->breath_timer);
+        }
+        lv_obj_set_style_text_opa(capsule->lbl_telemetry, LV_OPA_COVER, LV_PART_MAIN);
     }
 
     char buf[32];

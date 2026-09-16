@@ -27,6 +27,20 @@ typedef struct {
     const lv_font_t *font;
     bool is_dimmed;
 
+    /* 动态音频跳动波形条 (3 根微柱) */
+    lv_obj_t   *wave_bars[3];
+    lv_timer_t *wave_timer;
+    bool        is_wave_active;
+
+    /* Wi-Fi 呼吸微光 */
+    lv_timer_t *breath_timer;
+    int16_t     breath_val;
+    int8_t      breath_step;
+
+    /* 番茄钟后台专注微标常驻 */
+    bool        pomo_active;
+    uint16_t    pomo_remaining_s;
+
     float   current_temp_c;
     uint8_t current_humi_pct;
     uint8_t current_battery;
@@ -54,6 +68,14 @@ void ui_capsule_destroy(ui_capsule_t *capsule);
  * @param humidity_pct 相对湿度百分比 (0~100)
  */
 void ui_capsule_update_env(ui_capsule_t *capsule, float temp_c, uint8_t humidity_pct);
+
+/**
+ * @brief 更新番茄钟专注流微标与倒计时
+ * @param capsule 胶囊上下文
+ * @param is_active 是否运行中
+ * @param remaining_s 剩余秒数
+ */
+void ui_capsule_update_pomodoro(ui_capsule_t *capsule, bool is_active, uint16_t remaining_s);
 
 /**
  * @brief 更新当前卡带展示 (兼容保留)

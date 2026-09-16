@@ -232,3 +232,31 @@ void ui_stage_transition_to(ui_stage_t *stage, lv_obj_t *new_view, bool slide_to
         lv_anim_start(&a_exit);
     }
 }
+
+void ui_stage_play_enter_anim(ui_stage_t *stage, bool slide_to_left)
+{
+    if (!stage || !stage->container) return;
+
+    uint32_t cnt = lv_obj_get_child_count(stage->container);
+    if (cnt == 0) return;
+
+    lv_obj_t *top_view = lv_obj_get_child(stage->container, (int32_t)cnt - 1);
+    if (!top_view) return;
+
+    lv_coord_t w = lv_obj_get_width(stage->container);
+    if (w <= 0) w = 320;
+
+    lv_coord_t enter_start_x = slide_to_left ? w : -w;
+
+    lv_anim_del(top_view, NULL);
+    lv_obj_set_x(top_view, enter_start_x);
+
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, top_view);
+    lv_anim_set_values(&a, enter_start_x, 0);
+    lv_anim_set_time(&a, STAGE_ANIM_DURATION_MS);
+    lv_anim_set_exec_cb(&a, stage_anim_cb);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_start(&a);
+}

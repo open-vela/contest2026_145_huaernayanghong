@@ -77,6 +77,13 @@ void ui_stage_set_swipe_down_cb(ui_stage_t *stage, ui_stage_swipe_down_cb_t cb, 
  */
 void ui_stage_transition_to(ui_stage_t *stage, lv_obj_t *new_view, bool slide_to_left);
 
+/**
+ * @brief 驱动当前舞台顶部卡带视图执行平滑推拉进场过渡动效
+ * @param stage 舞台上下文
+ * @param slide_to_left true=从右往左滑入, false=从左往右滑入
+ */
+void ui_stage_play_enter_anim(ui_stage_t *stage, bool slide_to_left);
+
 #ifdef __cplusplus
 }
 #endif

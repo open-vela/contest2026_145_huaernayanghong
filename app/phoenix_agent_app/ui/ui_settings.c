@@ -23,6 +23,19 @@ static void anim_y_cb(void *var, int32_t val)
     lv_obj_set_y((lv_obj_t *)var, (lv_coord_t)val);
 }
 
+static void anim_mask_opa_cb(void *var, int32_t val)
+{
+    if (var) lv_obj_set_style_bg_opa((lv_obj_t *)var, (lv_opa_t)val, 0);
+}
+
+static void anim_mask_close_ready_cb(lv_anim_t *a)
+{
+    lv_obj_t *mask = (lv_obj_t *)a->var;
+    if (mask) {
+        lv_obj_add_flag(mask, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
 static void on_mask_clicked(lv_event_t *e)
 {
     ui_settings_t *s = (ui_settings_t *)lv_event_get_user_data(e);
@@ -257,11 +270,20 @@ void ui_settings_open(ui_settings_t *settings)
     settings->is_open = true;
     ui_settings_refresh_data(settings);
 
-    /* 展现遮罩并置顶 */
+    /* 展现遮罩并启动渐变暗光动画 (0 -> 160) */
     if (settings->mask_bg) {
+        lv_anim_del(settings->mask_bg, NULL);
         lv_obj_clear_flag(settings->mask_bg, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_style_bg_opa(settings->mask_bg, LV_OPA_50, 0);
         lv_obj_move_foreground(settings->mask_bg);
+
+        lv_anim_t a_mask;
+        lv_anim_init(&a_mask);
+        lv_anim_set_var(&a_mask, settings->mask_bg);
+        lv_anim_set_values(&a_mask, lv_obj_get_style_bg_opa(settings->mask_bg, 0), LV_OPA_60);
+        lv_anim_set_time(&a_mask, 240);
+        lv_anim_set_exec_cb(&a_mask, anim_mask_opa_cb);
+        lv_anim_set_path_cb(&a_mask, lv_anim_path_ease_out);
+        lv_anim_start(&a_mask);
     }
     lv_obj_move_foreground(settings->drawer);
 
@@ -297,8 +319,16 @@ void ui_settings_close(ui_settings_t *settings)
     lv_anim_start(&a);
 
     if (settings->mask_bg) {
-        lv_obj_set_style_bg_opa(settings->mask_bg, LV_OPA_0, 0);
-        lv_obj_add_flag(settings->mask_bg, LV_OBJ_FLAG_HIDDEN);
+        lv_anim_del(settings->mask_bg, NULL);
+        lv_anim_t a_mask;
+        lv_anim_init(&a_mask);
+        lv_anim_set_var(&a_mask, settings->mask_bg);
+        lv_anim_set_values(&a_mask, lv_obj_get_style_bg_opa(settings->mask_bg, 0), LV_OPA_0);
+        lv_anim_set_time(&a_mask, 200);
+        lv_anim_set_exec_cb(&a_mask, anim_mask_opa_cb);
+        lv_anim_set_ready_cb(&a_mask, anim_mask_close_ready_cb);
+        lv_anim_set_path_cb(&a_mask, lv_anim_path_ease_in);
+        lv_anim_start(&a_mask);
     }
 
     LOG_I(TAG, "控制中心抽屉已收起");

@@ -42,6 +42,8 @@
 #  include "../utils/ring_buffer.h"
 #  include "../utils/time_utils.h"
 #  include "../utils/log_utils.h"
+#  include "../hal/hal_system.h"
+#  include "../hal/hal_sdcard.h"
 #else
 #  include "core/app.h"
 #  include "core/event_bus.h"
@@ -61,6 +63,8 @@
 #  include "hal/hal_manager.h"
 #  include "hal/drivers/hal_driver_mock.h"
 #  include "hal/hal_audio_in.h"
+#  include "hal/hal_system.h"
+#  include "hal/hal_sdcard.h"
 #  include "perception/perception.h"
 #  include "voice/voice_pipeline.h"
 #  include "utils/ring_buffer.h"
@@ -1563,9 +1567,150 @@ static void run_test_four_cartridges(void)
     assert(strcmp(cartridge_mgr_get_current()->ops.id, "clock") == 0);
     printf("  -> Continuous Loop Reverse Rotation (agent -> clock) PASSED!\n");
 
+    /* 6. Test background Pomodoro Service persistence across cartridges */
+    assert(pomodoro_service_start(25) == 0);
+    assert(pomodoro_service_is_active() == true);
+    uint16_t rem_before = pomodoro_service_get_remaining();
+    assert(rem_before == 25 * 60);
+
+    /* 即使前台卡带为 agent/home，系统后台心跳持续流转，倒计时不丢 */
+    pomodoro_service_tick_1s();
+    uint16_t rem_after = pomodoro_service_get_remaining();
+    assert(rem_after == rem_before - 1);
+    assert(pomodoro_service_is_active() == true);
+    pomodoro_service_stop();
+    assert(pomodoro_service_is_active() == false);
+    printf("  -> Background Pomodoro Service across Cartridges PASSED!\n");
+
     cartridge_mgr_deinit();
     phoenix_agent_core_destroy(agent);
     printf("  -> Core Cartridges & Swipe Navigation PASSED!\n");
+}
+
+/* ---- 25. TF Card Hardware Abstraction & Web File Management Test ---- */
+static void run_test_sdcard_storage_and_web_mgmt(void)
+{
+    printf("\n[TEST 25] Testing TF Card HAL & Web File Management Subsystem...\n");
+
+    /* 1. Test Base Paths & Recursive Mkdir */
+    const char *data_base = hal_system_get_storage_base_path();
+    const char *temp_base = hal_system_get_temp_base_path();
+    assert(data_base != NULL && strlen(data_base) > 0);
+    assert(temp_base != NULL && strlen(temp_base) > 0);
+
+    int mret = hal_system_mkdir_p("/tmp/phoenix_test_mkdir/sub1/sub2", 0755);
+    assert(mret == 0);
+    struct stat st;
+    assert(stat("/tmp/phoenix_test_mkdir/sub1/sub2", &st) == 0 && S_ISDIR(st.st_mode));
+    printf("  -> Base Storage & Recursive mkdir_p PASSED!\n");
+
+    /* 2. Test TF Card HAL Initialization & Detection */
+    int sret = hal_sdcard_init();
+    assert(sret == 0);
+    assert(hal_sdcard_is_mounted() == true);
+
+    hal_sdcard_info_t info;
+    memset(&info, 0, sizeof(info));
+    int iret = hal_sdcard_get_info(&info);
+    assert(iret == 0);
+    assert(info.is_mounted == true);
+    assert(strlen(info.mount_point) > 0);
+    assert(info.total_mb > 0);
+    printf("  -> TF Card Detection & Telemetry (Mount: %s, Total: %u MB) PASSED!\n", info.mount_point, (unsigned int)info.total_mb);
+
+    /* 3. Test Auto Ensure Recommended Directories */
+    assert(hal_sdcard_ensure_dirs() == 0);
+    char chk_path[512];
+    snprintf(chk_path, sizeof(chk_path), "%s/sounds", info.mount_point);
+    assert(stat(chk_path, &st) == 0 && S_ISDIR(st.st_mode));
+    printf("  -> TF Card Recommended Dirs Auto-Creation PASSED!\n");
+
+    /* 4. Test Path Resolution & Directory Traversal Protection */
+    char resolved[512];
+    assert(hal_sdcard_resolve_path("/sounds/test.wav", resolved, sizeof(resolved)) == 0);
+    assert(strstr(resolved, info.mount_point) != NULL);
+
+    /* Security check: Must reject directory traversal */
+    assert(hal_sdcard_resolve_path("../../../etc/passwd", resolved, sizeof(resolved)) < 0);
+    assert(hal_sdcard_resolve_path("/../etc/shadow", resolved, sizeof(resolved)) < 0);
+    printf("  -> Path Resolution & Directory Traversal Protection PASSED!\n");
+
+    /* 5. Test Web Portal TF Card REST APIs */
+    phoenix_app_config_t cfg = {
+        .storage_dir = "/tmp/phoenix_test_sdcard_web",
+        .sounds_dir = "/tmp",
+        .api_key = NULL,
+        .register_tools = true,
+        .enable_web_portal = true,
+        .web_port = 8089
+    };
+    system("rm -rf /tmp/phoenix_test_sdcard_web");
+    assert(phoenix_app_init(&cfg) == 0);
+
+    char resp_buf[16384];
+
+    /* 5.1 GET /api/sdcard/status */
+    const char *req_status = "GET /api/sdcard/status HTTP/1.1\r\nHost: localhost\r\n\r\n";
+    int rlen = phoenix_web_portal_handle_request(req_status, resp_buf, sizeof(resp_buf));
+    assert(rlen > 0);
+    assert(strstr(resp_buf, "HTTP/1.1 200 OK") != NULL);
+    assert(strstr(resp_buf, "\"mounted\":true") != NULL);
+    assert(strstr(resp_buf, "\"recommend_dirs\"") != NULL);
+    printf("  -> GET /api/sdcard/status PASSED!\n");
+
+    /* 5.2 POST /api/sdcard/mkdir (Create /docs/unit_test_dir) */
+    const char *req_mkdir = "POST /api/sdcard/mkdir HTTP/1.1\r\nHost: localhost\r\nContent-Length: 32\r\n\r\n{\"path\":\"/docs/unit_test_dir\"}";
+    rlen = phoenix_web_portal_handle_request(req_mkdir, resp_buf, sizeof(resp_buf));
+    assert(rlen > 0);
+    assert(strstr(resp_buf, "HTTP/1.1 200 OK") != NULL);
+    assert(strstr(resp_buf, "Directory created") != NULL);
+    printf("  -> POST /api/sdcard/mkdir PASSED!\n");
+
+    /* 5.3 POST /api/sdcard/upload (Upload hello.txt) */
+    const char *req_upload = "POST /api/sdcard/upload HTTP/1.1\r\nHost: localhost\r\nContent-Length: 85\r\n\r\n{\"path\":\"/docs/unit_test_dir/hello.txt\",\"content\":\"Phoenix HoloDesk-S1 TF Card Storage\"}";
+    rlen = phoenix_web_portal_handle_request(req_upload, resp_buf, sizeof(resp_buf));
+    assert(rlen > 0);
+    assert(strstr(resp_buf, "HTTP/1.1 200 OK") != NULL);
+    assert(strstr(resp_buf, "\"bytes_written\":35") != NULL);
+    printf("  -> POST /api/sdcard/upload PASSED!\n");
+
+    /* 5.4 GET /api/sdcard/list?path=/docs/unit_test_dir */
+    const char *req_list = "GET /api/sdcard/list?path=/docs/unit_test_dir HTTP/1.1\r\nHost: localhost\r\n\r\n";
+    rlen = phoenix_web_portal_handle_request(req_list, resp_buf, sizeof(resp_buf));
+    assert(rlen > 0);
+    assert(strstr(resp_buf, "HTTP/1.1 200 OK") != NULL);
+    assert(strstr(resp_buf, "hello.txt") != NULL);
+    assert(strstr(resp_buf, "\"is_dir\":false") != NULL);
+    printf("  -> GET /api/sdcard/list PASSED!\n");
+
+    /* 5.5 GET /api/sdcard/download?path=/docs/unit_test_dir/hello.txt */
+    const char *req_dl = "GET /api/sdcard/download?path=/docs/unit_test_dir/hello.txt HTTP/1.1\r\nHost: localhost\r\n\r\n";
+    rlen = phoenix_web_portal_handle_request(req_dl, resp_buf, sizeof(resp_buf));
+    assert(rlen > 0);
+    assert(strstr(resp_buf, "HTTP/1.1 200 OK") != NULL);
+    assert(strstr(resp_buf, "attachment; filename=\"hello.txt\"") != NULL);
+    assert(strstr(resp_buf, "Phoenix HoloDesk-S1 TF Card Storage") != NULL);
+    printf("  -> GET /api/sdcard/download PASSED!\n");
+
+    /* 5.6 GET /api/status (Verify storage node included) */
+    const char *req_dash_status = "GET /api/status HTTP/1.1\r\nHost: localhost\r\n\r\n";
+    rlen = phoenix_web_portal_handle_request(req_dash_status, resp_buf, sizeof(resp_buf));
+    assert(rlen > 0);
+    assert(strstr(resp_buf, "\"storage\":{") != NULL);
+    assert(strstr(resp_buf, "\"sdcard_mounted\":true") != NULL);
+    printf("  -> GET /api/status (Storage Telemetry Verification) PASSED!\n");
+
+    /* 5.7 POST /api/sdcard/delete (Delete hello.txt) */
+    const char *req_del = "POST /api/sdcard/delete HTTP/1.1\r\nHost: localhost\r\nContent-Length: 42\r\n\r\n{\"path\":\"/docs/unit_test_dir/hello.txt\"}";
+    rlen = phoenix_web_portal_handle_request(req_del, resp_buf, sizeof(resp_buf));
+    assert(rlen > 0);
+    assert(strstr(resp_buf, "HTTP/1.1 200 OK") != NULL);
+    assert(strstr(resp_buf, "Deleted successfully") != NULL);
+    printf("  -> POST /api/sdcard/delete PASSED!\n");
+
+    phoenix_app_deinit();
+    hal_sdcard_deinit();
+    printf("  -> TF Card HAL & Web File Management Subsystem PASSED!\n");
 }
 
 int main(int argc, char *argv[])
@@ -1605,8 +1750,9 @@ int main(int argc, char *argv[])
     run_test_cartridge_mgr();
     run_test_network_mgr();
     run_test_four_cartridges();
+    run_test_sdcard_storage_and_web_mgmt();
 
-    printf("\n🎉 ALL 24 UNIT TESTS PASSED SUCCESSFULLY!\n");
+    printf("\n🎉 ALL 25 UNIT TESTS PASSED SUCCESSFULLY!\n");
 
     /* If --repl or -i passed, enter interactive mode */
     if (argc > 1 && (strcmp(argv[1], "-i") == 0 || strcmp(argv[1], "--repl") == 0)) {

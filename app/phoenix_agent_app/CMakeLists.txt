@@ -36,12 +36,20 @@ if(CONFIG_LVX_USE_DEMO_CONTEST2026_145_PHOENIX_AGENT_APP)
       cartridges/cartridge_clock.c
       cartridges/cartridge_agent.c
       core/web_assets.c
+      core/web_router.c
+      core/web_api/api_system.c
+      core/web_api/api_wifi.c
+      core/web_api/api_cartridge.c
+      core/web_api/api_config.c
+      core/web_api/api_logs.c
+      core/web_api/api_sdcard.c
       core/web_portal.c
       core/app.c
       hal/hal_sensor.c
       hal/hal_actuator.c
       hal/hal_audio_in.c
       hal/hal_system.c
+      hal/hal_sdcard.c
       hal/hal_manager.c
       hal/network_mgr.c
       hal/drivers/hal_driver_mock.c

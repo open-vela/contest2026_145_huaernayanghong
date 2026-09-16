@@ -11,6 +11,7 @@
 #include "hal_sensor.h"
 #include "hal_actuator.h"
 #include "hal_system.h"
+#include "hal_sdcard.h"
 
 #ifdef __cplusplus
 extern "C" {

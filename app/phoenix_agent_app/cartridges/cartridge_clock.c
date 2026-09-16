@@ -13,6 +13,7 @@
 #  include "core/cartridge_mgr.h"
 #  include "core/event_bus.h"
 #  include "core/tool_registry.h"
+#  include "tools/tools.h"
 #  include "utils/time_utils.h"
 #  include "utils/log_utils.h"
 #else
@@ -20,6 +21,7 @@
 #  include "../core/cartridge_mgr.h"
 #  include "../core/event_bus.h"
 #  include "../core/tool_registry.h"
+#  include "../tools/tools.h"
 #  include "../utils/time_utils.h"
 #  include "../utils/log_utils.h"
 #endif
@@ -139,13 +141,20 @@ static int clock_on_load(lv_obj_t *stage_parent)
     lv_obj_set_style_pad_all(s_ui.card_hour, 0, 0);
     lv_obj_clear_flag(s_ui.card_hour, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* 小时卡牌中间物理折痕 */
-    lv_obj_t *crease_h = lv_obj_create(s_ui.card_hour);
-    lv_obj_set_size(crease_h, LV_PCT(100), 2);
-    lv_obj_align(crease_h, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_bg_color(crease_h, lv_color_hex(0x060910), 0);
-    lv_obj_set_style_border_width(crease_h, 0, 0);
-    lv_obj_clear_flag(crease_h, LV_OBJ_FLAG_SCROLLABLE);
+    /* 小时卡牌中间物理折痕 (立体阴影 + 高光反光) */
+    lv_obj_t *crease_h_shadow = lv_obj_create(s_ui.card_hour);
+    lv_obj_set_size(crease_h_shadow, LV_PCT(100), 1);
+    lv_obj_align(crease_h_shadow, LV_ALIGN_CENTER, 0, -1);
+    lv_obj_set_style_bg_color(crease_h_shadow, lv_color_hex(0x020408), 0);
+    lv_obj_set_style_border_width(crease_h_shadow, 0, 0);
+    lv_obj_clear_flag(crease_h_shadow, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *crease_h_highlight = lv_obj_create(s_ui.card_hour);
+    lv_obj_set_size(crease_h_highlight, LV_PCT(100), 1);
+    lv_obj_align(crease_h_highlight, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_bg_color(crease_h_highlight, lv_color_hex(0x283B54), 0);
+    lv_obj_set_style_border_width(crease_h_highlight, 0, 0);
+    lv_obj_clear_flag(crease_h_highlight, LV_OBJ_FLAG_SCROLLABLE);
 
     s_ui.lbl_hour = lv_label_create(s_ui.card_hour);
     lv_obj_center(s_ui.lbl_hour);
@@ -171,13 +180,20 @@ static int clock_on_load(lv_obj_t *stage_parent)
     lv_obj_set_style_pad_all(s_ui.card_min, 0, 0);
     lv_obj_clear_flag(s_ui.card_min, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* 分钟卡牌中间物理折痕 */
-    lv_obj_t *crease_m = lv_obj_create(s_ui.card_min);
-    lv_obj_set_size(crease_m, LV_PCT(100), 2);
-    lv_obj_align(crease_m, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_bg_color(crease_m, lv_color_hex(0x060910), 0);
-    lv_obj_set_style_border_width(crease_m, 0, 0);
-    lv_obj_clear_flag(crease_m, LV_OBJ_FLAG_SCROLLABLE);
+    /* 分钟卡牌中间物理折痕 (立体阴影 + 高光反光) */
+    lv_obj_t *crease_m_shadow = lv_obj_create(s_ui.card_min);
+    lv_obj_set_size(crease_m_shadow, LV_PCT(100), 1);
+    lv_obj_align(crease_m_shadow, LV_ALIGN_CENTER, 0, -1);
+    lv_obj_set_style_bg_color(crease_m_shadow, lv_color_hex(0x020408), 0);
+    lv_obj_set_style_border_width(crease_m_shadow, 0, 0);
+    lv_obj_clear_flag(crease_m_shadow, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *crease_m_highlight = lv_obj_create(s_ui.card_min);
+    lv_obj_set_size(crease_m_highlight, LV_PCT(100), 1);
+    lv_obj_align(crease_m_highlight, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_bg_color(crease_m_highlight, lv_color_hex(0x283B54), 0);
+    lv_obj_set_style_border_width(crease_m_highlight, 0, 0);
+    lv_obj_clear_flag(crease_m_highlight, LV_OBJ_FLAG_SCROLLABLE);
 
     s_ui.lbl_min = lv_label_create(s_ui.card_min);
     lv_obj_center(s_ui.lbl_min);
@@ -231,16 +247,17 @@ static int clock_on_unload(void)
 static int clock_on_tap(uint8_t intensity)
 {
     (void)intensity;
-    /* 敲击翻转专注状态 (启动/停止番茄钟) */
-    if (s_ui.is_pomodoro) {
-        phoenix_tool_execute("manage_pomodoro", "{\"action\":\"stop\"}", NULL, 0);
+    /* 敲击翻转专注状态 (启动/停止系统级番茄钟服务) */
+    if (pomodoro_service_is_active()) {
+        pomodoro_service_stop();
         s_ui.is_pomodoro = false;
-        LOG_I(TAG, "用户敲击翻页钟，停止番茄钟");
+        s_ui.pomo_remain_s = 0;
+        LOG_I(TAG, "用户敲击翻页钟，停止全局番茄钟");
     } else {
-        phoenix_tool_execute("manage_pomodoro", "{\"action\":\"start\",\"duration_minutes\":25}", NULL, 0);
+        pomodoro_service_start(25);
         s_ui.is_pomodoro = true;
         s_ui.pomo_remain_s = 25 * 60;
-        LOG_I(TAG, "用户敲击翻页钟，开启25分钟番茄专注");
+        LOG_I(TAG, "用户敲击翻页钟，开启25分钟系统级番茄专注");
     }
     update_clock_display(&s_ui);
     return 0;
@@ -269,6 +286,10 @@ static void clock_enter(cartridge_t *self, void *stage_view)
 {
     (void)self;
     clock_on_load((lv_obj_t *)stage_view);
+    /* 载入舞台时无缝同步全局后台番茄钟 */
+    s_ui.is_pomodoro = pomodoro_service_is_active();
+    s_ui.pomo_remain_s = pomodoro_service_get_remaining();
+    update_clock_display(&s_ui);
 }
 
 static void clock_exit(cartridge_t *self)
@@ -287,9 +308,6 @@ static void clock_tick_1s(cartridge_t *self)
 {
     (void)self;
     s_ui.colon_visible = !s_ui.colon_visible;
-    if (s_ui.is_pomodoro && s_ui.pomo_remain_s > 0) {
-        s_ui.pomo_remain_s--;
-    }
     update_clock_display(&s_ui);
 }
 

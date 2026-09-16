@@ -159,11 +159,12 @@ void phoenix_app_tick(void)
         phoenix_perception_step();
     }
 
-    /* 1s heart beat tick dispatch for active cartridge */
+    /* 1s heart beat tick dispatch for active cartridge & background services */
     static uint32_t s_last_tick_sec = 0;
     uint32_t now_sec = (uint32_t)(now_ms / 1000);
     if (now_sec != s_last_tick_sec) {
         s_last_tick_sec = now_sec;
+        pomodoro_service_tick_1s();
         cartridge_mgr_dispatch_tick_1s();
     }
 }

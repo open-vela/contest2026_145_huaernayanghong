@@ -8,10 +8,14 @@
 #define HAL_SYSTEM_H
 
 #include "hal_types.h"
+#include <sys/stat.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/** 递归创建目录 (类似 mkdir -p) */
+int hal_system_mkdir_p(const char *path, mode_t mode);
 
 /** 初始化系统能力子系统 */
 int hal_system_init(void);
@@ -29,8 +33,14 @@ int hal_system_get_telemetry(hal_system_telemetry_t *out_telem);
  */
 int hal_system_launch_app(const char *app_package_or_alias);
 
-/** 获取平台推荐的持久化存储基路径 (如 "/data/phoenix" 或 "/tmp/phoenix") */
+/** 获取平台推荐的持久化存储基路径 (如 "/data/phoenix") */
 const char* hal_system_get_storage_base_path(void);
+
+/** 获取运行时临时中间文件基路径 (如 "/tmp/phoenix", 保护板载Flash) */
+const char* hal_system_get_temp_base_path(void);
+
+/** 获取外置TF卡存储基路径 (如 "/mnt/sdcard") */
+const char* hal_system_get_sdcard_base_path(void);
 
 #ifdef __cplusplus
 }

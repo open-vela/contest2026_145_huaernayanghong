@@ -26,6 +26,7 @@ $COMPILER -O2 -Wall -Wextra -std=gnu99 \
     -I "$APP_DIR" \
     -I "$APP_DIR/utils" \
     -I "$APP_DIR/core" \
+    -I "$APP_DIR/core/web_api" \
     -I "$APP_DIR/hal" \
     -I "$APP_DIR/perception" \
     -I "$APP_DIR/tools" \
@@ -53,6 +54,13 @@ $COMPILER -O2 -Wall -Wextra -std=gnu99 \
     "$APP_DIR/cartridges/cartridge_zen.c" \
     "$APP_DIR/cartridges/cartridge_agent.c" \
     "$APP_DIR/core/web_assets.c" \
+    "$APP_DIR/core/web_router.c" \
+    "$APP_DIR/core/web_api/api_system.c" \
+    "$APP_DIR/core/web_api/api_wifi.c" \
+    "$APP_DIR/core/web_api/api_cartridge.c" \
+    "$APP_DIR/core/web_api/api_config.c" \
+    "$APP_DIR/core/web_api/api_logs.c" \
+    "$APP_DIR/core/web_api/api_sdcard.c" \
     "$APP_DIR/core/web_portal.c" \
     "$APP_DIR/core/app.c" \
     "$APP_DIR/core/agent_core.c" \
@@ -60,6 +68,7 @@ $COMPILER -O2 -Wall -Wextra -std=gnu99 \
     "$APP_DIR/hal/hal_actuator.c" \
     "$APP_DIR/hal/hal_audio_in.c" \
     "$APP_DIR/hal/hal_system.c" \
+    "$APP_DIR/hal/hal_sdcard.c" \
     "$APP_DIR/hal/hal_manager.c" \
     "$APP_DIR/hal/network_mgr.c" \
     "$APP_DIR/hal/drivers/hal_driver_mock.c" \
