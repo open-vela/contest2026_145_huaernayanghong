@@ -43,20 +43,6 @@ static void stage_touch_event_cb(lv_event_t *e)
 
     uint32_t now = lv_tick_get();
 
-    /* 0. 原生手势事件优先处理 (带 400ms 节流防抖) */
-    if (code == LV_EVENT_GESTURE) {
-        if (now - stage->last_gesture_time_ms < 400) return;
-        lv_dir_t dir = lv_indev_get_gesture_dir(indev);
-        if (dir == LV_DIR_BOTTOM) {
-            /* 仅当触控起始位置在屏幕顶部边缘 (Y < 55) 时呼出抽屉 */
-            if (stage->press_point.y < 55 && stage->on_swipe_down) {
-                stage->last_gesture_time_ms = now;
-                stage->on_swipe_down(stage->user_data);
-            }
-            return;
-        }
-    }
-
     if (code == LV_EVENT_PRESSED) {
         lv_indev_get_point(indev, &stage->press_point);
         stage->press_time_ms = now;
@@ -73,55 +59,9 @@ static void stage_touch_event_cb(lv_event_t *e)
         int32_t abs_dx = (dx < 0) ? -dx : dx;
         int32_t abs_dy = (dy < 0) ? -dy : dy;
 
-        /* 防抖检查：忽略 300ms 内的连续误触发 */
-        if (now - stage->last_gesture_time_ms < 300) return;
-
-        /* 1. 下滑呼出设置抽屉：起始于屏幕顶部 1/3 (Y < 80) 且下滑位移 >= 30px */
-        if (stage->press_point.y < 80 && dy >= 30 && abs_dy > abs_dx) {
-            stage->last_gesture_time_ms = now;
-            if (stage->on_swipe_down) {
-                stage->on_swipe_down(stage->user_data);
-            }
-            return;
-        }
-
-        /* 2. 轻敲 / 双击 / 长按判定 (位移 < 15px) */
+        /* 轻敲判定 (位移 < 15px) 分发敲击事件至当前活跃卡带 (敲木鱼/互动) */
         if (abs_dx < 15 && abs_dy < 15) {
             uint32_t elapsed = lv_tick_elaps(stage->press_time_ms);
-
-            /* 2.1 长按判定 (按住超过 600ms，呼出设置抽屉) */
-            if (elapsed >= 600) {
-                stage->last_gesture_time_ms = now;
-                if (stage->on_long_press) {
-                    stage->on_long_press(stage->user_data);
-                } else if (stage->on_swipe_down) {
-                    stage->on_swipe_down(stage->user_data);
-                }
-                return;
-            }
-
-            /* 2.2 双击判定 (间隔 50ms ~ 380ms 且位移 < 25px，切换控制中心) */
-            uint32_t tap_interval = now - stage->last_tap_time_ms;
-            int32_t tap_dx = release_point.x - stage->last_tap_point.x;
-            int32_t tap_dy = release_point.y - stage->last_tap_point.y;
-            int32_t tap_dist_sq = tap_dx * tap_dx + tap_dy * tap_dy;
-
-            if (tap_interval >= 50 && tap_interval <= 380 && tap_dist_sq < 625) {
-                stage->last_tap_time_ms = 0; /* 消费本次双击，防三重触发 */
-                stage->last_gesture_time_ms = now;
-                if (stage->on_double_tap) {
-                    stage->on_double_tap(stage->user_data);
-                } else if (stage->on_swipe_down) {
-                    stage->on_swipe_down(stage->user_data);
-                }
-                return;
-            }
-
-            /* 记录本次单次点击状态 */
-            stage->last_tap_time_ms = now;
-            stage->last_tap_point = release_point;
-
-            /* 2.3 分发单次轻敲事件至当前活跃卡带 (敲木鱼/互动) */
             if (elapsed > 20 && elapsed < 500) {
                 cartridge_mgr_dispatch_knock(1, 1);
             }

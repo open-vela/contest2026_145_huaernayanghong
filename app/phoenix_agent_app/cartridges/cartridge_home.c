@@ -579,7 +579,7 @@ int cartridge_home_register(void)
     static const cartridge_ops_t ops = {
         .id       = "home",
         .name     = "主页",
-        .icon     = "🏠",
+        .icon     = "[HOME]",
         .init     = home_init,
         .enter    = home_enter,
         .exit     = home_exit,

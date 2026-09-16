@@ -425,7 +425,7 @@ cartridge_t *cartridge_agent_create(void)
     memset(&s_cartridge_instance, 0, sizeof(s_cartridge_instance));
     snprintf(s_cartridge_instance.ops.id, sizeof(s_cartridge_instance.ops.id), "agent");
     snprintf(s_cartridge_instance.ops.name, sizeof(s_cartridge_instance.ops.name), "灵眸AI");
-    snprintf(s_cartridge_instance.ops.icon, sizeof(s_cartridge_instance.ops.icon), "🤖");
+    snprintf(s_cartridge_instance.ops.icon, sizeof(s_cartridge_instance.ops.icon), "[AI]");
     s_cartridge_instance.ops.init = agent_init;
     s_cartridge_instance.ops.enter = agent_enter;
     s_cartridge_instance.ops.exit = agent_exit;

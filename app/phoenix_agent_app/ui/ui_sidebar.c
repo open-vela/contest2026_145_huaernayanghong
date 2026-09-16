@@ -15,14 +15,14 @@
 
 static const char* get_cartridge_icon(const char *id)
 {
-    if (!id) return "📦";
-    if (strcmp(id, "home") == 0) return "🏠";
-    if (strcmp(id, "clock") == 0) return "⏰";
-    if (strcmp(id, "zen") == 0) return "🐟";
-    if (strcmp(id, "memo") == 0) return "📝";
-    if (strcmp(id, "agent") == 0) return "🤖";
-    if (strcmp(id, "familiar") == 0) return "👁️";
-    return "💡";
+    if (!id) return "卡";
+    if (strcmp(id, "home") == 0) return "主";
+    if (strcmp(id, "clock") == 0) return "钟";
+    if (strcmp(id, "zen") == 0) return "禅";
+    if (strcmp(id, "memo") == 0) return "记";
+    if (strcmp(id, "agent") == 0) return "AI";
+    if (strcmp(id, "familiar") == 0) return "宠";
+    return "卡";
 }
 
 static void on_item_clicked(lv_event_t *e)
@@ -32,6 +32,17 @@ static void on_item_clicked(lv_event_t *e)
 
     LOG_I(TAG, "用户点击侧边栏切换卡带: [%s]", item->id);
     cartridge_mgr_switch(item->id);
+}
+
+static void on_settings_clicked(lv_event_t *e)
+{
+    ui_sidebar_t *sb = (ui_sidebar_t *)lv_event_get_user_data(e);
+    if (!sb) return;
+
+    LOG_I(TAG, "用户点击侧边栏底部控制中心按钮 [设]");
+    if (sb->on_settings_cb) {
+        sb->on_settings_cb(sb->settings_user_data);
+    }
 }
 
 ui_sidebar_t* ui_sidebar_create(lv_obj_t *parent, const lv_font_t *font)
@@ -74,9 +85,12 @@ void ui_sidebar_refresh(ui_sidebar_t *sidebar)
 {
     if (!sidebar || !sidebar->container) return;
 
-    /* 清理旧图标按钮 */
+    /* 清理旧图标按钮与子部件 */
     lv_obj_clean(sidebar->container);
     sidebar->item_count = 0;
+    sidebar->btn_settings = NULL;
+    sidebar->lbl_settings = NULL;
+    sidebar->sep_line = NULL;
 
     size_t count = cartridge_mgr_get_count();
     if (count > UI_SIDEBAR_MAX_ITEMS) count = UI_SIDEBAR_MAX_ITEMS;
@@ -89,8 +103,9 @@ void ui_sidebar_refresh(ui_sidebar_t *sidebar)
         strncpy(sidebar->active_id, "home", sizeof(sidebar->active_id) - 1);
     }
 
-    int y_step = (count > 0) ? (210 / (int)count) : 34;
-    if (y_step > 36) y_step = 36;
+    /* 顶部卡带按钮区域：高 172px，最大 6 个卡带均分 */
+    int y_step = (count > 0) ? (172 / (int)count) : 28;
+    if (y_step > 29) y_step = 29;
 
     for (size_t i = 0; i < count; i++) {
         cartridge_t *c = cartridge_mgr_get_by_index(i);
@@ -101,12 +116,13 @@ void ui_sidebar_refresh(ui_sidebar_t *sidebar)
         strncpy(it->id, c->ops.id, sizeof(it->id) - 1);
         strncpy(it->icon, get_cartridge_icon(c->ops.id), sizeof(it->icon) - 1);
 
-        bool is_active = (strcmp(it->id, sidebar->active_id) == 0);
+        /* 若设置处于激活态，则卡带按钮不高亮 */
+        bool is_active = (!sidebar->is_settings_active && strcmp(it->id, sidebar->active_id) == 0);
 
         it->btn = lv_btn_create(sidebar->container);
-        lv_obj_set_size(it->btn, 30, 28);
-        lv_obj_set_pos(it->btn, 1, (lv_coord_t)(i * y_step + 4));
-        lv_obj_set_style_radius(it->btn, 6, 0);
+        lv_obj_set_size(it->btn, 30, 26);
+        lv_obj_set_pos(it->btn, 1, (lv_coord_t)(i * y_step + 2));
+        lv_obj_set_style_radius(it->btn, 5, 0);
         lv_obj_set_style_pad_all(it->btn, 0, 0);
         lv_obj_set_ext_click_area(it->btn, 6);
 
@@ -130,13 +146,66 @@ void ui_sidebar_refresh(ui_sidebar_t *sidebar)
 
         sidebar->item_count++;
     }
+
+    /* 2. 底部科技感分隔线 (y=176, h=1, w=28) */
+    sidebar->sep_line = lv_obj_create(sidebar->container);
+    lv_obj_set_size(sidebar->sep_line, 28, 1);
+    lv_obj_set_pos(sidebar->sep_line, 2, 176);
+    lv_obj_set_style_bg_color(sidebar->sep_line, lv_color_hex(0x18283E), 0);
+    lv_obj_set_style_border_width(sidebar->sep_line, 0, 0);
+    lv_obj_clear_flag(sidebar->sep_line, LV_OBJ_FLAG_SCROLLABLE);
+
+    /* 3. 底部控制中心专属按钮 [设] (y=182, h=28, w=30) */
+    sidebar->btn_settings = lv_btn_create(sidebar->container);
+    lv_obj_set_size(sidebar->btn_settings, 30, 28);
+    lv_obj_set_pos(sidebar->btn_settings, 1, 182);
+    lv_obj_set_style_radius(sidebar->btn_settings, 6, 0);
+    lv_obj_set_style_pad_all(sidebar->btn_settings, 0, 0);
+    lv_obj_set_ext_click_area(sidebar->btn_settings, 8);
+
+    if (sidebar->is_settings_active) {
+        lv_obj_set_style_bg_color(sidebar->btn_settings, lv_color_hex(0x1C2E4A), 0);
+        lv_obj_set_style_border_color(sidebar->btn_settings, lv_color_hex(0x00E5FF), 0);
+        lv_obj_set_style_border_width(sidebar->btn_settings, 1, 0);
+    } else {
+        lv_obj_set_style_bg_color(sidebar->btn_settings, lv_color_hex(0x0A101C), 0);
+        lv_obj_set_style_border_color(sidebar->btn_settings, lv_color_hex(0x22354E), 0);
+        lv_obj_set_style_border_width(sidebar->btn_settings, 1, 0);
+    }
+
+    sidebar->lbl_settings = lv_label_create(sidebar->btn_settings);
+    lv_obj_center(sidebar->lbl_settings);
+    if (sidebar->font) lv_obj_set_style_text_font(sidebar->lbl_settings, sidebar->font, 0);
+    lv_label_set_text(sidebar->lbl_settings, "设");
+    lv_obj_set_style_text_color(sidebar->lbl_settings, sidebar->is_settings_active ? lv_color_hex(0x00E5FF) : lv_color_hex(0x8B9EB5), 0);
+
+    lv_obj_add_event_cb(sidebar->btn_settings, on_settings_clicked, LV_EVENT_CLICKED, sidebar);
 }
 
 void ui_sidebar_set_active(ui_sidebar_t *sidebar, const char *cartridge_id)
 {
     if (!sidebar || !cartridge_id) return;
-    if (strcmp(sidebar->active_id, cartridge_id) == 0) return;
+    sidebar->is_settings_active = false;
+    if (strcmp(sidebar->active_id, cartridge_id) == 0) {
+        ui_sidebar_refresh(sidebar);
+        return;
+    }
 
     strncpy(sidebar->active_id, cartridge_id, sizeof(sidebar->active_id) - 1);
+    ui_sidebar_refresh(sidebar);
+}
+
+void ui_sidebar_set_settings_cb(ui_sidebar_t *sidebar, ui_sidebar_settings_cb_t cb, void *user_data)
+{
+    if (!sidebar) return;
+    sidebar->on_settings_cb = cb;
+    sidebar->settings_user_data = user_data;
+}
+
+void ui_sidebar_set_settings_active(ui_sidebar_t *sidebar, bool active)
+{
+    if (!sidebar) return;
+    if (sidebar->is_settings_active == active) return;
+    sidebar->is_settings_active = active;
     ui_sidebar_refresh(sidebar);
 }

@@ -144,12 +144,36 @@ static void refresh_status_capsule(phoenix_ui_t *ui)
     }
 }
 
-/* 顶部微状态胶囊点击呼出控制中心抽屉 */
+/* 顶部微状态胶囊点击呼出控制中心 */
 static void on_capsule_clicked(lv_event_t *e)
 {
     phoenix_ui_t *ui = (phoenix_ui_t *)lv_event_get_user_data(e);
     if (ui && ui->settings) {
         ui_settings_toggle(ui->settings);
+        if (ui->sidebar) {
+            ui_sidebar_set_settings_active(ui->sidebar, ui_settings_is_open(ui->settings));
+        }
+    }
+}
+
+/* 侧边栏底部设置按钮点击 */
+static void on_sidebar_settings_clicked(void *user_data)
+{
+    phoenix_ui_t *ui = (phoenix_ui_t *)user_data;
+    if (ui && ui->settings) {
+        ui_settings_toggle(ui->settings);
+        if (ui->sidebar) {
+            ui_sidebar_set_settings_active(ui->sidebar, ui_settings_is_open(ui->settings));
+        }
+    }
+}
+
+/* 设置面板关闭时联动取消侧边栏高亮 */
+static void on_settings_closed(void *user_data)
+{
+    phoenix_ui_t *ui = (phoenix_ui_t *)user_data;
+    if (ui && ui->sidebar) {
+        ui_sidebar_set_settings_active(ui->sidebar, false);
     }
 }
 
@@ -331,22 +355,6 @@ static void flush_timer_cb(lv_timer_t *timer)
     phoenix_store_flush();
 }
 
-static void on_stage_swipe_down(void *user_data)
-{
-    phoenix_ui_t *ui = (phoenix_ui_t *)user_data;
-    if (ui && ui->settings) {
-        ui_settings_open(ui->settings);
-    }
-}
-
-static void on_stage_action_toggle_settings(void *user_data)
-{
-    phoenix_ui_t *ui = (phoenix_ui_t *)user_data;
-    if (ui && ui->settings) {
-        ui_settings_toggle(ui->settings);
-    }
-}
-
 phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
 {
     phoenix_ui_t *ui = &g_phoenix_ui;
@@ -383,17 +391,17 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
     phoenix_event_subscribe(PHOENIX_EVT_CARTRIDGE_SWITCHED, on_event_bus_event, ui);
     phoenix_event_subscribe(PHOENIX_EVT_NET_STATUS, on_event_bus_event, ui);
 
-    /* 2. 创建卡带主舞台视窗 (Shell Viewport & Touch Engine: 支持双击/长按/下滑呼出设置) */
+    /* 2. 创建卡带主舞台视窗 (X=36, Y=24, W=284, H=216) */
     ui->stage = ui_stage_create(ui->screen);
     if (ui->stage) {
-        ui_stage_set_swipe_down_cb(ui->stage, on_stage_swipe_down, ui);
-        ui_stage_set_double_tap_cb(ui->stage, on_stage_action_toggle_settings, ui);
-        ui_stage_set_long_press_cb(ui->stage, on_stage_action_toggle_settings, ui);
         cartridge_mgr_set_stage(ui_stage_get_canvas(ui->stage));
     }
 
-    /* 3. 左侧常驻导航栏：点击直达切卡 (宽 36px, Y=24) */
+    /* 3. 左侧常驻导航栏：点击直达切卡 + 最底部控制中心入口 (宽 36px, Y=24) */
     ui->sidebar = ui_sidebar_create(ui->screen, ui->font_chinese);
+    if (ui->sidebar) {
+        ui_sidebar_set_settings_cb(ui->sidebar, on_sidebar_settings_clicked, ui);
+    }
 
     /* 4. 顶部极窄微状态胶囊 (22px，半透明常驻，点击呼出控制中心，热区外扩 12px) */
     ui->capsule = ui_capsule_create(ui->screen, ui->font_chinese);
@@ -408,8 +416,11 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
         }
     }
 
-    /* 5. 顶部控制中心抽屉与二级设置面板 (Settings Drawer，默认滑入在屏幕上方外) */
+    /* 5. 控制中心面板与二级设置 (贴合侧边栏, X=36, Y=24, W=284, H=216) */
     ui->settings = ui_settings_create(ui->screen, ui->font_chinese);
+    if (ui->settings) {
+        ui_settings_set_close_cb(ui->settings, on_settings_closed, ui);
+    }
 
     /* 6. 底部动态交互气泡 (Dynamic Speech Bubble，平时隐藏，主动干预时浮现) */
     int32_t bubble_h = (scr_h < 260) ? 36 : 46;

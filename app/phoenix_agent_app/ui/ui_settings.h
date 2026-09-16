@@ -97,17 +97,25 @@ typedef struct {
     bool is_open;
     int16_t drawer_h;
     ui_settings_page_t current_page;
+
+    void (*on_close_cb)(void *user_data);
+    void *close_user_data;
 } ui_settings_t;
 
 /**
- * @brief 创建控制中心抽屉组件
+ * @brief 创建控制中心面板组件
  */
 ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font);
 
 /**
- * @brief 销毁控制中心抽屉组件
+ * @brief 销毁控制中心面板组件
  */
 void ui_settings_destroy(ui_settings_t *settings);
+
+/**
+ * @brief 注册控制中心面板关闭时的回调
+ */
+void ui_settings_set_close_cb(ui_settings_t *settings, void (*cb)(void *), void *user_data);
 
 /**
  * @brief 打开抽屉面板
