@@ -55,12 +55,7 @@ static void on_hotspot_btn_clicked(lv_event_t *e)
     ui_settings_t *s = (ui_settings_t *)lv_event_get_user_data(e);
     if (!s) return;
 
-    if (net_mgr_get_mode() == NET_MODE_SOFTAP_CONFIG) {
-        LOG_I(TAG, "热点已在广播中，无需重复触发");
-        return;
-    }
-
-    LOG_I(TAG, "用户在二级控制中心触发开启独立热点配网");
+    LOG_I(TAG, "用户触发启动/重置独立热点配网");
 
     /* 立即给出视觉反馈，杜绝假死与无响应感 */
     if (s->lbl_hotspot_btn) {
@@ -570,6 +565,11 @@ void ui_settings_refresh_data(ui_settings_t *settings)
             snprintf(buf, sizeof(buf), "已连: %s\nIP: %s", ssid_buf[0] ? ssid_buf : "Wi-Fi", ip_buf);
             lv_label_set_text(settings->lbl_nav_net_sub, buf);
             lv_obj_set_style_text_color(settings->lbl_nav_net_sub, lv_color_hex(0x00FF88), 0);
+        } else if (mode == NET_MODE_STA_CONNECTING) {
+            char buf[64];
+            snprintf(buf, sizeof(buf), "正在连网...\n%s", ssid_buf[0] ? ssid_buf : "Wi-Fi");
+            lv_label_set_text(settings->lbl_nav_net_sub, buf);
+            lv_obj_set_style_text_color(settings->lbl_nav_net_sub, lv_color_hex(0xFFB700), 0);
         } else if (mode == NET_MODE_SOFTAP_CONFIG) {
             lv_label_set_text(settings->lbl_nav_net_sub, "热点广播中\n192.168.4.1");
             lv_obj_set_style_text_color(settings->lbl_nav_net_sub, lv_color_hex(0xFFB700), 0);
@@ -586,6 +586,11 @@ void ui_settings_refresh_data(ui_settings_t *settings)
             snprintf(buf, sizeof(buf), "● 已连入网络: %s", ssid_buf[0] ? ssid_buf : "Wi-Fi");
             lv_label_set_text(settings->lbl_net_status, buf);
             lv_obj_set_style_text_color(settings->lbl_net_status, lv_color_hex(0x00FF88), 0);
+        } else if (mode == NET_MODE_STA_CONNECTING) {
+            char buf[64];
+            snprintf(buf, sizeof(buf), "● 正在连接无线网络: %s...", ssid_buf[0] ? ssid_buf : "Wi-Fi");
+            lv_label_set_text(settings->lbl_net_status, buf);
+            lv_obj_set_style_text_color(settings->lbl_net_status, lv_color_hex(0xFFB700), 0);
         } else if (mode == NET_MODE_SOFTAP_CONFIG) {
             lv_label_set_text(settings->lbl_net_status, "● 广播热点: Gemini-Agent-S1");
             lv_obj_set_style_text_color(settings->lbl_net_status, lv_color_hex(0xFFB700), 0);
@@ -603,7 +608,15 @@ void ui_settings_refresh_data(ui_settings_t *settings)
 
     if (settings->lbl_hotspot_btn && settings->btn_hotspot) {
         char btn_str[64];
-        if (mode == NET_MODE_SOFTAP_CONFIG) {
+        if (mode == NET_MODE_STA_CONNECTING) {
+            lv_label_set_text(settings->lbl_hotspot_btn, "[..] 正在连接目标 Wi-Fi...");
+            lv_obj_set_style_text_color(settings->lbl_hotspot_btn, lv_color_hex(0xFFB700), 0);
+            lv_obj_set_style_border_color(settings->btn_hotspot, lv_color_hex(0xFFB700), 0);
+            if (settings->lbl_hotspot_hint) {
+                lv_label_set_text(settings->lbl_hotspot_hint, "正在握手并申请 IP，请稍候...");
+                lv_obj_set_style_text_color(settings->lbl_hotspot_hint, lv_color_hex(0xFFB700), 0);
+            }
+        } else if (mode == NET_MODE_SOFTAP_CONFIG) {
             snprintf(btn_str, sizeof(btn_str), "● 热点广播中: %s", ip_buf[0] ? ip_buf : "192.168.4.1:8080");
             lv_label_set_text(settings->lbl_hotspot_btn, btn_str);
             lv_obj_set_style_text_color(settings->lbl_hotspot_btn, lv_color_hex(0xFFB700), 0);

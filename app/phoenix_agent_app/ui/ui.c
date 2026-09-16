@@ -299,10 +299,14 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
             char bbuf[128];
 
             if (mode == 1 /* NET_MODE_STA_CONNECTING */) {
+                phoenix_ui_show_flying_text(ui, "正在连入 Wi-Fi...", lv_color_hex(0xFFB700));
                 snprintf(bbuf, sizeof(bbuf), "正在连接 Wi-Fi: [%s]...", ssid);
                 phoenix_ui_show_bubble(ui, bbuf, 6000);
                 if (ui->capsule) {
                     ui_capsule_set_status(ui->capsule, "● 联网中", lv_color_hex(0xFFB700), true);
+                }
+                if (ui->settings) {
+                    ui_settings_refresh_data(ui->settings);
                 }
             } else if (mode == 2 /* NET_MODE_STA_CONNECTED */) {
                 phoenix_ui_show_flying_text(ui, "Wi-Fi 已连入!", lv_color_hex(0x00E676));
@@ -327,7 +331,14 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
                     ui_settings_refresh_data(ui->settings);
                 }
             } else {
-                phoenix_ui_show_bubble(ui, "网络已断开连接", 4000);
+                phoenix_ui_show_flying_text(ui, "连网超时", lv_color_hex(0xFF5252));
+                phoenix_ui_show_bubble(ui, "Wi-Fi 连接失败，已恢复独立热点", 4000);
+                if (ui->capsule) {
+                    ui_capsule_set_status(ui->capsule, "● 未连接", lv_color_hex(0x9E9E9E), false);
+                }
+                if (ui->settings) {
+                    ui_settings_refresh_data(ui->settings);
+                }
             }
             break;
         }

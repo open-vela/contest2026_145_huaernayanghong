@@ -148,7 +148,12 @@ static void notify_state_changed_unlocked(void)
     } else {
         evt.data.net.msg = "网络未连接";
     }
+
+#if defined(HOST_TEST_RUNNER)
     phoenix_event_publish(&evt);
+#else
+    phoenix_event_post_async(&evt);
+#endif
 }
 
 /**
@@ -227,46 +232,42 @@ static void* sta_connect_worker_thread(void *arg)
 
     LOG_I(TAG, "[Worker] 开始向底层 WAPI 下发连接序列: SSID=[%s]", target_ssid);
 
-    if (access("/etc/wifi/start_wifi.sh", X_OK | R_OK) == 0) {
-        LOG_I(TAG, "[Worker] 发现系统启动脚本 /etc/wifi/start_wifi.sh，执行官方 Wi-Fi 初始化流程...");
-        system("sh /etc/wifi/start_wifi.sh > /dev/null 2>&1");
-    } else {
-        /* 原生 WAPI C API 下发 STA 连接序列 */
-        int sock = wapi_make_socket();
-        if (sock >= 0) {
-            /* 1. 断开可能存在的旧连接 */
-            wpa_driver_wext_disconnect(sock, "wlan0");
-            usleep(300000);
+    /* 1. 先关闭 softap 并断开旧连接 */
+    net_mgr_stop_softap();
+    system("wapi disconnect wlan0 > /dev/null 2>&1");
+    usleep(300000);
 
-            /* 2. 设置 Managed (STA) 客户端模式 */
-            wapi_set_mode(sock, "wlan0", WAPI_MODE_MANAGED);
-
-            /* 3. 配置 WPA2-PSK 认证与密码 */
-            if (target_psk[0] != '\0') {
-                wpa_driver_wext_set_auth_param(sock, "wlan0", IW_AUTH_WPA_VERSION, IW_AUTH_WPA_VERSION_WPA2);
-                wpa_driver_wext_set_auth_param(sock, "wlan0", IW_AUTH_CIPHER_PAIRWISE, IW_AUTH_CIPHER_CCMP);
-                wpa_driver_wext_set_key_ext(sock, "wlan0", WPA_ALG_CCMP, target_psk, strlen(target_psk));
-            }
-
-            /* 4. 下发 SSID 并触发驱动关联握手 */
-            wapi_set_essid(sock, "wlan0", target_ssid, WAPI_ESSID_ON);
-            close(sock);
-            LOG_I(TAG, "⚡ [Worker] 已通过原生 WAPI C API 触发 STA 握手");
-        } else {
-            /* Fallback */
-            system("wapi disconnect wlan0 > /dev/null 2>&1");
-            char cmd[256];
-            snprintf(cmd, sizeof(cmd), "wapi essid wlan0 \"%s\" 1 > /dev/null 2>&1", target_ssid);
-            system(cmd);
-            if (target_psk[0] != '\0') {
-                snprintf(cmd, sizeof(cmd), "wapi psk wlan0 \"%s\" 1 3 > /dev/null 2>&1", target_psk);
-                system(cmd);
-            }
+    /* 2. 原生 WAPI C API 下发 STA 连接序列 */
+    int sock = wapi_make_socket();
+    if (sock >= 0) {
+        wapi_set_mode(sock, "wlan0", WAPI_MODE_MANAGED);
+        if (target_psk[0] != '\0') {
+            wpa_driver_wext_set_auth_param(sock, "wlan0", IW_AUTH_WPA_VERSION, IW_AUTH_WPA_VERSION_WPA2);
+            wpa_driver_wext_set_auth_param(sock, "wlan0", IW_AUTH_CIPHER_PAIRWISE, IW_AUTH_CIPHER_CCMP);
+            wpa_driver_wext_set_key_ext(sock, "wlan0", WPA_ALG_CCMP, target_psk, strlen(target_psk));
         }
-        sleep(4);
+        wapi_set_essid(sock, "wlan0", target_ssid, WAPI_ESSID_ON);
+        close(sock);
+        LOG_I(TAG, "⚡ [Worker] 已通过原生 WAPI C API 触发 STA 握手");
     }
 
-    /* 6. DHCP 租约重试获取 IP */
+    /* 3. 补全标准命令行指令序列 (关闭自适应与省电，保存并重连) */
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd), "wapi essid wlan0 \"%s\" 1 > /dev/null 2>&1", target_ssid);
+    system(cmd);
+    if (target_psk[0] != '\0') {
+        snprintf(cmd, sizeof(cmd), "wapi psk wlan0 \"%s\" 1 3 > /dev/null 2>&1", target_psk);
+        system(cmd);
+    }
+    system("wapi private wlan0 adaptivity 0 > /dev/null 2>&1");
+    system("wapi power_save wlan0 off > /dev/null 2>&1");
+    system("wapi save_config wlan0 > /dev/null 2>&1");
+    system("wapi reconnect wlan0 > /dev/null 2>&1");
+
+    /* 等待 4 秒供无线网卡完成 AP 关联与信道对齐 */
+    sleep(4);
+
+    /* 4. DHCP 租约重试获取 IP (最多 5 次) */
     char acquired_ip[NET_MAX_IP_LEN] = {0};
     bool connected = false;
 
@@ -298,8 +299,12 @@ static void* sta_connect_worker_thread(void *arg)
             LOG_I(TAG, "🌐 局域网 Web 伴侣已启动: http://%s/ (或 :8080)", acquired_ip);
         }
     } else {
-        LOG_W(TAG, "⚠️ [Worker] Wi-Fi 握手或 DHCP 超时，自动回退至 SoftAP 独立热点以便重新配网");
+        LOG_W(TAG, "⚠️ [Worker] Wi-Fi 握手或 DHCP 超时，通知界面并自动恢复 SoftAP 独立热点");
+        s_mode = NET_MODE_DISCONNECTED;
+        notify_state_changed_unlocked();
         pthread_mutex_unlock(&s_lock);
+
+        /* 自动恢复独立热点供用户继续配网 */
         net_mgr_start_softap(NULL);
     }
 
