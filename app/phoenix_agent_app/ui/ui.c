@@ -294,6 +294,14 @@ static void on_stage_swipe_down(void *user_data)
     }
 }
 
+static void on_stage_action_toggle_settings(void *user_data)
+{
+    phoenix_ui_t *ui = (phoenix_ui_t *)user_data;
+    if (ui && ui->settings) {
+        ui_settings_toggle(ui->settings);
+    }
+}
+
 phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
 {
     phoenix_ui_t *ui = &g_phoenix_ui;
@@ -329,21 +337,24 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
     phoenix_event_subscribe(PHOENIX_EVT_HAL_BATTERY, on_event_bus_event, ui);
     phoenix_event_subscribe(PHOENIX_EVT_CARTRIDGE_SWITCHED, on_event_bus_event, ui);
 
-    /* 2. 创建卡带主舞台视窗 (Shell Viewport & Touch Engine) */
+    /* 2. 创建卡带主舞台视窗 (Shell Viewport & Touch Engine: 支持双击/长按/下滑呼出设置) */
     ui->stage = ui_stage_create(ui->screen);
     if (ui->stage) {
         ui_stage_set_swipe_down_cb(ui->stage, on_stage_swipe_down, ui);
+        ui_stage_set_double_tap_cb(ui->stage, on_stage_action_toggle_settings, ui);
+        ui_stage_set_long_press_cb(ui->stage, on_stage_action_toggle_settings, ui);
         cartridge_mgr_set_stage(ui_stage_get_canvas(ui->stage));
     }
 
-    /* 3. 顶部极窄微状态胶囊 (22px，半透明常驻，点击呼出控制中心) */
+    /* 3. 顶部极窄微状态胶囊 (22px，半透明常驻，点击呼出控制中心，热区外扩 12px) */
     ui->capsule = ui_capsule_create(ui->screen, ui->font_chinese);
     if (ui->capsule && ui->capsule->container) {
         lv_obj_add_flag(ui->capsule->container, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_ext_click_area(ui->capsule->container, 8);
+        lv_obj_set_ext_click_area(ui->capsule->container, 12);
         lv_obj_add_event_cb(ui->capsule->container, on_capsule_clicked, LV_EVENT_CLICKED, ui);
         if (ui->capsule->pill_status) {
             lv_obj_add_flag(ui->capsule->pill_status, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_set_ext_click_area(ui->capsule->pill_status, 8);
             lv_obj_add_event_cb(ui->capsule->pill_status, on_capsule_clicked, LV_EVENT_CLICKED, ui);
         }
     }

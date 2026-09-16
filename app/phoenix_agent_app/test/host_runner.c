@@ -1713,6 +1713,61 @@ static void run_test_sdcard_storage_and_web_mgmt(void)
     printf("  -> TF Card HAL & Web File Management Subsystem PASSED!\n");
 }
 
+/* ---- 26. Living Cyber-Eye Familiar & Natural Gestures Test ---- */
+static void run_test_familiar_and_gestures(void)
+{
+    printf("\n[TEST 26] Testing Living Cyber-Eye Familiar & Natural Gestures...\n");
+
+    phoenix_event_bus_init();
+    phoenix_store_init("/tmp/phoenix_test_familiar");
+    cartridge_mgr_init(NULL);
+
+    /* 1. Register Familiar Cartridge as Master Companion */
+    assert(cartridge_familiar_register() == 0);
+    cartridge_t *cur = cartridge_mgr_get_current();
+    assert(cur && strcmp(cur->ops.id, "familiar") == 0);
+
+    /* 2. Test initial status & telemetry */
+    char status_buf[256];
+    assert(cur->ops.get_web_status && cur->ops.get_web_status(cur, status_buf, sizeof(status_buf)) == 0);
+    assert(strstr(status_buf, "affinity") != NULL);
+    assert(strstr(status_buf, "mood") != NULL);
+    printf("  -> Familiar Cyber-Eye Initial Status: %s\n", status_buf);
+
+    /* 3. Test Tap / Knock: Pet Affinity + Wooden Fish Merit Dual Reward */
+    phoenix_stats_t stats_before;
+    phoenix_store_get_stats(&stats_before);
+    uint32_t merit_before = stats_before.total_merit;
+
+    g_event_counter = 0;
+    phoenix_event_subscribe(PHOENIX_EVT_FLYING_TEXT, test_event_listener, NULL);
+    phoenix_event_subscribe(PHOENIX_EVT_PLAY_SOUND, test_event_listener, NULL);
+    phoenix_event_subscribe(PHOENIX_EVT_MERIT_UPDATED, test_event_listener, NULL);
+
+    /* Simulate tapping eye / knocking desk */
+    if (cur->ops.on_knock) {
+        cur->ops.on_knock(cur, 1, 1);
+    }
+    phoenix_event_bus_drain();
+
+    phoenix_stats_t stats_after;
+    phoenix_store_get_stats(&stats_after);
+    assert(stats_after.total_merit == merit_before + 1);
+    assert(g_event_counter >= 3); /* Sound + Flying Text + Merit Updated */
+    printf("  -> Knock on Living Cyber-Eye Dual Reward (Affinity & Merit +1) PASSED!\n");
+
+    /* 4. Test 1-second Tick (Time display update & calm recovery) */
+    if (cur->ops.tick_1s) {
+        cur->ops.tick_1s(cur);
+    }
+    printf("  -> Familiar 1s Tick & Time Update PASSED!\n");
+
+    cartridge_mgr_deinit();
+    phoenix_store_deinit();
+    phoenix_event_bus_deinit();
+    printf("  -> Living Cyber-Eye Familiar & Natural Gestures Subsystem PASSED!\n");
+}
+
 int main(int argc, char *argv[])
 {
     printf("====================================================\n");
@@ -1751,8 +1806,9 @@ int main(int argc, char *argv[])
     run_test_network_mgr();
     run_test_four_cartridges();
     run_test_sdcard_storage_and_web_mgmt();
+    run_test_familiar_and_gestures();
 
-    printf("\n🎉 ALL 25 UNIT TESTS PASSED SUCCESSFULLY!\n");
+    printf("\n🎉 ALL 26 UNIT TESTS PASSED SUCCESSFULLY!\n");
 
     /* If --repl or -i passed, enter interactive mode */
     if (argc > 1 && (strcmp(argv[1], "-i") == 0 || strcmp(argv[1], "--repl") == 0)) {

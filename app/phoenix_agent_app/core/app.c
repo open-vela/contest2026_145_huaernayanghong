@@ -128,15 +128,15 @@ int phoenix_app_init(const phoenix_app_config_t *config)
         phoenix_web_portal_start(config->web_port, NULL);
     }
 
-    /* 11. Cartridge Plugin & Orchestrator Engine (全量注册 6 大卡带) */
+    /* 11. Cartridge Plugin & Orchestrator Engine (全量注册 6 大卡带，以灵眸伴侣为首发默认) */
     cartridge_mgr_init(NULL);
-    cartridge_home_register();
     cartridge_familiar_register();
+    cartridge_home_register();
     cartridge_clock_register();
     cartridge_zen_register();
     cartridge_memo_register();
     cartridge_agent_register();
-    cartridge_mgr_switch_to("home");
+    cartridge_mgr_switch_to("familiar");
 
     g_app_initialized = true;
     printf("[PhoenixApp] ✅ All Phoenix subsystems initialized successfully (6 Cartridges active).\n");

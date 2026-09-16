@@ -18,6 +18,7 @@ extern "C" {
 typedef struct ui_stage_s ui_stage_t;
 
 typedef void (*ui_stage_swipe_down_cb_t)(void *user_data);
+typedef void (*ui_stage_action_cb_t)(void *user_data);
 
 struct ui_stage_s {
     lv_obj_t *container;              /**< 舞台总容器 */
@@ -25,11 +26,17 @@ struct ui_stage_s {
     lv_obj_t *old_view;               /**< 正在滑出的旧卡带根控件 */
 
     ui_stage_swipe_down_cb_t on_swipe_down; /**< 顶部下滑回调(呼出设置抽屉) */
+    ui_stage_action_cb_t     on_double_tap; /**< 屏幕任意位置双击回调 (呼出/收起设置抽屉) */
+    ui_stage_action_cb_t     on_long_press; /**< 屏幕长按回调 (呼出设置抽屉) */
     void *user_data;
 
     lv_point_t press_point;
     uint32_t   press_time_ms;
     uint32_t   last_gesture_time_ms;        /**< 手势事件防抖节流时间戳 */
+    
+    lv_point_t last_tap_point;              /**< 上次单次点击坐标 (用于双击判定) */
+    uint32_t   last_tap_time_ms;            /**< 上次单次点击时间戳 (用于双击判定) */
+
     bool       is_pressed;
     bool       is_animating;
 };
@@ -68,6 +75,8 @@ void ui_stage_bind_touch(ui_stage_t *stage, lv_obj_t *target);
  * @param user_data 回调参数
  */
 void ui_stage_set_swipe_down_cb(ui_stage_t *stage, ui_stage_swipe_down_cb_t cb, void *user_data);
+void ui_stage_set_double_tap_cb(ui_stage_t *stage, ui_stage_action_cb_t cb, void *user_data);
+void ui_stage_set_long_press_cb(ui_stage_t *stage, ui_stage_action_cb_t cb, void *user_data);
 
 /**
  * @brief 挂载新卡带视图并执行横向平滑过渡动效

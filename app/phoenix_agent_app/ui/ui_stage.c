@@ -104,11 +104,44 @@ static void stage_touch_event_cb(lv_event_t *e)
             return;
         }
 
-        /* 3. 屏幕空白处轻敲点击判定 (位移 < 15px 且时长 < 500ms) */
+        /* 3. 轻敲 / 双击 / 长按判定 (位移 < 15px) */
         if (abs_dx < 15 && abs_dy < 15) {
             uint32_t elapsed = lv_tick_elaps(stage->press_time_ms);
+
+            /* 3.1 长按判定 (按住超过 600ms，呼出设置抽屉) */
+            if (elapsed >= 600) {
+                stage->last_gesture_time_ms = now;
+                if (stage->on_long_press) {
+                    stage->on_long_press(stage->user_data);
+                } else if (stage->on_swipe_down) {
+                    stage->on_swipe_down(stage->user_data);
+                }
+                return;
+            }
+
+            /* 3.2 双击判定 (间隔 50ms ~ 380ms 且位移 < 25px，切换控制中心) */
+            uint32_t tap_interval = now - stage->last_tap_time_ms;
+            int32_t tap_dx = release_point.x - stage->last_tap_point.x;
+            int32_t tap_dy = release_point.y - stage->last_tap_point.y;
+            int32_t tap_dist_sq = tap_dx * tap_dx + tap_dy * tap_dy;
+
+            if (tap_interval >= 50 && tap_interval <= 380 && tap_dist_sq < 625) {
+                stage->last_tap_time_ms = 0; /* 消费本次双击，防三重触发 */
+                stage->last_gesture_time_ms = now;
+                if (stage->on_double_tap) {
+                    stage->on_double_tap(stage->user_data);
+                } else if (stage->on_swipe_down) {
+                    stage->on_swipe_down(stage->user_data);
+                }
+                return;
+            }
+
+            /* 记录本次单次点击状态 */
+            stage->last_tap_time_ms = now;
+            stage->last_tap_point = release_point;
+
+            /* 3.3 分发单次轻敲事件至当前活跃卡带 (敲木鱼/互动) */
             if (elapsed > 20 && elapsed < 500) {
-                /* 分发敲击事件至当前活跃卡带 */
                 cartridge_mgr_dispatch_knock(1, 1);
             }
         }
@@ -176,6 +209,20 @@ void ui_stage_set_swipe_down_cb(ui_stage_t *stage, ui_stage_swipe_down_cb_t cb, 
 {
     if (!stage) return;
     stage->on_swipe_down = cb;
+    stage->user_data = user_data;
+}
+
+void ui_stage_set_double_tap_cb(ui_stage_t *stage, ui_stage_action_cb_t cb, void *user_data)
+{
+    if (!stage) return;
+    stage->on_double_tap = cb;
+    stage->user_data = user_data;
+}
+
+void ui_stage_set_long_press_cb(ui_stage_t *stage, ui_stage_action_cb_t cb, void *user_data)
+{
+    if (!stage) return;
+    stage->on_long_press = cb;
     stage->user_data = user_data;
 }
 

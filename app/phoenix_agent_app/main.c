@@ -332,11 +332,29 @@ int main(int argc, FAR char *argv[])
      * =========================================================================
      */
     lv_init();
+
+    lv_display_t *disp = NULL;
+#if HAS_NUTTX_LCD_DEV
+    /* 2.1 优先创建严格 64 字节硬件对齐的 LCD 显示屏 (/dev/lcd0) */
+    printf("[PhoenixApp] Initializing 64-byte aligned LVGL display (/dev/lcd0)...\n");
+    disp = phoenix_create_aligned_lcd_display("/dev/lcd0");
+#endif
+
+    if (disp == NULL) {
+        printf("[PhoenixApp] ❌ ERROR: LVGL display initialization failure!\n");
+        lv_deinit();
+        return 1;
+    }
+
+    /* 关键修复：将创建的 display 设为默认显示屏，确保后续在创建输入设备时能够正确识别宿主屏幕 */
+    lv_display_set_default(disp);
+
+    /* 2.2 屏幕与默认显示器就绪后，初始化触控输入驱动 (/dev/input0) */
     lv_nuttx_dsc_init(&info);
 
     /*
-     * 将 info.fb_path 显式设为 NULL，避免底层 lv_nuttx_init 自动调用存在 malloc
-     * 未对齐缺陷的系统 LCD 驱动；触控输入 /dev/input0 保持由 lv_nuttx_init 初始化。
+     * 将 info.fb_path 显式设为 NULL，避免底层 lv_nuttx_init 再次重复调用未对齐的系统 LCD 驱动；
+     * 触控输入 /dev/input0 保持由 lv_nuttx_init 负责注册绑定。
      */
     info.fb_path = NULL;
 #if defined(CONFIG_LV_USE_NUTTX_TOUCHSCREEN) || defined(CONFIG_INPUT_TOUCHSCREEN) || defined(CONFIG_INPUT)
@@ -352,18 +370,17 @@ int main(int argc, FAR char *argv[])
     lv_nuttx_init(&info, &result);
     usleep(50000);
 
-#if HAS_NUTTX_LCD_DEV
-    printf("[PhoenixApp] Initializing 64-byte aligned LVGL display (/dev/lcd0)...\n");
-    result.disp = phoenix_create_aligned_lcd_display("/dev/lcd0");
-#endif
+    /* 
+     * 关键修复：lv_nuttx_init 内部执行了 lv_memzero(result)，导致之前赋的值被清空；
+     * 此处必须将 disp 重新回填到 result.disp 中，供后续事件循环及触控绑定使用。
+     */
+    result.disp = disp;
 
-    if (result.disp == NULL) {
-        printf("[PhoenixApp] ❌ ERROR: LVGL display initialization failure (result.disp is NULL)!\n");
-        lv_nuttx_deinit(&result);
-        lv_deinit();
-        return 1;
+    /* 关键修复：显式将触控设备绑定到该显示屏，确保坐标映射与触控/滑动事件正常派发 */
+    if (result.indev && result.disp) {
+        lv_indev_set_display(result.indev, result.disp);
     }
-    printf("[PhoenixApp] ✅ LVGL display & input initialized successfully.\n");
+    printf("[PhoenixApp] ✅ LVGL display & touch input (/dev/input0) linked and initialized successfully.\n");
 
     /*
      * =========================================================================
