@@ -25,15 +25,21 @@
 #include "../perception/perception.h"
 #include "../voice/voice_pipeline.h"
 #include "../hal/network_mgr.h"
+#include "../utils/log_utils.h"
 #include <stdio.h>
 #include <string.h>
+
+#define TAG "PhoenixApp"
 
 static bool g_app_initialized = false;
 
 int phoenix_app_init(const phoenix_app_config_t *config)
 {
+    /* 优先初始化统一日志子系统 */
+    phoenix_log_init();
+
     if (g_app_initialized) {
-        printf("[PhoenixApp] Notice: Already initialized, reusing existing context.\n");
+        LOG_I(TAG, "Notice: Already initialized, reusing existing context.");
         return 0;
     }
 
@@ -42,7 +48,7 @@ int phoenix_app_init(const phoenix_app_config_t *config)
     const char *api_key = (config && config->api_key) ? config->api_key : NULL;
     bool reg_tools = config ? config->register_tools : true;
 
-    printf("[PhoenixApp] 🚀 Initializing Phoenix HoloDesk-S1 Subsystems...\n");
+    LOG_I(TAG, "🚀 Initializing Phoenix HoloDesk-S1 Subsystems (Unified Logging Enabled)...");
 
     /* 0. Hardware Abstraction Layer (HAL) */
     hal_config_t hal_cfg;
@@ -166,7 +172,7 @@ void phoenix_app_deinit(void)
 {
     if (!g_app_initialized) return;
 
-    printf("[PhoenixApp] 🔄 De-initializing Phoenix Subsystems...\n");
+    LOG_I(TAG, "🔄 De-initializing Phoenix Subsystems...");
 
     cartridge_mgr_deinit();
     net_mgr_deinit();
@@ -182,7 +188,8 @@ void phoenix_app_deinit(void)
     hal_deinit();
 
     g_app_initialized = false;
-    printf("[PhoenixApp] 🏁 Subsystems teardown complete.\n");
+    LOG_I(TAG, "🏁 Subsystems teardown complete.");
+    phoenix_log_deinit();
 }
 
 bool phoenix_app_is_initialized(void)

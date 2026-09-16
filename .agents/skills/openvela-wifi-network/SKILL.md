@@ -110,20 +110,71 @@ net_mgr_init();
 // 2. 注册状态变更回调 (通知 UI 胶囊状态或屏幕弹窗)
 net_mgr_register_cb(on_network_status_change, NULL);
 
-// 3. 手动切换至 SoftAP 热点配网
+// 3. 手动切换至 SoftAP 热点配网 (基于 wlan1 接口与内置 Mini DHCP)
 net_mgr_start_softap("Gemini-Agent-Setup");
 
-// 4. 用户提交配网后，切换连入局域网
+// 4. 关闭 SoftAP 热点
+net_mgr_stop_softap();
+
+// 5. 用户提交配网后，切换连入局域网
 net_mgr_connect_sta("Office-WiFi", "office-pwd-2026");
+```
+
+### 3.2 全志 R528 SoftAP 底层启停指令规范
+全志 Realtek 驱动采用双网卡架构，**`wlan0` 专用于 STA 客户端，`wlan1` 专用于 SoftAP / Master**：
+
+```bash
+# === 启动 SoftAP ===
+# 1. 激活 wlan1 物理网关
+ifconfig wlan1 192.168.4.1 netmask 255.255.255.0 up
+# 2. 切换模式为 Master (3)
+wapi mode wlan1 3
+# 3. 设置广播 SSID 并触发射频启动 (末尾 1 为使能)
+wapi essid wlan1 "Gemini-Agent-Setup" 1
+
+# === 关闭 SoftAP ===
+wapi essid wlan1 "" 0
+ifconfig wlan1 down
+```
+
+### 3.3 原生 WAPI C API 替代 `system()` 规范
+在 C 源码中，优先使用底层原生 WAPI API（避免 `system()` 启动 shell 子任务开销，微秒级响应且类型安全）：
+
+```c
+// 1. 创建 WAPI 控制套接字
+int sock = wapi_make_socket();
+
+// 2. 配置物理网关 IP 与掩码
+struct in_addr ip, mask;
+inet_aton("192.168.4.1", &ip);
+inet_aton("255.255.255.0", &mask);
+wapi_set_ip(sock, "wlan1", &ip);
+wapi_set_netmask(sock, "wlan1", &mask);
+wapi_set_ifup(sock, "wlan1");
+
+// 3. 切换 Master 模式并广播 SSID
+wapi_set_mode(sock, "wlan1", WAPI_MODE_MASTER);
+wapi_set_essid(sock, "wlan1", "Gemini-Agent-Setup", WAPI_ESSID_ON);
+
+// 4. STA 模式断开连接
+wpa_driver_wext_disconnect(sock, "wlan0");
+
+// 5. 关闭控制套接字
+close(sock);
 ```
 
 ---
 
 ## 4. 常见问题排查与避坑指南
 
-1. **`renew wlan0` 返回错误或无法获取 IP**：
+1. **手机搜不到热点信号**：
+   - 严禁在 `wlan0` 上配置热点。全志驱动若发现 `wlan0` 未连接路由器直接切 AP 会返回 `-EINVAL`。必须在 `wlan1` 上执行 `wapi mode wlan1 3` 与 `wapi essid wlan1 <SSID> 1`。
+2. **手机连入热点后无法获取 IP（一直停留在“正在获取IP”）**：
+   - OpenVela 系统通常未运行系统级 `dhcpd`。应用层已在 `network_mgr.c` 中内置轻量级 Mini DHCP 服务（监听 UDP 67，为手机自动分配 `192.168.4.100`，网关指向 `192.168.4.1`）。
+   - 若未运行 DHCP，可在手机端 Wi-Fi 设置中将 IP 设为静态：IP `192.168.4.2`、网关 `192.168.4.1`。
+3. **`renew wlan0` 返回错误或无法获取 IP**：
    - 驱动与 AP 完成关联通常需要 3~5 秒，关联未完成时执行 `renew` 会失败。建议编写重试循环（每次 sleep 2 秒，最多重试 3 次）。
-2. **5GHz 频段容易断连**：
+4. **5GHz 频段容易断连**：
    - 全志无线芯片在部分弱信号场景自适应算法不稳定，可通过 `wapi private wlan0 adaptivity 0` 关闭自适应模式，提升 TCP/WebSocket 长连接质量。
-3. **断电重启后 Wi-Fi 配置丢失**：
+5. **断电重启后 Wi-Fi 配置丢失**：
    - 确保配置文件写入路径为 `/data`（掉电不丢失的只读/读写挂载区），不可保存在临时目录 `/tmp` 或 `/var`。写入完成后建议执行 `sync` 刷盘。

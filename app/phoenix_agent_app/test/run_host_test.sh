@@ -36,6 +36,7 @@ $COMPILER -O2 -Wall -Wextra -std=gnu99 \
     -I "$SCRIPT_DIR" \
     -I "$CJSON_DIR" \
     "$SCRIPT_DIR/host_runner.c" \
+    "$APP_DIR/utils/log_mgr.c" \
     "$APP_DIR/utils/ring_buffer.c" \
     "$APP_DIR/utils/time_utils.c" \
     "$APP_DIR/core/event_bus.c" \

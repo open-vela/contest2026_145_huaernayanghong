@@ -12,6 +12,7 @@ if(CONFIG_LVX_USE_DEMO_CONTEST2026_145_PHOENIX_AGENT_APP)
   set(MAINSRC main.c)
 
   set(CSRCS
+      utils/log_mgr.c
       utils/ring_buffer.c
       utils/time_utils.c
       ui/ui.c

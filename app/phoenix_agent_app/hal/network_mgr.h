@@ -73,6 +73,12 @@ void net_mgr_deinit(void);
 int net_mgr_start_softap(const char *custom_ssid);
 
 /**
+ * @brief 关闭 SoftAP 独立热点与内嵌 DHCP 服务
+ * @return 0 成功, 负数失败
+ */
+int net_mgr_stop_softap(void);
+
+/**
  * @brief 连接指定 Wi-Fi 路由热点 (STA 模式)
  * @param ssid Wi-Fi 名称
  * @param psk 密码 (可为空)

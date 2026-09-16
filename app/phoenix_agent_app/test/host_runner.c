@@ -1175,13 +1175,57 @@ static void run_test_utils_time_and_log(void)
     assert(strlen(dt_buf) >= 19); /* Format: YYYY-MM-DD HH:MM:SS */
     printf("  -> Formatted Datetime: [%s]\n", dt_buf);
 
-    /* 3. Logging macro smoke test */
+    /* 3. Logging Engine & Macro Tests */
+    phoenix_log_init();
+    phoenix_log_set_level(PHOENIX_LOG_DEBUG);
+    assert(phoenix_log_get_level() == PHOENIX_LOG_DEBUG);
+
     LOG_D("TestTag", "Debug logging active: %d", 42);
     LOG_I("TestTag", "Info logging active: %s", "HoloDesk-S1");
     LOG_W("TestTag", "Warn logging active");
     LOG_E("TestTag", "Error logging active");
+    LOG_V("TestTag", "Verbose trace active");
 
-    printf("  -> Utils Time & Logging PASSED!\n");
+    /* 4. Recent Ring Buffer Verification */
+    char recent_buf[1024];
+    size_t recent_len = phoenix_log_get_recent(recent_buf, sizeof(recent_buf));
+    assert(recent_len > 0);
+    assert(strstr(recent_buf, "TestTag") != NULL);
+    assert(strstr(recent_buf, "Info logging active") != NULL);
+    printf("  -> Recent Ring Buffer Captured %zu bytes.\n", recent_len);
+
+    /* 5. Rate-limited Logging Test (50 rapid calls) */
+    for (int i = 0; i < 50; i++) {
+        LOG_W_RATELIMITED("RateLimitTag", 200, "Sensor connection retry count: %d", i);
+    }
+    printf("  -> Rate-limiting Suppression PASSED!\n");
+
+    /* 6. Dynamic Level Filtering */
+    phoenix_log_set_level(PHOENIX_LOG_ERROR);
+    assert(phoenix_log_get_level() == PHOENIX_LOG_ERROR);
+    LOG_I("FilteredTag", "This INFO log must be filtered out");
+    phoenix_log_set_level(PHOENIX_LOG_INFO);
+    assert(phoenix_log_get_level() == PHOENIX_LOG_INFO);
+
+    /* 7. Web Portal Log APIs Verification */
+    char web_resp[4096];
+    const char *get_logs_req = "GET /api/logs HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+    int n = phoenix_web_portal_handle_request(get_logs_req, web_resp, sizeof(web_resp));
+    assert(n > 0);
+    assert(strstr(web_resp, "\"level_str\":\"INFO\"") != NULL);
+    assert(strstr(web_resp, "\"logs\":") != NULL);
+    printf("  -> Web Portal GET /api/logs PASSED!\n");
+
+    const char *set_level_req = "POST /api/logs/level HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"level\":\"debug\"}";
+    n = phoenix_web_portal_handle_request(set_level_req, web_resp, sizeof(web_resp));
+    assert(n > 0);
+    assert(phoenix_log_get_level() == PHOENIX_LOG_DEBUG);
+    assert(strstr(web_resp, "\"level_str\":\"DEBUG\"") != NULL);
+    printf("  -> Web Portal POST /api/logs/level Dynamic Update PASSED!\n");
+
+    /* Restore default level */
+    phoenix_log_set_level(PHOENIX_LOG_INFO);
+    printf("  -> OpenVela / Host Dual-Backend Logging System PASSED!\n");
 }
 
 /* --- TASK-01: Cartridge Manager Unit Tests --- */

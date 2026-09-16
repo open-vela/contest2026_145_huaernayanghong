@@ -7,7 +7,6 @@
 #include "network_mgr.h"
 #include "../core/config.h"
 #include "../core/web_portal.h"
-#include "../core/event_bus.h"
 #include "../utils/log_utils.h"
 
 #if defined(__has_include)
@@ -40,6 +39,31 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
+
+#if !defined(HOST_TEST_RUNNER)
+/* WAPI C 语言原生底层接口声明 (链接自 apps/wireless/wapi) */
+#define WAPI_ESSID_OFF 0
+#define WAPI_ESSID_ON  1
+#define WAPI_MODE_MANAGED 2
+#define WAPI_MODE_MASTER  3
+
+#define IW_AUTH_WPA_VERSION      0
+#define IW_AUTH_CIPHER_PAIRWISE  1
+#define IW_AUTH_WPA_VERSION_WPA2 0x00000004
+#define IW_AUTH_CIPHER_CCMP      0x00000008
+#define WPA_ALG_CCMP             3
+
+int  wapi_make_socket(void);
+int  wapi_set_ifup(int sock, const char *ifname);
+int  wapi_set_ifdown(int sock, const char *ifname);
+int  wapi_set_ip(int sock, const char *ifname, const struct in_addr *addr);
+int  wapi_set_netmask(int sock, const char *ifname, const struct in_addr *addr);
+int  wapi_set_mode(int sock, const char *ifname, int mode);
+int  wapi_set_essid(int sock, const char *ifname, const char *essid, int flag);
+void wpa_driver_wext_disconnect(int sockfd, const char *ifname);
+int  wpa_driver_wext_set_auth_param(int sockfd, const char *ifname, int idx, uint32_t value);
+int  wpa_driver_wext_set_key_ext(int sockfd, const char *ifname, int alg, const char *key, size_t key_len);
+#endif
 
 #define TAG "NetMgr"
 
@@ -146,31 +170,39 @@ static void* sta_connect_worker_thread(void *arg)
         LOG_I(TAG, "[Worker] 发现系统启动脚本 /etc/wifi/start_wifi.sh，执行官方 Wi-Fi 初始化流程...");
         system("sh /etc/wifi/start_wifi.sh > /dev/null 2>&1");
     } else {
-        /* 1. 先断开并等待状态清理 */
-        system("wapi disconnect wlan0 > /dev/null 2>&1");
-        usleep(500000); /* 500ms */
+        /* 原生 WAPI C API 下发 STA 连接序列 */
+        int sock = wapi_make_socket();
+        if (sock >= 0) {
+            /* 1. 断开可能存在的旧连接 */
+            wpa_driver_wext_disconnect(sock, "wlan0");
+            usleep(300000);
 
-        /* 2. 下发 SSID */
-        char cmd[256];
-        snprintf(cmd, sizeof(cmd), "wapi essid wlan0 \"%s\" 1", target_ssid);
-        system(cmd);
+            /* 2. 设置 Managed (STA) 客户端模式 */
+            wapi_set_mode(sock, "wlan0", WAPI_MODE_MANAGED);
 
-        /* 3. 下发密码 (3: WPA2-PSK) */
-        if (target_psk[0] != '\0') {
-            snprintf(cmd, sizeof(cmd), "wapi psk wlan0 \"%s\" 1 3", target_psk);
+            /* 3. 配置 WPA2-PSK 认证与密码 */
+            if (target_psk[0] != '\0') {
+                wpa_driver_wext_set_auth_param(sock, "wlan0", IW_AUTH_WPA_VERSION, IW_AUTH_WPA_VERSION_WPA2);
+                wpa_driver_wext_set_auth_param(sock, "wlan0", IW_AUTH_CIPHER_PAIRWISE, IW_AUTH_CIPHER_CCMP);
+                wpa_driver_wext_set_key_ext(sock, "wlan0", WPA_ALG_CCMP, target_psk, strlen(target_psk));
+            }
+
+            /* 4. 下发 SSID 并触发驱动关联握手 */
+            wapi_set_essid(sock, "wlan0", target_ssid, WAPI_ESSID_ON);
+            close(sock);
+            LOG_I(TAG, "⚡ [Worker] 已通过原生 WAPI C API 触发 STA 握手");
+        } else {
+            /* Fallback */
+            system("wapi disconnect wlan0 > /dev/null 2>&1");
+            char cmd[256];
+            snprintf(cmd, sizeof(cmd), "wapi essid wlan0 \"%s\" 1 > /dev/null 2>&1", target_ssid);
             system(cmd);
+            if (target_psk[0] != '\0') {
+                snprintf(cmd, sizeof(cmd), "wapi psk wlan0 \"%s\" 1 3 > /dev/null 2>&1", target_psk);
+                system(cmd);
+            }
         }
-
-        /* 4. 关闭自适应与省电模式，提升嵌入式长连接可靠性 */
-        system("wapi private wlan0 adaptivity 0 > /dev/null 2>&1");
-        system("wapi power_save wlan0 off > /dev/null 2>&1");
-
-        /* 5. 保存并重连 */
-        system("wapi save_config wlan0 > /dev/null 2>&1");
-        system("wapi reconnect wlan0 > /dev/null 2>&1");
-
-        LOG_I(TAG, "[Worker] WAPI 关联指令已发出，等待链路就绪并申请 DHCP...");
-        sleep(5);
+        sleep(4);
     }
 
     /* 6. DHCP 租约重试获取 IP */
@@ -309,7 +341,230 @@ void net_mgr_deinit(void)
     pthread_mutex_unlock(&s_lock);
 
     phoenix_web_portal_stop();
+    net_mgr_stop_softap();
     LOG_I(TAG, "网络管理器已安全销毁");
+}
+
+#if !defined(HOST_TEST_RUNNER)
+/* ========================================================================= */
+/*                   内嵌微型 DHCP Server 守护服务 (Mini DHCPD)                */
+/* ========================================================================= */
+
+#pragma pack(push, 1)
+typedef struct {
+    uint8_t  op;           /* 1: BOOTREQUEST, 2: BOOTREPLY */
+    uint8_t  htype;        /* 1: Ethernet */
+    uint8_t  hlen;         /* 6 */
+    uint8_t  hops;         /* 0 */
+    uint32_t xid;          /* 客户端事务 ID */
+    uint16_t secs;
+    uint16_t flags;
+    uint32_t ciaddr;
+    uint32_t yiaddr;       /* 客户端分配 IP */
+    uint32_t siaddr;       /* 下一阶段服务器 IP */
+    uint32_t giaddr;
+    uint8_t  chaddr[16];   /* 客户端 MAC 地址 */
+    uint8_t  sname[64];
+    uint8_t  file[128];
+    uint8_t  magic[4];     /* 99, 130, 83, 99 */
+    uint8_t  options[308]; /* DHCP 可选字段 */
+} mini_dhcp_msg_t;
+#pragma pack(pop)
+
+static pthread_t      s_dhcp_tid = 0;
+static volatile bool  s_dhcp_running = false;
+static int            s_dhcp_sock = -1;
+
+static void* mini_dhcpd_thread(void *arg)
+{
+    (void)arg;
+    LOG_I(TAG, "🐣 [MiniDHCP] 轻量级 DHCP 服务启动 (监听 0.0.0.0:67)...");
+
+    s_dhcp_sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (s_dhcp_sock < 0) {
+        LOG_W(TAG, "⚠️ [MiniDHCP] 无法创建 UDP 套接字");
+        s_dhcp_running = false;
+        return NULL;
+    }
+
+    int opt = 1;
+    setsockopt(s_dhcp_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    setsockopt(s_dhcp_sock, SOL_SOCKET, SO_BROADCAST, &opt, sizeof(opt));
+
+    /* 设置 1 秒超时以便响应退出信号 */
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+    setsockopt(s_dhcp_sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    struct sockaddr_in saddr;
+    memset(&saddr, 0, sizeof(saddr));
+    saddr.sin_family = AF_INET;
+    saddr.sin_port = htons(67);
+    saddr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    if (bind(s_dhcp_sock, (struct sockaddr *)&saddr, sizeof(saddr)) < 0) {
+        LOG_W(TAG, "⚠️ [MiniDHCP] 绑定 67 端口失败 (可能已被占用或权限受限)");
+        close(s_dhcp_sock);
+        s_dhcp_sock = -1;
+        s_dhcp_running = false;
+        return NULL;
+    }
+
+    uint8_t buf[576];
+    while (s_dhcp_running) {
+        struct sockaddr_in client_addr;
+        socklen_t addr_len = sizeof(client_addr);
+        ssize_t n = recvfrom(s_dhcp_sock, buf, sizeof(buf), 0, (struct sockaddr *)&client_addr, &addr_len);
+        if (n < (ssize_t)(sizeof(mini_dhcp_msg_t) - 308)) {
+            continue; /* 超时或非标准报文 */
+        }
+
+        mini_dhcp_msg_t *req = (mini_dhcp_msg_t *)buf;
+        if (req->op != 1) continue; /* 仅处理 BOOTREQUEST */
+        if (req->magic[0] != 99 || req->magic[1] != 130 || req->magic[2] != 83 || req->magic[3] != 99) {
+            continue;
+        }
+
+        /* 解析 Option 53 (Message Type) */
+        uint8_t msg_type = 0;
+        int opt_idx = 0;
+        int max_opt = n - (int)(sizeof(mini_dhcp_msg_t) - 308);
+        if (max_opt > 308) max_opt = 308;
+
+        while (opt_idx < max_opt) {
+            uint8_t code = req->options[opt_idx++];
+            if (code == 0) continue; /* PAD */
+            if (code == 255) break;  /* END */
+            if (opt_idx >= max_opt) break;
+            uint8_t len = req->options[opt_idx++];
+            if (opt_idx + len > max_opt) break;
+            if (code == 53 && len >= 1) {
+                msg_type = req->options[opt_idx];
+            }
+            opt_idx += len;
+        }
+
+        /* 仅对 DISCOVER (1) 和 REQUEST (3) 响应 */
+        if (msg_type != 1 && msg_type != 3) {
+            continue;
+        }
+
+        /* 构造回复报文 (DHCPOFFER 或 DHCPACK) */
+        mini_dhcp_msg_t resp;
+        memset(&resp, 0, sizeof(resp));
+        resp.op = 2; /* BOOTREPLY */
+        resp.htype = req->htype;
+        resp.hlen = req->hlen;
+        resp.xid = req->xid;
+        resp.flags = req->flags;
+        resp.yiaddr = inet_addr("192.168.4.100"); /* 固定向连入设备下发 192.168.4.100 */
+        resp.siaddr = inet_addr("192.168.4.1");
+        memcpy(resp.chaddr, req->chaddr, 16);
+        resp.magic[0] = 99; resp.magic[1] = 130; resp.magic[2] = 83; resp.magic[3] = 99;
+
+        int o = 0;
+        /* Option 53: Message Type */
+        resp.options[o++] = 53;
+        resp.options[o++] = 1;
+        resp.options[o++] = (msg_type == 1) ? 2 /* OFFER */ : 5 /* ACK */;
+
+        /* Option 54: Server Identifier (192.168.4.1) */
+        resp.options[o++] = 54;
+        resp.options[o++] = 4;
+        uint32_t server_ip = inet_addr("192.168.4.1");
+        memcpy(&resp.options[o], &server_ip, 4);
+        o += 4;
+
+        /* Option 51: Lease Time (86400 秒) */
+        resp.options[o++] = 51;
+        resp.options[o++] = 4;
+        uint32_t lease = htonl(86400);
+        memcpy(&resp.options[o], &lease, 4);
+        o += 4;
+
+        /* Option 1: Subnet Mask (255.255.255.0) */
+        resp.options[o++] = 1;
+        resp.options[o++] = 4;
+        uint32_t mask = inet_addr("255.255.255.0");
+        memcpy(&resp.options[o], &mask, 4);
+        o += 4;
+
+        /* Option 3: Router / Gateway (192.168.4.1) */
+        resp.options[o++] = 3;
+        resp.options[o++] = 4;
+        memcpy(&resp.options[o], &server_ip, 4);
+        o += 4;
+
+        /* Option 6: DNS Server (192.168.4.1) */
+        resp.options[o++] = 6;
+        resp.options[o++] = 4;
+        memcpy(&resp.options[o], &server_ip, 4);
+        o += 4;
+
+        /* Option 255: End */
+        resp.options[o++] = 255;
+
+        size_t resp_len = (sizeof(mini_dhcp_msg_t) - 308) + o;
+
+        /* 广播发送回给客户端端口 68 */
+        struct sockaddr_in bcast_addr;
+        memset(&bcast_addr, 0, sizeof(bcast_addr));
+        bcast_addr.sin_family = AF_INET;
+        bcast_addr.sin_port = htons(68);
+        bcast_addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+
+        sendto(s_dhcp_sock, &resp, resp_len, 0, (struct sockaddr *)&bcast_addr, sizeof(bcast_addr));
+        LOG_I(TAG, "📡 [MiniDHCP] 已响应 %s 给客户端 MAC [%02X:%02X:%02X:%02X:%02X:%02X]，分配 IP: 192.168.4.100",
+              (msg_type == 1) ? "DHCPOFFER" : "DHCPACK",
+              req->chaddr[0], req->chaddr[1], req->chaddr[2],
+              req->chaddr[3], req->chaddr[4], req->chaddr[5]);
+    }
+
+    if (s_dhcp_sock >= 0) {
+        close(s_dhcp_sock);
+        s_dhcp_sock = -1;
+    }
+    LOG_I(TAG, "💤 [MiniDHCP] 轻量级 DHCP 服务已正常退出");
+    return NULL;
+}
+
+static void mini_dhcpd_start(void)
+{
+    if (s_dhcp_running) return;
+    s_dhcp_running = true;
+    pthread_create(&s_dhcp_tid, NULL, mini_dhcpd_thread, NULL);
+    pthread_detach(s_dhcp_tid);
+}
+
+static void mini_dhcpd_stop(void)
+{
+    if (!s_dhcp_running) return;
+    s_dhcp_running = false;
+    if (s_dhcp_sock >= 0) {
+        close(s_dhcp_sock);
+        s_dhcp_sock = -1;
+    }
+}
+#endif
+
+int net_mgr_stop_softap(void)
+{
+    LOG_I(TAG, "🛑 关闭 SoftAP 独立热点与内嵌 DHCP 服务...");
+#if !defined(HOST_TEST_RUNNER)
+    mini_dhcpd_stop();
+
+    int sock = wapi_make_socket();
+    if (sock >= 0) {
+        wapi_set_essid(sock, "wlan1", "", WAPI_ESSID_OFF);
+        wapi_set_ifdown(sock, "wlan1");
+        close(sock);
+    } else {
+        system("wapi essid wlan1 \"\" 0 > /dev/null 2>&1");
+        system("ifconfig wlan1 down > /dev/null 2>&1");
+    }
+#endif
+    return 0;
 }
 
 int net_mgr_start_softap(const char *custom_ssid)
@@ -322,12 +577,42 @@ int net_mgr_start_softap(const char *custom_ssid)
     snprintf(s_current_ssid, sizeof(s_current_ssid), "%s", ssid);
     snprintf(s_current_ip, sizeof(s_current_ip), "%s", NET_DEFAULT_SOFTAP_IP);
 
-    LOG_I(TAG, "📡 SoftAP 广播开启: SSID=[%s], 配网地址=[http://%s:8080]", 
-          s_current_ssid, s_current_ip);
+    LOG_I(TAG, "📡 启动 SoftAP: SSID=[%s], 网关=[192.168.4.1], Web=[http://192.168.4.1:8080]", 
+          s_current_ssid);
 
 #if !defined(HOST_TEST_RUNNER)
-    /* 配置热点物理网关 IP */
-    system("ifconfig wlan0 192.168.4.1 netmask 255.255.255.0 up > /dev/null 2>&1");
+    /* 1. 先清理旧的 SoftAP 与 DHCP 状态 */
+    net_mgr_stop_softap();
+
+    /* 2. 通过原生 WAPI C API 极速配置 wlan1 网卡、AP 模式与 SSID */
+    int sock = wapi_make_socket();
+    if (sock >= 0) {
+        struct in_addr ip, mask;
+        inet_aton("192.168.4.1", &ip);
+        inet_aton("255.255.255.0", &mask);
+
+        wapi_set_ip(sock, "wlan1", &ip);
+        wapi_set_netmask(sock, "wlan1", &mask);
+        wapi_set_ifup(sock, "wlan1");
+        usleep(100000);
+
+        wapi_set_mode(sock, "wlan1", WAPI_MODE_MASTER);
+        usleep(100000);
+
+        wapi_set_essid(sock, "wlan1", s_current_ssid, WAPI_ESSID_ON);
+        close(sock);
+        LOG_I(TAG, "⚡ [Native WAPI] SoftAP 射频与网卡已通过底层 C API 激活");
+    } else {
+        /* Fallback 安全降级 */
+        system("ifconfig wlan1 192.168.4.1 netmask 255.255.255.0 up > /dev/null 2>&1");
+        system("wapi mode wlan1 3 > /dev/null 2>&1");
+        char cmd[256];
+        snprintf(cmd, sizeof(cmd), "wapi essid wlan1 \"%s\" 1 > /dev/null 2>&1", s_current_ssid);
+        system(cmd);
+    }
+
+    /* 3. 启动内嵌微型 DHCP 服务，为手机自动分配 192.168.4.100 */
+    mini_dhcpd_start();
 #endif
 
     notify_state_changed_unlocked();
@@ -348,6 +633,9 @@ int net_mgr_connect_sta(const char *ssid, const char *psk)
         LOG_W(TAG, "Wi-Fi 正在连接中，忽略重复连接请求");
         return -2;
     }
+
+    /* 若之前处于 SoftAP 状态，切 STA 时关闭 SoftAP */
+    net_mgr_stop_softap();
 
     s_mode = NET_MODE_STA_CONNECTING;
     snprintf(s_current_ssid, sizeof(s_current_ssid), "%.31s", ssid);
@@ -405,7 +693,14 @@ void net_mgr_disconnect(void)
     s_current_ssid[0] = '\0';
 
 #if !defined(HOST_TEST_RUNNER)
-    system("wapi disconnect wlan0 > /dev/null 2>&1");
+    int sock = wapi_make_socket();
+    if (sock >= 0) {
+        wpa_driver_wext_disconnect(sock, "wlan0");
+        close(sock);
+    } else {
+        system("wapi disconnect wlan0 > /dev/null 2>&1");
+    }
+    net_mgr_stop_softap();
 #endif
 
     notify_state_changed_unlocked();

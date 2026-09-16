@@ -10,6 +10,7 @@
 #include "config.h"
 #include "harness/llm_provider.h"
 #include "../hal/network_mgr.h"
+#include "../utils/log_mgr.h"
 
 #if defined(__has_include) && __has_include("cartridge_mgr.h")
 #  include "cartridge_mgr.h"
@@ -502,6 +503,75 @@ int phoenix_web_portal_handle_request(const char *req_str, char *resp_out, size_
                  "Access-Control-Allow-Origin: *\r\n"
                  "Connection: close\r\n\r\n%s",
                  strlen(resp_json), resp_json);
+        return (int)strlen(resp_out);
+    }
+
+    /* 9. GET /api/logs -> Query current log level and recent ring buffer logs */
+    if (strncmp(req_str, "GET /api/logs", 13) == 0) {
+        int lvl = phoenix_log_get_level();
+        const char *lvl_name = phoenix_log_level_to_str(lvl);
+
+        char raw_logs[4096];
+        size_t nread = phoenix_log_get_recent(raw_logs, sizeof(raw_logs));
+        (void)nread;
+
+        /* 构建 cJSON 响应以安全转义换行与引号 */
+        cJSON *root = cJSON_CreateObject();
+        cJSON_AddBoolToObject(root, "success", true);
+        cJSON_AddNumberToObject(root, "level_num", lvl);
+        cJSON_AddStringToObject(root, "level_str", lvl_name);
+        cJSON_AddStringToObject(root, "logs", raw_logs);
+
+        char *rendered = cJSON_PrintUnformatted(root);
+        cJSON_Delete(root);
+
+        if (rendered) {
+            snprintf(resp_out, max_len,
+                     "HTTP/1.1 200 OK\r\n"
+                     "Content-Type: application/json; charset=UTF-8\r\n"
+                     "Content-Length: %zu\r\n"
+                     "Access-Control-Allow-Origin: *\r\n"
+                     "Connection: close\r\n\r\n%s",
+                     strlen(rendered), rendered);
+            free(rendered);
+            return (int)strlen(resp_out);
+        }
+    }
+
+    /* 10. POST /api/logs/level -> Dynamically change application log level */
+    if (strncmp(req_str, "POST /api/logs/level", 20) == 0 || strncmp(req_str, "POST /api/logs", 14) == 0) {
+        const char *body = strstr(req_str, "\r\n\r\n");
+        int target_lvl = phoenix_log_get_level();
+        if (body) {
+            body += 4;
+            cJSON *root = cJSON_Parse(body);
+            if (root) {
+                cJSON *item = cJSON_GetObjectItem(root, "level");
+                if (item) {
+                    if (item->type == cJSON_String && item->valuestring) {
+                        target_lvl = phoenix_log_level_from_str(item->valuestring);
+                    } else if (item->type == cJSON_Number) {
+                        target_lvl = item->valueint;
+                    }
+                }
+                cJSON_Delete(root);
+            }
+        }
+
+        phoenix_log_set_level(target_lvl);
+
+        char resp_buf[256];
+        snprintf(resp_buf, sizeof(resp_buf),
+                 "{\"success\":true,\"level_num\":%d,\"level_str\":\"%s\"}",
+                 target_lvl, phoenix_log_level_to_str(target_lvl));
+
+        snprintf(resp_out, max_len,
+                 "HTTP/1.1 200 OK\r\n"
+                 "Content-Type: application/json\r\n"
+                 "Content-Length: %zu\r\n"
+                 "Access-Control-Allow-Origin: *\r\n"
+                 "Connection: close\r\n\r\n%s",
+                 strlen(resp_buf), resp_buf);
         return (int)strlen(resp_out);
     }
 
