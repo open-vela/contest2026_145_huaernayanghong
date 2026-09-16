@@ -402,13 +402,13 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
     phoenix_event_subscribe(PHOENIX_EVT_CARTRIDGE_SWITCHED, on_event_bus_event, ui);
     phoenix_event_subscribe(PHOENIX_EVT_NET_STATUS, on_event_bus_event, ui);
 
-    /* 2. 创建卡带主舞台视窗 (X=36, Y=24, W=284, H=216) */
+    /* 2. 创建卡带主舞台视窗 (X=46, Y=24, W=274, H=216) */
     ui->stage = ui_stage_create(ui->screen);
     if (ui->stage) {
         cartridge_mgr_set_stage(ui_stage_get_canvas(ui->stage));
     }
 
-    /* 3. 左侧常驻导航栏：点击直达切卡 + 最底部控制中心入口 (宽 36px, Y=24) */
+    /* 3. 左侧常驻导航栏：点击直达切卡 + 最底部控制中心入口 (宽 46px, Y=24) */
     ui->sidebar = ui_sidebar_create(ui->screen, ui->font_chinese);
     if (ui->sidebar) {
         ui_sidebar_set_settings_cb(ui->sidebar, on_sidebar_settings_clicked, ui);
@@ -427,7 +427,7 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
         }
     }
 
-    /* 5. 控制中心面板与二级设置 (贴合侧边栏, X=36, Y=24, W=284, H=216) */
+    /* 5. 控制中心面板与二级设置 (贴合侧边栏, X=46, Y=24, W=274, H=216) */
     ui->settings = ui_settings_create(ui->screen, ui->font_chinese);
     if (ui->settings) {
         ui_settings_set_close_cb(ui->settings, on_settings_closed, ui);

@@ -14,6 +14,7 @@
 #else
 #  include "../core/event_bus.h"
 #endif
+#include "ble_prov_service.h"
 
 #if defined(__has_include)
 #  if __has_include(<netutils/cJSON.h>)
@@ -154,6 +155,10 @@ static void notify_state_changed_unlocked(void)
 #else
     phoenix_event_post_async(&evt);
 #endif
+
+    const char *ble_state_str = (s_mode == NET_MODE_STA_CONNECTED) ? "connected" :
+                                (s_mode == NET_MODE_STA_CONNECTING) ? "connecting" : "disconnected";
+    ble_prov_service_notify_net_status(ble_state_str, s_current_ssid, s_current_ip, evt.data.net.msg);
 }
 
 /**

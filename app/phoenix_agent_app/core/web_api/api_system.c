@@ -45,6 +45,13 @@ int handle_system_setup(const http_req_t *req, http_resp_t *resp)
     return 0;
 }
 
+int handle_system_ble_setup(const http_req_t *req, http_resp_t *resp)
+{
+    (void)req;
+    http_resp_html(resp, 200, phoenix_web_asset_get_ble_setup_html(), phoenix_web_asset_get_ble_setup_html_len());
+    return 0;
+}
+
 int handle_system_dashboard(const http_req_t *req, http_resp_t *resp)
 {
     (void)req;

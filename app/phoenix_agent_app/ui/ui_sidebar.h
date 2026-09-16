@@ -14,8 +14,8 @@ extern "C" {
 #include <lvgl/lvgl.h>
 #include <stdbool.h>
 
-#define UI_SIDEBAR_WIDTH 36
-#define UI_SIDEBAR_MAX_ITEMS 8
+#define UI_SIDEBAR_WIDTH 46
+#define UI_SIDEBAR_MAX_ITEMS 6
 
 typedef struct {
     char id[16];

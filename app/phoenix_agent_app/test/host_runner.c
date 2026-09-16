@@ -33,6 +33,7 @@
 #  include "../core/intent_router.h"
 #  include "../core/cartridge_mgr.h"
 #  include "../hal/network_mgr.h"
+#  include "../hal/ble_prov_service.h"
 #  include "../cartridges/cartridge_home.h"
 #  include "../cartridges/cartridge_familiar.h"
 #  include "../cartridges/cartridge_memo.h"
@@ -1768,6 +1769,43 @@ static void run_test_familiar_and_gestures(void)
     printf("  -> Living Cyber-Eye Familiar & Natural Gestures Subsystem PASSED!\n");
 }
 
+/* ---- 27. Web Bluetooth BLE Provisioning Service Test ---- */
+static void run_test_ble_prov_service(void)
+{
+    printf("\n[TEST 27] Testing Web Bluetooth BLE Provisioning Service & Endpoints...\n");
+
+    /* 1. Initialize BLE provisioning service */
+    assert(ble_prov_service_init("Phoenix-Test-Setup") == 0);
+    assert(ble_prov_service_get_state() == BLE_PROV_STATE_ADVERTISING);
+    printf("  -> BLE Prov Service Initialized (State: Advertising) PASSED\n");
+
+    /* 2. Test Wi-Fi scanning notification via BLE */
+    int scan_count = ble_prov_service_notify_wifi_scan();
+    assert(scan_count >= 0);
+    printf("  -> BLE Wi-Fi Scan Notify triggered PASSED\n");
+
+    /* 3. Test Network Status Notification */
+    assert(ble_prov_service_notify_net_status("connecting", "GeekLab-5G", "", "Connecting to AP...") == 0);
+    assert(ble_prov_service_notify_net_status("connected", "GeekLab-5G", "192.168.31.88", "OK") == 0);
+    assert(ble_prov_service_get_state() == BLE_PROV_STATE_PROVISIONED);
+    printf("  -> BLE Net Status Notification & IP Broadcast PASSED\n");
+
+    /* 4. Test Web Bluetooth HTML Routes (/ble_setup and /ble_setup.html) */
+    char resp_buf[32768];
+    const char *req_ble_setup = "GET /ble_setup HTTP/1.1\r\nHost: 192.168.4.1\r\n\r\n";
+    int resp_len = phoenix_web_portal_handle_request(req_ble_setup, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "HTTP/1.1 200 OK") != NULL);
+    assert(strstr(resp_buf, "Phoenix 蓝牙极速配网") != NULL);
+    assert(strstr(resp_buf, "navigator.bluetooth") != NULL);
+    printf("  -> Web Bluetooth SPA Endpoint (/ble_setup) PASSED! (Length: %d bytes)\n", resp_len);
+
+    /* 5. De-initialize BLE service */
+    ble_prov_service_deinit();
+    assert(ble_prov_service_get_state() == BLE_PROV_STATE_STOPPED);
+    printf("  -> BLE Prov Service Teardown PASSED\n");
+}
+
 int main(int argc, char *argv[])
 {
     printf("====================================================\n");
@@ -1807,8 +1845,9 @@ int main(int argc, char *argv[])
     run_test_four_cartridges();
     run_test_sdcard_storage_and_web_mgmt();
     run_test_familiar_and_gestures();
+    run_test_ble_prov_service();
 
-    printf("\n🎉 ALL 26 UNIT TESTS PASSED SUCCESSFULLY!\n");
+    printf("\n🎉 ALL 27 UNIT TESTS PASSED SUCCESSFULLY!\n");
 
     /* If --repl or -i passed, enter interactive mode */
     if (argc > 1 && (strcmp(argv[1], "-i") == 0 || strcmp(argv[1], "--repl") == 0)) {

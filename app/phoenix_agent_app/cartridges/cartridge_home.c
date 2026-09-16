@@ -275,9 +275,9 @@ static void home_enter(cartridge_t *cart, void *stage)
 
     const lv_font_t *font = phoenix_ui_get_font();
 
-    /* 主舞台全屏容器 (舞台位于 36,24, 宽 284, 高 216) */
+    /* 主舞台全屏容器 (舞台位于 46,24, 宽 274, 高 216) */
     u->container = lv_obj_create(stage_obj);
-    lv_obj_set_size(u->container, 284, 214);
+    lv_obj_set_size(u->container, 274, 214);
     lv_obj_align(u->container, LV_ALIGN_TOP_MID, 0, 0);
     lv_obj_set_style_bg_opa(u->container, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(u->container, 0, 0);
@@ -286,10 +286,10 @@ static void home_enter(cartridge_t *cart, void *stage)
     lv_obj_add_flag(u->container, LV_OBJ_FLAG_EVENT_BUBBLE);
 
     /* ===================================================================== */
-    /* 1. 左侧面板：时间与内嵌番茄钟 (宽 120px, 高 204px)                     */
+    /* 1. 左侧面板：时间与内嵌番茄钟 (宽 116px, 高 204px)                     */
     /* ===================================================================== */
     u->panel_left = lv_obj_create(u->container);
-    lv_obj_set_size(u->panel_left, 120, 204);
+    lv_obj_set_size(u->panel_left, 116, 204);
     lv_obj_align(u->panel_left, LV_ALIGN_LEFT_MID, 1, 0);
     lv_obj_set_style_bg_color(u->panel_left, COLOR_CARD_BG, 0);
     lv_obj_set_style_border_color(u->panel_left, COLOR_CARD_BORDER, 0);
@@ -384,7 +384,7 @@ static void home_enter(cartridge_t *cart, void *stage)
     /* 2. 右侧面板：今日待办事项 (宽 156px, 高 204px)                        */
     /* ===================================================================== */
     u->panel_right = lv_obj_create(u->container);
-    lv_obj_set_size(u->panel_right, 156, 204);
+    lv_obj_set_size(u->panel_right, 150, 204);
     lv_obj_align(u->panel_right, LV_ALIGN_RIGHT_MID, -1, 0);
     lv_obj_set_style_bg_color(u->panel_right, COLOR_CARD_BG, 0);
     lv_obj_set_style_border_color(u->panel_right, COLOR_CARD_BORDER, 0);
@@ -410,7 +410,7 @@ static void home_enter(cartridge_t *cart, void *stage)
 
     /* 待办行分割线 */
     lv_obj_t *todo_div = lv_obj_create(u->panel_right);
-    lv_obj_set_size(todo_div, 142, 1);
+    lv_obj_set_size(todo_div, 136, 1);
     lv_obj_align(todo_div, LV_ALIGN_TOP_MID, 0, 26);
     lv_obj_set_style_bg_color(todo_div, lv_color_hex(0x182638), 0);
     lv_obj_set_style_border_width(todo_div, 0, 0);
@@ -418,7 +418,7 @@ static void home_enter(cartridge_t *cart, void *stage)
     /* 2.2 紧凑 3 条待办行卡片 */
     for (int i = 0; i < 3; i++) {
         u->todo_rows[i] = lv_obj_create(u->panel_right);
-        lv_obj_set_size(u->todo_rows[i], 144, 48);
+        lv_obj_set_size(u->todo_rows[i], 138, 48);
         lv_obj_align(u->todo_rows[i], LV_ALIGN_TOP_MID, 0, 32 + i * 50);
         lv_obj_set_style_bg_color(u->todo_rows[i], lv_color_hex(0x0e1726), 0);
         lv_obj_set_style_border_color(u->todo_rows[i], lv_color_hex(0x1c2b40), 0);
@@ -439,7 +439,7 @@ static void home_enter(cartridge_t *cart, void *stage)
 
         /* 待办标题 */
         u->todo_titles[i] = lv_label_create(u->todo_rows[i]);
-        lv_obj_set_width(u->todo_titles[i], 86);
+        lv_obj_set_width(u->todo_titles[i], 80);
         lv_obj_align(u->todo_titles[i], LV_ALIGN_LEFT_MID, 26, 0);
         if (font) lv_obj_set_style_text_font(u->todo_titles[i], font, 0);
         lv_label_set_long_mode(u->todo_titles[i], LV_LABEL_LONG_DOT);

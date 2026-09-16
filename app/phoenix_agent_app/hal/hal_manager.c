@@ -5,6 +5,7 @@
  */
 
 #include "hal_manager.h"
+#include "ble_prov_service.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -55,6 +56,7 @@ int hal_init(const hal_config_t *config)
     hal_sdcard_init();
     hal_actuator_init(sound_root);
     hal_sensor_init();
+    ble_prov_service_init(NULL);
 
     g_hal_initialized = true;
     printf("[HAL:Manager] ✅ HAL Subsystems Initialized Successfully.\n");
@@ -66,6 +68,7 @@ void hal_deinit(void)
     if (!g_hal_initialized) return;
 
     printf("[HAL:Manager] 🔄 De-initializing HAL Subsystems...\n");
+    ble_prov_service_deinit();
     hal_sensor_deinit();
     hal_actuator_deinit();
     hal_sdcard_deinit();

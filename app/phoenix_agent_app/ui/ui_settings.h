@@ -55,11 +55,14 @@ typedef struct {
     /* 3. 二级详情视图容器 */
     lv_obj_t *view_detail;
 
-    /* 3.1 二级：网络与热点 */
+    /* 3.1 二级：网络与蓝牙配网 */
     lv_obj_t *sec_net_box;
     lv_obj_t *card_net_info;
     lv_obj_t *lbl_net_status;
     lv_obj_t *lbl_net_ip;
+    lv_obj_t *lbl_ble_status;
+    lv_obj_t *btn_ble_prov;
+    lv_obj_t *lbl_ble_prov_btn;
     lv_obj_t *btn_hotspot;
     lv_obj_t *lbl_hotspot_btn;
     lv_obj_t *lbl_hotspot_hint;

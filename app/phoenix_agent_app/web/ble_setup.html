@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phoenix Agent - Web 蓝牙极速配网中心</title>
+  <style>
+    :root {
+      --bg: #060913;
+      --card-bg: rgba(13, 21, 39, 0.78);
+      --card-border: rgba(0, 240, 255, 0.22);
+      --card-border-hover: rgba(0, 240, 255, 0.55);
+      --accent: #00f0ff;
+      --accent-sub: #00ff88;
+      --warn: #ffb700;
+      --danger: #ff4757;
+      --text: #e6edf3;
+      --muted: #8b9eb5;
+      --input-bg: #090e1c;
+      --input-border: #1c2b45;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      background: radial-gradient(circle at top right, #101d36 0%, #060913 60%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      padding: 32px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* 赛博网格与环境微光 */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+                  linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+      background-size: 32px 32px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* 顶部横幅 */
+    .top-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      background: rgba(0, 240, 255, 0.1);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      border-radius: 20px;
+      font-size: 11px;
+      color: var(--accent);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+
+    .main-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 28px 24px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 24px rgba(0, 240, 255, 0.08);
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.3s ease;
+    }
+
+    .main-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-sub));
+    }
+
+    .title-row {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .title-row h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .title-row p {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    /* 模式切换胶囊 */
+    .mode-switch {
+      display: flex;
+      background: #090e1c;
+      border: 1px solid #1a273f;
+      border-radius: 12px;
+      padding: 3px;
+      margin-bottom: 22px;
+      gap: 4px;
+    }
+
+    .mode-tab {
+      flex: 1;
+      text-align: center;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 9px;
+      color: var(--muted);
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .mode-tab.active {
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.2), rgba(0, 255, 136, 0.15));
+      color: #fff;
+      border: 1px solid rgba(0, 240, 255, 0.4);
+      box-shadow: 0 2px 8px rgba(0, 240, 255, 0.15);
+    }
+
+    /* 蓝牙连接区 */
+    .ble-status-box {
+      background: rgba(9, 14, 28, 0.7);
+      border: 1px dashed var(--card-border);
+      border-radius: 14px;
+      padding: 18px;
+      text-align: center;
+      margin-bottom: 20px;
+      position: relative;
+      transition: all 0.3s ease;
+    }
+
+    .ble-status-box.connected {
+      border-style: solid;
+      border-color: var(--accent-sub);
+      background: rgba(0, 255, 136, 0.05);
+    }
+
+    .ble-icon-circle {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: rgba(0, 240, 255, 0.1);
+      border: 2px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 12px;
+      font-size: 24px;
+      box-shadow: 0 0 16px rgba(0, 240, 255, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    .ble-status-box.connected .ble-icon-circle {
+      border-color: var(--accent-sub);
+      background: rgba(0, 255, 136, 0.15);
+      box-shadow: 0 0 16px rgba(0, 255, 136, 0.35);
+    }
+
+    .ble-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .ble-desc {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
+      margin-bottom: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 12px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-ble {
+      background: linear-gradient(135deg, #00b4d8, #0077b6);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(0, 180, 216, 0.35);
+    }
+
+    .btn-ble:hover {
+      background: linear-gradient(135deg, #00c6eb, #0088cc);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(0, 180, 216, 0.5);
+    }
+
+    .btn-submit {
+      background: linear-gradient(135deg, var(--accent), #00a8cc);
+      color: #060913;
+      font-weight: 700;
+      margin-top: 16px;
+      box-shadow: 0 4px 16px rgba(0, 240, 255, 0.35);
+    }
+
+    .btn-submit:hover:not(:disabled) {
+      background: linear-gradient(135deg, #33f3ff, #00c4ec);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 22px rgba(0, 240, 255, 0.55);
+    }
+
+    .btn-submit:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      filter: grayscale(0.8);
+    }
+
+    /* 表单控件 */
+    .form-group {
+      margin-top: 14px;
+    }
+
+    .form-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .form-label span.req {
+      color: var(--accent);
+    }
+
+    .input-wrap {
+      position: relative;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      color: #fff;
+      padding: 10px 14px;
+      font-size: 13px;
+      border-radius: 10px;
+      outline: none;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.25);
+    }
+
+    /* 高级折叠面板 */
+    .advanced-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid #16243b;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .advanced-toggle span {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .advanced-box {
+      display: none;
+      margin-top: 10px;
+      padding: 12px;
+      background: #080c16;
+      border: 1px solid #152238;
+      border-radius: 10px;
+    }
+
+    /* 模态框与实时动画 */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(6, 9, 19, 0.85);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 20px;
+    }
+
+    .modal-card {
+      background: #0e1628;
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 420px;
+      padding: 28px 24px;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+      position: relative;
+    }
+
+    .radar-container {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 18px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .radar-ring {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      animation: pulseRadar 1.8s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+    }
+
+    @keyframes pulseRadar {
+      0% { transform: scale(0.6); opacity: 0.8; }
+      100% { transform: scale(1.4); opacity: 0; }
+    }
+
+    .radar-core {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #0088ff);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      z-index: 2;
+      box-shadow: 0 0 16px rgba(0, 240, 255, 0.4);
+    }
+
+    .modal-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    .modal-msg {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+      margin-bottom: 20px;
+    }
+
+    .ip-card {
+      background: #080d1a;
+      border: 1px solid rgba(0, 255, 136, 0.35);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 18px;
+      display: none;
+    }
+
+    .ip-card-label {
+      font-size: 11px;
+      color: var(--accent-sub);
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .ip-card-val {
+      font-size: 22px;
+      font-weight: 700;
+      color: #fff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      margin: 4px 0;
+    }
+
+    .btn-dash {
+      background: linear-gradient(135deg, var(--accent-sub), #00b359);
+      color: #060913;
+      font-weight: 700;
+      display: none;
+    }
+
+    .btn-dash:hover {
+      background: linear-gradient(135deg, #33ff99, #00cc66);
+      transform: translateY(-1px);
+    }
+
+    .compat-banner {
+      background: rgba(255, 183, 0, 0.1);
+      border: 1px solid rgba(255, 183, 0, 0.35);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 12px;
+      color: #ffd166;
+      line-height: 1.5;
+      margin-bottom: 18px;
+      display: none;
+    }
+
+    .status-log {
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 11px;
+      background: #060a14;
+      border: 1px solid #162238;
+      border-radius: 8px;
+      padding: 8px;
+      color: #7990ac;
+      text-align: left;
+      max-height: 80px;
+      overflow-y: auto;
+      margin-bottom: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="top-badge">⚡ OpenVela Wireless Suite</div>
+
+    <div class="main-card">
+      <div class="title-row">
+        <h1><span>🌌</span> Phoenix 蓝牙极速配网</h1>
+        <p>无需切换手机 Wi-Fi，网页一键直连设备蓝牙，快速下发网络凭证与大模型密钥</p>
+      </div>
+
+      <!-- 配网模式切换胶囊 -->
+      <div class="mode-switch">
+        <div class="mode-tab active" id="tabBle">⚡ 蓝牙极速配网</div>
+        <a href="setup.html" class="mode-tab" id="tabAp">📡 传统热点配网</a>
+      </div>
+
+      <!-- 浏览器兼容性提醒 -->
+      <div class="compat-banner" id="compatBanner">
+        ⚠️ <b>当前浏览器未检测到 Web Bluetooth 支持：</b><br>
+        推荐使用 <b>Chrome / Edge 浏览器</b> (PC/Mac/Android)。若在 iOS 设备，请通过支持 Web BLE 的专用浏览器访问，或点击上方切换为「📡 传统热点配网」。
+      </div>
+
+      <!-- 蓝牙连接区 -->
+      <div class="ble-status-box" id="bleStatusBox">
+        <div class="ble-icon-circle" id="bleIcon">⚡</div>
+        <div class="ble-title" id="bleTitle">未连接蓝牙设备</div>
+        <div class="ble-desc" id="bleDesc">请确保 Gemini-S1 设备已通电且位于手机/电脑 5 米范围内</div>
+        <button class="btn btn-ble" id="btnConnectBle" onclick="connectBluetooth()">
+          <span>🔍</span> 搜索并配对 Phoenix 设备
+        </button>
+      </div>
+
+      <!-- 配网表单 (默认折叠，蓝牙连接成功后激活) -->
+      <div id="provForm" style="opacity: 0.45; pointer-events: none; transition: 0.3s ease;">
+        <div class="form-group">
+          <div class="form-label">
+            <span>Wi-Fi 网络名称 (SSID) <span class="req">*</span></span>
+            <button class="scan-btn" type="button" onclick="requestWifiScan()" style="background: none; border: none; color: var(--accent); cursor: pointer; font-size: 11px;">🔄 重新扫描</button>
+          </div>
+          <div class="input-wrap">
+            <select id="wifiSelect" onchange="onSsidSelectChange()">
+              <option value="">-- 请选择或手动输入下方 Wi-Fi --</option>
+            </select>
+          </div>
+          <input type="text" id="customSsid" placeholder="手动输入 Wi-Fi 名称 (支持 2.4GHz)" style="margin-top: 6px;">
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">
+            <span>Wi-Fi 密码 (PSK)</span>
+            <span style="font-size: 11px; cursor: pointer; color: var(--muted);" onclick="togglePwdVisibility()">👁️ 查看/隐藏</span>
+          </div>
+          <input type="password" id="wifiPwd" placeholder="请输入 Wi-Fi 密码 (无密码请留空)">
+        </div>
+
+        <!-- 极客高级配置 (DeepSeek & 人设) -->
+        <div class="advanced-toggle" onclick="toggleAdvanced()">
+          <span>⚙️ 智能体高级配置 (DeepSeek API Key / Prompt)</span>
+          <span id="advArrow">▼</span>
+        </div>
+
+        <div class="advanced-box" id="advBox">
+          <div class="form-group" style="margin-top: 0;">
+            <div class="form-label">DeepSeek API Key</div>
+            <input type="password" id="apiKey" placeholder="sk-...">
+          </div>
+          <div class="form-group">
+            <div class="form-label">模型选择</div>
+            <select id="modelSelect">
+              <option value="deepseek-chat">deepseek-chat (V3 通用)</option>
+              <option value="deepseek-reasoner">deepseek-reasoner (R1 深度思考)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <div class="form-label">具身人设 Prompt</div>
+            <textarea id="agentPrompt" rows="3" placeholder="例如：你是一只生活在桌面全息屏里的赛博凤凰，机敏、幽默、热爱技术..."></textarea>
+          </div>
+        </div>
+
+        <button class="btn btn-submit" id="btnSubmit" onclick="sendConfigAndConnect()">
+          🚀 一键写入配置并连网
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 进度与直达看板模态框 -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal-card">
+      <div class="radar-container">
+        <div class="radar-ring" id="radarRing"></div>
+        <div class="radar-core" id="radarIcon">📡</div>
+      </div>
+      <div class="modal-title" id="modalTitle">正在建立无线连接...</div>
+      <div class="modal-msg" id="modalMsg">
+        已通过蓝牙下发 Wi-Fi 凭证，设备正在关联路由器并向 DHCP 获取 IP 地址...<br>请稍候，设备屏幕也将实时同步连网动效。
+      </div>
+
+      <div class="status-log" id="statusLog">
+        [SYS] 正在等待板端 GATT Notify 响应...
+      </div>
+
+      <div class="ip-card" id="ipCard">
+        <div class="ip-card-label">🎉 设备已成功连入局域网</div>
+        <div class="ip-card-val" id="ipVal">192.168.x.x</div>
+        <div style="font-size: 11px; color: var(--muted);">微胶囊已同步激活，点击下方直达伴侣管理看板</div>
+      </div>
+
+      <a href="#" class="btn btn-dash" id="btnGoDashboard" target="_blank">
+        🚀 立即进入极客伴侣看板
+      </a>
+
+      <button class="btn" id="btnCloseModal" onclick="closeModal()" style="margin-top: 10px; background: #162238; color: var(--muted); font-size: 12px; display: none;">
+        返回配网界面
+      </button>
+    </div>
+  </div>
+
+  <script>
+    /* BLE UUID 常量定义 */
+    const SERVICE_UUID = '0000ffe0-0000-1000-8000-00805f9b34fb';
+    const CHAR_WRITE_UUID = '0000ffe1-0000-1000-8000-00805f9b34fb';
+    const CHAR_NOTIFY_UUID = '0000ffe2-0000-1000-8000-00805f9b34fb';
+    const CHAR_INFO_UUID = '0000ffe3-0000-1000-8000-00805f9b34fb';
+
+    let bleDevice = null;
+    let bleServer = null;
+    let writeChar = null;
+    let notifyChar = null;
+    let currentTargetIp = '';
+
+    window.addEventListener('DOMContentLoaded', () => {
+      if (!navigator.bluetooth) {
+        document.getElementById('compatBanner').style.display = 'block';
+        document.getElementById('btnConnectBle').disabled = true;
+      }
+    });
+
+    function logMsg(msg) {
+      const el = document.getElementById('statusLog');
+      if (el) {
+        const time = new Date().toLocaleTimeString();
+        el.innerHTML += `<div>[${time}] ${msg}</div>`;
+        el.scrollTop = el.scrollHeight;
+      }
+    }
+
+    async function connectBluetooth() {
+      try {
+        logMsg("正在调起系统蓝牙扫描框...");
+        bleDevice = await navigator.bluetooth.requestDevice({
+          filters: [
+            { namePrefix: 'Phoenix' },
+            { namePrefix: 'OpenVela' }
+          ],
+          optionalServices: [SERVICE_UUID]
+        });
+
+        bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+        document.getElementById('bleTitle').innerText = '正在建立 GATT 连接...';
+        logMsg(`正在连接设备: ${bleDevice.name}`);
+
+        bleServer = await bleDevice.gatt.connect();
+        logMsg("GATT Server 连接成功，正在解析服务...");
+
+        const service = await bleServer.getPrimaryService(SERVICE_UUID);
+
+        /* 获取特征值 */
+        writeChar = await service.getCharacteristic(CHAR_WRITE_UUID);
+        notifyChar = await service.getCharacteristic(CHAR_NOTIFY_UUID);
+
+        /* 尝试读取硬件固件信息 */
+        try {
+          const infoChar = await service.getCharacteristic(CHAR_INFO_UUID);
+          const infoVal = await infoChar.readValue();
+          const devInfo = new TextDecoder().decode(infoVal);
+          logMsg(`设备信息: ${devInfo}`);
+        } catch (e) {}
+
+        /* 开启 Notify 监听 */
+        await notifyChar.startNotifications();
+        notifyChar.addEventListener('characteristicvaluechanged', onNotifyReceived);
+
+        /* 更新 UI 状态 */
+        document.getElementById('bleStatusBox').classList.add('connected');
+        document.getElementById('bleIcon').innerText = '✅';
+        document.getElementById('bleTitle').innerText = `已连接: ${bleDevice.name}`;
+        document.getElementById('bleDesc').innerText = 'BLE 链路稳定就绪，支持免切网极速下发配网凭证';
+        document.getElementById('btnConnectBle').style.display = 'none';
+
+        /* 解锁配网表单 */
+        const form = document.getElementById('provForm');
+        form.style.opacity = '1';
+        form.style.pointerEvents = 'auto';
+
+        /* 自动触发一次周围 Wi-Fi 扫描 */
+        requestWifiScan();
+
+      } catch (err) {
+        console.error("蓝牙连接错误:", err);
+        logMsg(`蓝牙连接失败: ${err.message || err}`);
+        document.getElementById('bleTitle').innerText = '未连接蓝牙设备';
+        alert('未连接蓝牙设备: ' + (err.message || '用户取消或连接失败'));
+      }
+    }
+
+    function onDisconnected() {
+      logMsg("⚠️ 蓝牙连接已断开");
+      document.getElementById('bleStatusBox').classList.remove('connected');
+      document.getElementById('bleIcon').innerText = '⚡';
+      document.getElementById('bleTitle').innerText = '蓝牙连接已断开';
+      document.getElementById('bleDesc').innerText = '设备已断开连接，请重新搜索并配对';
+      document.getElementById('btnConnectBle').style.display = 'inline-flex';
+      document.getElementById('provForm').style.opacity = '0.45';
+      document.getElementById('provForm').style.pointerEvents = 'none';
+    }
+
+    /* 触发板端 Wi-Fi 扫描 */
+    async function requestWifiScan() {
+      if (!writeChar) return;
+      try {
+        logMsg("正在请求板端扫描周围 Wi-Fi...");
+        const payload = JSON.stringify({ cmd: "scan" });
+        await writeChar.writeValue(new TextEncoder().encode(payload));
+      } catch (e) {
+        logMsg(`扫描请求下发失败: ${e.message}`);
+      }
+    }
+
+    /* 处理板端主动通知数据 */
+    function onNotifyReceived(event) {
+      const value = event.target.value;
+      const text = new TextDecoder().decode(value);
+      console.log("[Notify Recv]:", text);
+
+      try {
+        const data = JSON.parse(text);
+        if (data.event === 'scan_result') {
+          handleScanResult(data);
+        } else if (data.event === 'net_status') {
+          handleNetStatus(data);
+        }
+      } catch (e) {
+        logMsg(`数据解析异常: ${text}`);
+      }
+    }
+
+    function handleScanResult(data) {
+      const aps = data.aps || [];
+      const sel = document.getElementById('wifiSelect');
+      sel.innerHTML = '<option value="">-- 选择扫描到的热点 (' + aps.length + '个) --</option>';
+
+      aps.forEach(ap => {
+        const opt = document.createElement('option');
+        opt.value = ap.ssid;
+        opt.innerText = `${ap.ssid} (${ap.rssi} dBm | ${ap.auth})`;
+        sel.appendChild(opt);
+      });
+      logMsg(`已获取周围 Wi-Fi 列表 (共 ${aps.length} 个)`);
+    }
+
+    function onSsidSelectChange() {
+      const sel = document.getElementById('wifiSelect');
+      if (sel.value) {
+        document.getElementById('customSsid').value = sel.value;
+      }
+    }
+
+    /* 下发配网凭证并启动连网 */
+    async function sendConfigAndConnect() {
+      const ssid = document.getElementById('customSsid').value.trim();
+      const psk = document.getElementById('wifiPwd').value;
+      const apiKey = document.getElementById('apiKey').value.trim();
+      const model = document.getElementById('modelSelect').value;
+      const prompt = document.getElementById('agentPrompt').value.trim();
+
+      if (!ssid) {
+        alert('请输入或选择 Wi-Fi 名称！');
+        return;
+      }
+
+      if (!writeChar) {
+        alert('蓝牙未连接，请先连接设备！');
+        return;
+      }
+
+      /* 显示连网全屏模态框 */
+      showModal("📡 正在尝试加入 Wi-Fi...", `正在向设备下发网络凭证并加入 <b>${ssid}</b>。<br>请留意板端屏幕上方金色连网动画...`);
+
+      const configPayload = {
+        cmd: "config",
+        wifi: { ssid: ssid, psk: psk },
+        agent: {
+          api_key: apiKey,
+          model: model,
+          prompt: prompt
+        }
+      };
+
+      try {
+        logMsg(`正在通过 BLE 下发配网凭证 (${ssid})...`);
+        const data = new TextEncoder().encode(JSON.stringify(configPayload));
+        await writeChar.writeValue(data);
+        logMsg("凭证下发完毕，正在等待板端网络事件...");
+      } catch (e) {
+        logMsg(`下发失败: ${e.message}`);
+        alert("下发配置失败: " + e.message);
+      }
+    }
+
+    function handleNetStatus(data) {
+      logMsg(`设备状态上报: state=${data.state}, ip=${data.ip}, msg=${data.msg}`);
+
+      if (data.state === 'connected' && data.ip && data.ip !== '0.0.0.0' && !data.ip.startsWith('192.168.4.')) {
+        currentTargetIp = data.ip;
+        document.getElementById('radarRing').style.animation = 'none';
+        document.getElementById('radarRing').style.borderColor = 'var(--accent-sub)';
+        document.getElementById('radarIcon').innerText = '🎉';
+        document.getElementById('modalTitle').innerText = '🎉 Wi-Fi 连接成功！';
+        document.getElementById('modalMsg').innerHTML =
+          `设备已成功连接至 <b>${data.ssid}</b>！<br>局域网 IP 地址已分配完毕，无需重启即可无缝管理。`;
+
+        document.getElementById('ipVal').innerText = data.ip;
+        document.getElementById('ipCard').style.display = 'block';
+
+        const dashUrl = data.dashboard_url || `http://${data.ip}:8080/`;
+        const btnDash = document.getElementById('btnGoDashboard');
+        btnDash.href = dashUrl;
+        btnDash.style.display = 'inline-flex';
+        document.getElementById('btnCloseModal').style.display = 'inline-flex';
+
+        /* 倒计时自动跳转 */
+        let countdown = 3;
+        btnDash.innerText = `🚀 立即进入极客伴侣看板 (${countdown}s)`;
+        const timer = setInterval(() => {
+          countdown--;
+          if (countdown > 0) {
+            btnDash.innerText = `🚀 立即进入极客伴侣看板 (${countdown}s)`;
+          } else {
+            clearInterval(timer);
+            btnDash.innerText = `🚀 正在跳转至 ${data.ip}...`;
+            window.location.href = dashUrl;
+          }
+        }, 1000);
+      } else if (data.state === 'connecting') {
+        document.getElementById('modalTitle').innerText = '正在握手连网...';
+        document.getElementById('modalMsg').innerText = data.msg || '正在向路由器发起关联握手并申请 DHCP IP...';
+      }
+    }
+
+    function showModal(title, msg) {
+      document.getElementById('modalTitle').innerHTML = title;
+      document.getElementById('modalMsg').innerHTML = msg;
+      document.getElementById('modalOverlay').style.display = 'flex';
+      document.getElementById('ipCard').style.display = 'none';
+      document.getElementById('btnGoDashboard').style.display = 'none';
+      document.getElementById('btnCloseModal').style.display = 'none';
+    }
+
+    function closeModal() {
+      document.getElementById('modalOverlay').style.display = 'none';
+    }
+
+    function toggleAdvanced() {
+      const box = document.getElementById('advBox');
+      const arrow = document.getElementById('advArrow');
+      if (box.style.display === 'block') {
+        box.style.display = 'none';
+        arrow.innerText = '▼';
+      } else {
+        box.style.display = 'block';
+        arrow.innerText = '▲';
+      }
+    }
+
+    function togglePwdVisibility() {
+      const input = document.getElementById('wifiPwd');
+      input.type = (input.type === 'password') ? 'text' : 'password';
+    }
+  </script>
+</body>
+</html>

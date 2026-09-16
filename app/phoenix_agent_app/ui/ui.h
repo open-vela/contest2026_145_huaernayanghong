@@ -29,10 +29,10 @@ typedef struct {
     /* 1. 顶部微状态胶囊 (Top Status Capsule, 24px) */
     ui_capsule_t *capsule;
 
-    /* 2. 核心舞台视窗：承载各卡带渲染 (宽 284px, X=36) */
+    /* 2. 核心舞台视窗：承载各卡带渲染 (宽 274px, X=46) */
     ui_stage_t   *stage;
 
-    /* 3. 左侧常驻导航栏：点击直达切卡 (宽 36px, X=0) */
+    /* 3. 左侧常驻导航栏：点击直达切卡 (宽 46px, X=0) */
     ui_sidebar_t *sidebar;
 
     /* 4. 顶部控制中心抽屉与二级设置面板 (Settings Drawer) */

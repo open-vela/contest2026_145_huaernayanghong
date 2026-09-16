@@ -70,6 +70,7 @@ $COMPILER -O2 -Wall -Wextra -std=gnu99 \
     "$APP_DIR/hal/hal_system.c" \
     "$APP_DIR/hal/hal_sdcard.c" \
     "$APP_DIR/hal/hal_manager.c" \
+    "$APP_DIR/hal/ble_prov_service.c" \
     "$APP_DIR/hal/network_mgr.c" \
     "$APP_DIR/hal/drivers/hal_driver_mock.c" \
     "$APP_DIR/hal/drivers/hal_driver_openvela.c" \

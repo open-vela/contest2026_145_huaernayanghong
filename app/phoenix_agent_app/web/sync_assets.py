@@ -12,6 +12,7 @@ APP_DIR = os.path.dirname(SCRIPT_DIR)
 CORE_DIR = os.path.join(APP_DIR, "core")
 
 SETUP_HTML_PATH = os.path.join(SCRIPT_DIR, "setup.html")
+BLE_SETUP_HTML_PATH = os.path.join(SCRIPT_DIR, "ble_setup.html")
 DASHBOARD_HTML_PATH = os.path.join(SCRIPT_DIR, "dashboard.html")
 
 HEADER_OUT = os.path.join(CORE_DIR, "web_assets.h")
@@ -56,18 +57,22 @@ def main():
     print(f"[WebAssets] Reading HTML files from: {SCRIPT_DIR}")
     with open(SETUP_HTML_PATH, 'r', encoding='utf-8') as f:
         setup_raw = f.read()
+    with open(BLE_SETUP_HTML_PATH, 'r', encoding='utf-8') as f:
+        ble_setup_raw = f.read()
     with open(DASHBOARD_HTML_PATH, 'r', encoding='utf-8') as f:
         dashboard_raw = f.read()
 
     setup_min = minify_html(setup_raw)
+    ble_setup_min = minify_html(ble_setup_raw)
     dashboard_min = minify_html(dashboard_raw)
 
     print(f"  - setup.html: {len(setup_raw)} bytes -> minified: {len(setup_min)} bytes")
+    print(f"  - ble_setup.html: {len(ble_setup_raw)} bytes -> minified: {len(ble_setup_min)} bytes")
     print(f"  - dashboard.html: {len(dashboard_raw)} bytes -> minified: {len(dashboard_min)} bytes")
 
     header_content = """/**
  * @file web_assets.h
- * @brief Embedded Web Page Assets (Auto-generated from web/setup.html & dashboard.html)
+ * @brief Embedded Web Page Assets (Auto-generated from web/setup.html, ble_setup.html & dashboard.html)
  * @author OpenVela Contest 2026 Team 145
  */
 
@@ -82,6 +87,9 @@ extern "C" {
 
 const char *phoenix_web_asset_get_setup_html(void);
 size_t      phoenix_web_asset_get_setup_html_len(void);
+
+const char *phoenix_web_asset_get_ble_setup_html(void);
+size_t      phoenix_web_asset_get_ble_setup_html_len(void);
 
 const char *phoenix_web_asset_get_dashboard_html(void);
 size_t      phoenix_web_asset_get_dashboard_html_len(void);
@@ -105,6 +113,9 @@ size_t      phoenix_web_asset_get_dashboard_html_len(void);
 static const char s_setup_html[] =
 {to_c_string_literal(setup_min)};
 
+static const char s_ble_setup_html[] =
+{to_c_string_literal(ble_setup_min)};
+
 static const char s_dashboard_html[] =
 {to_c_string_literal(dashboard_min)};
 
@@ -116,6 +127,16 @@ const char *phoenix_web_asset_get_setup_html(void)
 size_t phoenix_web_asset_get_setup_html_len(void)
 {{
     return sizeof(s_setup_html) - 1;
+}}
+
+const char *phoenix_web_asset_get_ble_setup_html(void)
+{{
+    return s_ble_setup_html;
+}}
+
+size_t phoenix_web_asset_get_ble_setup_html_len(void)
+{{
+    return sizeof(s_ble_setup_html) - 1;
 }}
 
 const char *phoenix_web_asset_get_dashboard_html(void)

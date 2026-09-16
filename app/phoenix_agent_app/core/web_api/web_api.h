@@ -23,6 +23,7 @@ phoenix_agent_ctx_t* web_api_get_bound_agent(void);
  * ========================================================================= */
 int handle_system_root(const http_req_t *req, http_resp_t *resp);
 int handle_system_setup(const http_req_t *req, http_resp_t *resp);
+int handle_system_ble_setup(const http_req_t *req, http_resp_t *resp);
 int handle_system_dashboard(const http_req_t *req, http_resp_t *resp);
 int handle_system_captive_probe(const http_req_t *req, http_resp_t *resp);
 int handle_system_status(const http_req_t *req, http_resp_t *resp);

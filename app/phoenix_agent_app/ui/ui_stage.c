@@ -87,8 +87,8 @@ ui_stage_t* ui_stage_create(lv_obj_t *parent)
     if (!stage) return NULL;
 
     stage->container = lv_obj_create(parent);
-    lv_obj_set_size(stage->container, 284, 216);
-    lv_obj_set_pos(stage->container, 36, 24);
+    lv_obj_set_size(stage->container, 274, 216);
+    lv_obj_set_pos(stage->container, 46, 24);
 
     /* 样式：纯净无边框黑底 */
     lv_obj_set_style_bg_color(stage->container, lv_color_hex(0x04060a), LV_PART_MAIN);
@@ -169,8 +169,8 @@ void ui_stage_transition_to(ui_stage_t *stage, lv_obj_t *new_view, bool slide_to
     stage->current_view = new_view;
     stage->is_animating = true;
 
-    lv_coord_t w = lv_obj_get_width(stage->container);
-    if (w <= 0) w = 284; /* 侧边栏模式下舞台宽度保底 */
+    int32_t w = lv_obj_get_width(stage->container);
+    if (w <= 0) w = 274; /* 侧边栏模式下舞台宽度保底 */
 
     lv_coord_t enter_start_x = slide_to_left ? w : -w;
     lv_coord_t exit_end_x    = slide_to_left ? -w : w;
@@ -212,7 +212,7 @@ void ui_stage_play_enter_anim(ui_stage_t *stage, bool slide_to_left)
     if (!top_view) return;
 
     lv_coord_t w = lv_obj_get_width(stage->container);
-    if (w <= 0) w = 284;
+    if (w <= 0) w = 274;
 
     lv_coord_t enter_start_x = slide_to_left ? w : -w;
 

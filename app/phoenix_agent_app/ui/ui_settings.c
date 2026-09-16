@@ -6,6 +6,7 @@
 
 #include "ui_settings.h"
 #include "../hal/network_mgr.h"
+#include "../hal/ble_prov_service.h"
 #include "../core/config.h"
 #include "../core/agent_core.h"
 #include "../harness/llm_provider.h"
@@ -50,6 +51,26 @@ static void on_nav_card_clicked(lv_event_t *e)
     }
 }
 
+static void on_ble_prov_btn_clicked(lv_event_t *e)
+{
+    ui_settings_t *s = (ui_settings_t *)lv_event_get_user_data(e);
+    if (!s) return;
+
+    LOG_I(TAG, "用户触发启动/重启蓝牙极速配网广播");
+    ble_prov_service_init(NULL);
+
+    if (s->lbl_ble_prov_btn) {
+        lv_label_set_text(s->lbl_ble_prov_btn, "[⚡] 蓝牙配网广播中...");
+        lv_obj_set_style_text_color(s->lbl_ble_prov_btn, lv_color_hex(0x00FF88), 0);
+    }
+    if (s->lbl_ble_status) {
+        lv_label_set_text(s->lbl_ble_status, "● 蓝牙配网: 广播中 (Phoenix-Setup)");
+        lv_obj_set_style_text_color(s->lbl_ble_status, lv_color_hex(0x00FF88), 0);
+    }
+
+    ui_settings_refresh_data(s);
+}
+
 static void on_hotspot_btn_clicked(lv_event_t *e)
 {
     ui_settings_t *s = (ui_settings_t *)lv_event_get_user_data(e);
@@ -87,10 +108,10 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     s->is_open = false;
     s->current_page = UI_SETTINGS_PAGE_MAIN;
 
-    /* 1. 控制中心专属视窗面板 (宽 284px, 高 216px, x=36, y=24, 贴合左侧侧边栏) */
+    /* 1. 控制中心专属视窗面板 (宽 274px, 高 216px, x=46, y=24, 贴合左侧侧边栏) */
     s->drawer = lv_obj_create(parent);
-    lv_obj_set_size(s->drawer, 284, 216);
-    lv_obj_set_pos(s->drawer, 36, 24);
+    lv_obj_set_size(s->drawer, 274, 216);
+    lv_obj_set_pos(s->drawer, 46, 24);
     lv_obj_set_style_bg_color(s->drawer, lv_color_hex(0x070C18), 0);
     lv_obj_set_style_bg_opa(s->drawer, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(s->drawer, lv_color_hex(0x1B2C46), 0);
@@ -149,19 +170,19 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     lv_obj_set_style_text_color(lbl_close, lv_color_hex(0x7E92AD), 0);
 
     /* =====================================================================
-     * 3. 一级主菜单视图 (2x2 四宫格卡牌, w=276, h=184, y=24)
+     * 3. 一级主菜单视图 (2x2 四宫格卡牌, w=266, h=184, y=24)
      * ===================================================================== */
     s->view_main = lv_obj_create(s->drawer);
-    lv_obj_set_size(s->view_main, 276, 184);
+    lv_obj_set_size(s->view_main, 266, 184);
     lv_obj_align(s->view_main, LV_ALIGN_TOP_MID, 0, 24);
     lv_obj_set_style_bg_opa(s->view_main, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(s->view_main, 0, 0);
     lv_obj_set_style_pad_all(s->view_main, 0, 0);
     lv_obj_clear_flag(s->view_main, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* 3.1 卡牌 1: 网络与热点 (左上, 134x86) */
+    /* 3.1 卡牌 1: 无线与蓝牙 (左上, 129x86) */
     s->card_nav_net = lv_obj_create(s->view_main);
-    lv_obj_set_size(s->card_nav_net, 134, 86);
+    lv_obj_set_size(s->card_nav_net, 129, 86);
     lv_obj_set_pos(s->card_nav_net, 2, 2);
     lv_obj_set_style_bg_color(s->card_nav_net, lv_color_hex(0x101726), 0);
     lv_obj_set_style_border_color(s->card_nav_net, lv_color_hex(0x00E5FF), 0);
@@ -176,19 +197,19 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     s->lbl_nav_net_t = lv_label_create(s->card_nav_net);
     lv_obj_align(s->lbl_nav_net_t, LV_ALIGN_TOP_LEFT, 2, 2);
     if (s->font) lv_obj_set_style_text_font(s->lbl_nav_net_t, s->font, 0);
-    lv_label_set_text(s->lbl_nav_net_t, "无线网络 >");
+    lv_label_set_text(s->lbl_nav_net_t, "无线与蓝牙 >");
     lv_obj_set_style_text_color(s->lbl_nav_net_t, lv_color_hex(0x00E5FF), 0);
 
     s->lbl_nav_net_sub = lv_label_create(s->card_nav_net);
     lv_obj_align(s->lbl_nav_net_sub, LV_ALIGN_BOTTOM_LEFT, 2, -2);
     if (s->font) lv_obj_set_style_text_font(s->lbl_nav_net_sub, s->font, 0);
-    lv_label_set_text(s->lbl_nav_net_sub, "● 配置/开启热点");
+    lv_label_set_text(s->lbl_nav_net_sub, "● 蓝牙极速配网\n独立热点双模");
     lv_obj_set_style_text_color(s->lbl_nav_net_sub, lv_color_hex(0x8B9EB5), 0);
 
-    /* 3.2 卡牌 2: 系统遥测 (右上, 134x86) */
+    /* 3.2 卡牌 2: 系统遥测 (右上, 129x86) */
     s->card_nav_sys = lv_obj_create(s->view_main);
-    lv_obj_set_size(s->card_nav_sys, 134, 86);
-    lv_obj_set_pos(s->card_nav_sys, 140, 2);
+    lv_obj_set_size(s->card_nav_sys, 129, 86);
+    lv_obj_set_pos(s->card_nav_sys, 135, 2);
     lv_obj_set_style_bg_color(s->card_nav_sys, lv_color_hex(0x101726), 0);
     lv_obj_set_style_border_color(s->card_nav_sys, lv_color_hex(0x1C2F4D), 0);
     lv_obj_set_style_border_width(s->card_nav_sys, 1, 0);
@@ -211,9 +232,9 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     lv_label_set_text(s->lbl_nav_sys_sub, "CPU/内存/遥测\n60FPS 极速");
     lv_obj_set_style_text_color(s->lbl_nav_sys_sub, lv_color_hex(0x8B9EB5), 0);
 
-    /* 3.3 卡牌 3: 灵眸 Agent (左下, 134x86) */
+    /* 3.3 卡牌 3: 灵眸 Agent (左下, 129x86) */
     s->card_nav_agent = lv_obj_create(s->view_main);
-    lv_obj_set_size(s->card_nav_agent, 134, 86);
+    lv_obj_set_size(s->card_nav_agent, 129, 86);
     lv_obj_set_pos(s->card_nav_agent, 2, 92);
     lv_obj_set_style_bg_color(s->card_nav_agent, lv_color_hex(0x101726), 0);
     lv_obj_set_style_border_color(s->card_nav_agent, lv_color_hex(0x1C2F4D), 0);
@@ -237,10 +258,10 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     lv_label_set_text(s->lbl_nav_agent_sub, "DeepSeek\n交互统计");
     lv_obj_set_style_text_color(s->lbl_nav_agent_sub, lv_color_hex(0x8B9EB5), 0);
 
-    /* 3.4 卡牌 4: TF存储与伴侣 (右下, 134x86) */
+    /* 3.4 卡牌 4: TF存储与伴侣 (右下, 129x86) */
     s->card_nav_store = lv_obj_create(s->view_main);
-    lv_obj_set_size(s->card_nav_store, 134, 86);
-    lv_obj_set_pos(s->card_nav_store, 140, 92);
+    lv_obj_set_size(s->card_nav_store, 129, 86);
+    lv_obj_set_pos(s->card_nav_store, 135, 92);
     lv_obj_set_style_bg_color(s->card_nav_store, lv_color_hex(0x101726), 0);
     lv_obj_set_style_border_color(s->card_nav_store, lv_color_hex(0x1C2F4D), 0);
     lv_obj_set_style_border_width(s->card_nav_store, 1, 0);
@@ -267,7 +288,7 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
      * 4. 二级详情视图容器 (全宽专享面板, 默认隐藏)
      * ===================================================================== */
     s->view_detail = lv_obj_create(s->drawer);
-    lv_obj_set_size(s->view_detail, 276, 184);
+    lv_obj_set_size(s->view_detail, 266, 184);
     lv_obj_align(s->view_detail, LV_ALIGN_TOP_MID, 0, 24);
     lv_obj_set_style_bg_opa(s->view_detail, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(s->view_detail, 0, 0);
@@ -275,7 +296,7 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     lv_obj_clear_flag(s->view_detail, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(s->view_detail, LV_OBJ_FLAG_HIDDEN);
 
-    /* 4.1 二级详情：无线网络与独立热点 */
+    /* 4.1 二级详情：无线网络与蓝牙配网 */
     s->sec_net_box = lv_obj_create(s->view_detail);
     lv_obj_set_size(s->sec_net_box, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_bg_opa(s->sec_net_box, LV_OPA_TRANSP, 0);
@@ -284,13 +305,13 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     lv_obj_clear_flag(s->sec_net_box, LV_OBJ_FLAG_SCROLLABLE);
 
     s->card_net_info = lv_obj_create(s->sec_net_box);
-    lv_obj_set_size(s->card_net_info, 272, 88);
+    lv_obj_set_size(s->card_net_info, 262, 76);
     lv_obj_align(s->card_net_info, LV_ALIGN_TOP_MID, 0, 0);
     lv_obj_set_style_bg_color(s->card_net_info, lv_color_hex(0x101726), 0);
     lv_obj_set_style_border_color(s->card_net_info, lv_color_hex(0x1C2F4D), 0);
     lv_obj_set_style_border_width(s->card_net_info, 1, 0);
     lv_obj_set_style_radius(s->card_net_info, 6, 0);
-    lv_obj_set_style_pad_all(s->card_net_info, 6, 0);
+    lv_obj_set_style_pad_all(s->card_net_info, 4, 0);
     lv_obj_clear_flag(s->card_net_info, LV_OBJ_FLAG_SCROLLABLE);
 
     s->lbl_net_status = lv_label_create(s->card_net_info);
@@ -300,24 +321,42 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     lv_obj_set_style_text_color(s->lbl_net_status, lv_color_hex(0x7E92AD), 0);
 
     s->lbl_net_ip = lv_label_create(s->card_net_info);
-    lv_obj_align(s->lbl_net_ip, LV_ALIGN_TOP_LEFT, 2, 26);
+    lv_obj_align(s->lbl_net_ip, LV_ALIGN_TOP_LEFT, 2, 24);
     if (s->font) lv_obj_set_style_text_font(s->lbl_net_ip, s->font, 0);
     lv_label_set_text(s->lbl_net_ip, "局域网 IP: 0.0.0.0 (端口 :8080)");
     lv_obj_set_style_text_color(s->lbl_net_ip, lv_color_hex(0x8B9EB5), 0);
 
-    s->lbl_hotspot_hint = lv_label_create(s->card_net_info);
-    lv_obj_align(s->lbl_hotspot_hint, LV_ALIGN_TOP_LEFT, 2, 50);
-    if (s->font) lv_obj_set_style_text_font(s->lbl_hotspot_hint, s->font, 0);
-    lv_label_set_text(s->lbl_hotspot_hint, "连入 Gemini-Agent-S1 热点即可配网");
-    lv_obj_set_style_text_color(s->lbl_hotspot_hint, lv_color_hex(0x00FF88), 0);
+    s->lbl_ble_status = lv_label_create(s->card_net_info);
+    lv_obj_align(s->lbl_ble_status, LV_ALIGN_TOP_LEFT, 2, 46);
+    if (s->font) lv_obj_set_style_text_font(s->lbl_ble_status, s->font, 0);
+    lv_label_set_text(s->lbl_ble_status, "● 蓝牙配网: 广播中 (Phoenix-Setup)");
+    lv_obj_set_style_text_color(s->lbl_ble_status, lv_color_hex(0x00FF88), 0);
 
-    /* 独立超大号热点按钮 (高 42px, 宽 272px, 外扩 8px 点击热区) */
+    /* 蓝牙极速配网按钮 (青蓝高亮) */
+    s->btn_ble_prov = lv_btn_create(s->sec_net_box);
+    lv_obj_set_size(s->btn_ble_prov, 262, 38);
+    lv_obj_align(s->btn_ble_prov, LV_ALIGN_TOP_MID, 0, 82);
+    lv_obj_set_style_bg_color(s->btn_ble_prov, lv_color_hex(0x13273F), 0);
+    lv_obj_set_style_border_color(s->btn_ble_prov, lv_color_hex(0x00E5FF), 0);
+    lv_obj_set_style_border_width(s->btn_ble_prov, 2, 0);
+    lv_obj_set_style_radius(s->btn_ble_prov, 6, 0);
+    lv_obj_set_style_pad_all(s->btn_ble_prov, 0, 0);
+    lv_obj_set_ext_click_area(s->btn_ble_prov, 8);
+    lv_obj_add_event_cb(s->btn_ble_prov, on_ble_prov_btn_clicked, LV_EVENT_CLICKED, s);
+
+    s->lbl_ble_prov_btn = lv_label_create(s->btn_ble_prov);
+    lv_obj_center(s->lbl_ble_prov_btn);
+    if (s->font) lv_obj_set_style_text_font(s->lbl_ble_prov_btn, s->font, 0);
+    lv_label_set_text(s->lbl_ble_prov_btn, "[⚡] 开启蓝牙极速配网 (Web BLE)");
+    lv_obj_set_style_text_color(s->lbl_ble_prov_btn, lv_color_hex(0x00E5FF), 0);
+
+    /* 独立热点按钮 */
     s->btn_hotspot = lv_btn_create(s->sec_net_box);
-    lv_obj_set_size(s->btn_hotspot, 272, 42);
-    lv_obj_align(s->btn_hotspot, LV_ALIGN_TOP_MID, 0, 96);
-    lv_obj_set_style_bg_color(s->btn_hotspot, lv_color_hex(0x13273F), 0);
-    lv_obj_set_style_border_color(s->btn_hotspot, lv_color_hex(0x00E5FF), 0);
-    lv_obj_set_style_border_width(s->btn_hotspot, 2, 0);
+    lv_obj_set_size(s->btn_hotspot, 262, 38);
+    lv_obj_align(s->btn_hotspot, LV_ALIGN_TOP_MID, 0, 126);
+    lv_obj_set_style_bg_color(s->btn_hotspot, lv_color_hex(0x0E1726), 0);
+    lv_obj_set_style_border_color(s->btn_hotspot, lv_color_hex(0x233754), 0);
+    lv_obj_set_style_border_width(s->btn_hotspot, 1, 0);
     lv_obj_set_style_radius(s->btn_hotspot, 6, 0);
     lv_obj_set_style_pad_all(s->btn_hotspot, 0, 0);
     lv_obj_set_ext_click_area(s->btn_hotspot, 8);
@@ -326,8 +365,8 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     s->lbl_hotspot_btn = lv_label_create(s->btn_hotspot);
     lv_obj_center(s->lbl_hotspot_btn);
     if (s->font) lv_obj_set_style_text_font(s->lbl_hotspot_btn, s->font, 0);
-    lv_label_set_text(s->lbl_hotspot_btn, "[●] 开启独立热点配网 (192.168.4.1)");
-    lv_obj_set_style_text_color(s->lbl_hotspot_btn, lv_color_hex(0x00E5FF), 0);
+    lv_label_set_text(s->lbl_hotspot_btn, "[📡] 开启独立热点配网 (192.168.4.1)");
+    lv_obj_set_style_text_color(s->lbl_hotspot_btn, lv_color_hex(0x8B9EB5), 0);
 
     /* 4.2 二级详情：系统健康与遥测 */
     s->sec_sys_box = lv_obj_create(s->view_detail);
@@ -604,6 +643,39 @@ void ui_settings_refresh_data(ui_settings_t *settings)
         char buf[64];
         snprintf(buf, sizeof(buf), "局域网 IP: %s (端口 :8080)", ip_buf[0] ? ip_buf : "0.0.0.0");
         lv_label_set_text(settings->lbl_net_ip, buf);
+    }
+
+    if (settings->lbl_ble_status) {
+        ble_prov_state_t bst = ble_prov_service_get_state();
+        if (bst == BLE_PROV_STATE_CONNECTED) {
+            lv_label_set_text(settings->lbl_ble_status, "● 蓝牙配网: 客户端已连接");
+            lv_obj_set_style_text_color(settings->lbl_ble_status, lv_color_hex(0x00E5FF), 0);
+            if (settings->lbl_ble_prov_btn) {
+                lv_label_set_text(settings->lbl_ble_prov_btn, "[⚡] 蓝牙客户端已在线");
+                lv_obj_set_style_text_color(settings->lbl_ble_prov_btn, lv_color_hex(0x00E5FF), 0);
+            }
+        } else if (bst == BLE_PROV_STATE_PROVISIONED) {
+            lv_label_set_text(settings->lbl_ble_status, "● 蓝牙配网: 配网凭证同步完成");
+            lv_obj_set_style_text_color(settings->lbl_ble_status, lv_color_hex(0x00FF88), 0);
+            if (settings->lbl_ble_prov_btn) {
+                lv_label_set_text(settings->lbl_ble_prov_btn, "[✓] 蓝牙配网已完成 (点击重启)");
+                lv_obj_set_style_text_color(settings->lbl_ble_prov_btn, lv_color_hex(0x00FF88), 0);
+            }
+        } else if (bst == BLE_PROV_STATE_ADVERTISING) {
+            lv_label_set_text(settings->lbl_ble_status, "● 蓝牙配网: 广播中 (Phoenix-Setup)");
+            lv_obj_set_style_text_color(settings->lbl_ble_status, lv_color_hex(0x00FF88), 0);
+            if (settings->lbl_ble_prov_btn) {
+                lv_label_set_text(settings->lbl_ble_prov_btn, "[⚡] 蓝牙广播等待网页连接...");
+                lv_obj_set_style_text_color(settings->lbl_ble_prov_btn, lv_color_hex(0x00FF88), 0);
+            }
+        } else {
+            lv_label_set_text(settings->lbl_ble_status, "● 蓝牙配网: 就绪 (点击下方启动)");
+            lv_obj_set_style_text_color(settings->lbl_ble_status, lv_color_hex(0x8B9EB5), 0);
+            if (settings->lbl_ble_prov_btn) {
+                lv_label_set_text(settings->lbl_ble_prov_btn, "[⚡] 启动蓝牙极速配网 (Web BLE)");
+                lv_obj_set_style_text_color(settings->lbl_ble_prov_btn, lv_color_hex(0x00E5FF), 0);
+            }
+        }
     }
 
     if (settings->lbl_hotspot_btn && settings->btn_hotspot) {
