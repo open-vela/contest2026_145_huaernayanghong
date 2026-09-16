@@ -20,7 +20,8 @@ if command -v python3 >/dev/null 2>&1; then
     python3 "$APP_DIR/web/sync_assets.py"
 fi
 
-clang -O2 -Wall -Wextra -std=c99 \
+COMPILER="${CC:-gcc}"
+$COMPILER -O2 -Wall -Wextra -std=gnu99 \
     -DHOST_TEST_RUNNER \
     -I "$APP_DIR" \
     -I "$APP_DIR/utils" \
@@ -73,7 +74,7 @@ clang -O2 -Wall -Wextra -std=c99 \
     "$APP_DIR/harness/llm_cloud_backend.c" \
     "$APP_DIR/harness/llm_provider.c" \
     "$CJSON_DIR/cJSON.c" \
-    -o "$BIN_OUT"
+    -o "$BIN_OUT" -lpthread -lm
 
 echo "✅ Compilation Succeeded! Binary: $BIN_OUT"
 echo ""

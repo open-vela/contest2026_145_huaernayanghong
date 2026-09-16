@@ -28,8 +28,11 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent))
 import ai_visual_inspector
 
-WORKSPACE_ROOT = Path("/Volumes/LaCie/OpenVela")
-EMULATOR_SCRIPT = WORKSPACE_ROOT / "emulator_small.sh"
+DEFAULT_ROOT = Path(__file__).resolve().parents[4]
+WORKSPACE_ROOT = Path(os.environ.get("OPENVELA_ROOT", str(DEFAULT_ROOT)))
+EMULATOR_SCRIPT = WORKSPACE_ROOT / "emulator.sh"
+if not EMULATOR_SCRIPT.exists() and (WORKSPACE_ROOT / "emulator_small.sh").exists():
+    EMULATOR_SCRIPT = WORKSPACE_ROOT / "emulator_small.sh"
 ARTIFACTS_DIR = Path(__file__).parent / "test_artifacts"
 SCREENSHOTS_DIR = ARTIFACTS_DIR / "screenshots"
 

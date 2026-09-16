@@ -9,8 +9,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <uv.h>
 #include <lvgl/lvgl.h>
+
+#if defined(CONFIG_BOARDCTL)
+#include <sys/boardctl.h>
+#endif
 
 #include "core/app.h"
 #include "core/event_bus.h"
@@ -156,39 +159,60 @@ int main(int argc, FAR char *argv[])
     printf(" 🚀 Phoenix HoloDesk-S1 Living Cyber-Eye Agent #145 \n");
     printf("====================================================\n");
 
-    /* 1. Initialize Subsystems via Unified Application Facade */
+    /* 1. Check if already running to prevent destroying active background instance */
+    if (lv_is_initialized() || phoenix_app_is_initialized()) {
+        printf("[PhoenixApp] ⚠️ Notice: Phoenix Agent GUI is already running in background.\n");
+        return 0;
+    }
+
+    /* 2. Initialize Subsystems via Unified Application Facade */
     phoenix_app_config_t app_cfg;
     memset(&app_cfg, 0, sizeof(app_cfg));
     app_cfg.enable_web_portal = true;
     app_cfg.web_port = 8080;
     if (phoenix_app_init(&app_cfg) != 0) {
-        LV_LOG_ERROR("Phoenix Application Facade init failed!");
+        printf("[PhoenixApp] ❌ Error: Phoenix Application Facade init failed!\n");
         return -1;
     }
 
-    /* 2. Initialize LVGL & Display Driver */
-    if (lv_is_initialized()) {
-        LV_LOG_ERROR("LVGL already initialized! Aborting.");
-        phoenix_app_deinit();
-        return -1;
-    }
+#if defined(CONFIG_BOARDCTL) && !defined(CONFIG_NSH_ARCHINIT)
+    boardctl(BOARDIOC_INIT, 0);
+#endif
 
     lv_init();
     lv_nuttx_dsc_init(&info);
+
+#ifdef CONFIG_LV_USE_NUTTX_LCD
+    info.fb_path = "/dev/lcd0";
+#endif
+#ifdef CONFIG_INPUT_TOUCHSCREEN
+#  ifdef CONFIG_EXAMPLES_LVGLDEMO_INPUT_DEVPATH
+    info.input_path = CONFIG_EXAMPLES_LVGLDEMO_INPUT_DEVPATH;
+#  else
+    info.input_path = "/dev/input0";
+#  endif
+#endif
+
+    printf("[PhoenixApp] Initializing LVGL display (fb_path: %s)...\n",
+           info.fb_path ? info.fb_path : "default");
     lv_nuttx_init(&info, &result);
+    usleep(100000);
 
     if (result.disp == NULL) {
-        LV_LOG_ERROR("LVGL display initialization failure!");
+        printf("[PhoenixApp] ❌ ERROR: LVGL display initialization failure (result.disp is NULL)!\n");
+        lv_deinit();
         phoenix_app_deinit();
         return 1;
     }
+    printf("[PhoenixApp] ✅ LVGL display initialized successfully.\n");
 
     /* 3. Create Agent Core & UI Components */
     phoenix_agent_ctx_t *agent_core = phoenix_agent_core_init();
     phoenix_ui_t *ui = phoenix_ui_create(lv_screen_active(), agent_core);
     if (!ui) {
-        LV_LOG_ERROR("Failed to create Phoenix Agent UI");
+        printf("[PhoenixApp] ❌ ERROR: Failed to create Phoenix Agent UI!\n");
         phoenix_agent_core_destroy(agent_core);
+        lv_deinit();
         phoenix_app_deinit();
         return 1;
     }
@@ -204,8 +228,8 @@ int main(int argc, FAR char *argv[])
 #else
     while (1) {
         uint32_t idle = lv_timer_handler();
-        idle = idle ? idle : 1;
-        usleep(idle * 1000);
+        phoenix_app_tick();
+        usleep(idle ? idle * 1000 : 5000);
     }
 #endif
 
