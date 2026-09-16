@@ -139,11 +139,12 @@ static const char s_setup_html[] =
     "window.location.href = dashUrl;}}, 1000);}}function handleSoftApDisconnected() {if (pollTimer) clear"
     "Interval(pollTimer);document.getElementById('radarIcon').innerText = 'ℹ️';document.getElementById('r"
     "adarRing').style.animation = 'none';document.getElementById('radarRing').style.borderColor = 'var(--"
-    "warn)';document.getElementById('modalTitle').innerText = '📡 设备正在连网中';document.getElementById('modalD"
-    "esc').innerHTML ='设备已切换至客户端连网模式，由于独立热点已关闭或手机与热点断开，网页无法继续直连。<br><br>' +'<b>请直接查看设备正面屏幕：</b><br>' +'屏幕"
-    "上方会弹出金色连网飞字，微胶囊将直接显示获得的局域网 IP（例如 <code>192.168.x.x</code>）。<br>' +'将手机/电脑接入同个 Wi-Fi，在浏览器中输入该 IP 即可畅快"
-    "体验！';document.getElementById('btnCloseModal').style.display = 'inline-block';document.getElementById"
-    "('btnCloseModal').innerText = '我知道了，返回页面';}scanWifi();</script></body></html>";
+    "warn)';document.getElementById('modalTitle').innerText = '📡 凭证已下发，设备正步进连网';document.getElementById('"
+    "modalDesc').innerHTML ='设备已关闭 SoftAP 独立热点并切换至联网模式。<br><br>' +'<b>请直接观察设备正面屏幕：</b><br>' +'屏幕已自动切入【步进配"
+    "网状态机】，实时展示：<br>' +'① 关闭独立热点 [✓] ➔ ② 关联路由器 [⟳] ➔ ③ 申请 DHCP IP [⟳]<br><br>' +'• <b>配网成功</b>：屏幕将展示分配到的局"
+    "域网 IP 及伴侣看板入口；<br>' +'• <b>配网失败</b>：屏幕将弹出超时/密码错误警告，并自动恢复热点供重试。';document.getElementById('btnCloseMod"
+    "al').style.display = 'inline-block';document.getElementById('btnCloseModal').innerText = '已了解，查看设备正面"
+    "屏幕';}scanWifi();</script></body></html>";
 
 static const char s_ble_setup_html[] =
     "<!DOCTYPE html><html lang=\"zh-CN\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\""

@@ -273,6 +273,10 @@ static void handle_rx_payload(const uint8_t *payload, uint16_t length)
     cJSON_Delete(root);
 }
 
+#if (defined(CONFIG_BLUETOOTH_SERVER) || defined(CONFIG_BLUETOOTH)) && !defined(HOST_TEST_RUNNER)
+static bt_instance_t *s_bt_ins = NULL;
+#endif
+
 int ble_prov_service_init(const char *custom_dev_name)
 {
     pthread_mutex_lock(&s_lock);
@@ -281,7 +285,16 @@ int ble_prov_service_init(const char *custom_dev_name)
     }
 
 #if (defined(CONFIG_BLUETOOTH_SERVER) || defined(CONFIG_BLUETOOTH)) && !defined(HOST_TEST_RUNNER)
-    bt_status_t ret = bt_gatts_register_service(NULL, &s_gatts_handle, &s_gatts_cbs);
+    if (!s_bt_ins) {
+        s_bt_ins = bluetooth_create_instance();
+    }
+    if (s_bt_ins) {
+        bt_adapter_enable(s_bt_ins);
+        bt_adapter_set_name(s_bt_ins, s_dev_name);
+        bt_adapter_set_scan_mode(s_bt_ins, BT_SCAN_MODE_CONNECTABLE_DISCOVERABLE, false);
+    }
+
+    bt_status_t ret = bt_gatts_register_service(s_bt_ins, &s_gatts_handle, &s_gatts_cbs);
     if (ret != BT_STATUS_SUCCESS) {
         printf("%s Failed to register GATT service, ret: %d\n", TAG, ret);
         pthread_mutex_unlock(&s_lock);
@@ -297,9 +310,9 @@ int ble_prov_service_init(const char *custom_dev_name)
         return -1;
     }
 
-    printf("%s BLE Provisioning GATT service started successfully\n", TAG);
+    printf("%s BLE Provisioning GATT service started successfully (Device: %s)\n", TAG, s_dev_name);
 #else
-    printf("%s BLE Provisioning service initialized (Mock / Host Test Mode)\n", TAG);
+    printf("%s BLE Provisioning service initialized (Mock / Host Test Mode: %s)\n", TAG, s_dev_name);
 #endif
 
     s_ble_state = BLE_PROV_STATE_ADVERTISING;
@@ -316,6 +329,10 @@ void ble_prov_service_deinit(void)
         bt_gatts_unregister_service(s_gatts_handle);
         s_gatts_handle = NULL;
     }
+    if (s_bt_ins) {
+        bluetooth_delete_instance(s_bt_ins);
+        s_bt_ins = NULL;
+    }
 #endif
     s_ble_state = BLE_PROV_STATE_STOPPED;
     pthread_mutex_unlock(&s_lock);
@@ -325,6 +342,26 @@ void ble_prov_service_deinit(void)
 ble_prov_state_t ble_prov_service_get_state(void)
 {
     return s_ble_state;
+}
+
+int ble_prov_service_get_dev_name(char *buf, size_t max_len)
+{
+    if (!buf || max_len == 0) return -1;
+    pthread_mutex_lock(&s_lock);
+    strncpy(buf, s_dev_name, max_len - 1);
+    buf[max_len - 1] = '\0';
+    pthread_mutex_unlock(&s_lock);
+    return 0;
+}
+
+bool ble_prov_service_is_active(void)
+{
+    pthread_mutex_lock(&s_lock);
+    bool active = (s_ble_state == BLE_PROV_STATE_ADVERTISING ||
+                   s_ble_state == BLE_PROV_STATE_CONNECTED ||
+                   s_ble_state == BLE_PROV_STATE_PROVISIONING);
+    pthread_mutex_unlock(&s_lock);
+    return active;
 }
 
 int ble_prov_service_notify_net_status(const char *state, const char *ssid, const char *ip, const char *msg)

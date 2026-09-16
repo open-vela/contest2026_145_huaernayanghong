@@ -148,32 +148,81 @@ static void refresh_status_capsule(phoenix_ui_t *ui)
 static void on_capsule_clicked(lv_event_t *e)
 {
     phoenix_ui_t *ui = (phoenix_ui_t *)lv_event_get_user_data(e);
-    if (ui && ui->settings) {
-        ui_settings_toggle(ui->settings);
+    if (!ui || !ui->settings) return;
+
+    if (ui_settings_is_open(ui->settings)) {
+        ui_settings_close(ui->settings);
+        if (ui->stage && ui->stage->container) {
+            lv_obj_clear_flag(ui->stage->container, LV_OBJ_FLAG_HIDDEN);
+        }
         if (ui->sidebar) {
-            ui_sidebar_set_settings_active(ui->sidebar, ui_settings_is_open(ui->settings));
+            ui_sidebar_set_settings_active(ui->sidebar, false);
+        }
+    } else {
+        if (ui->stage && ui->stage->container) {
+            lv_obj_add_flag(ui->stage->container, LV_OBJ_FLAG_HIDDEN);
+        }
+        ui_settings_open(ui->settings);
+        if (ui->sidebar) {
+            ui_sidebar_set_settings_active(ui->sidebar, true);
         }
     }
 }
 
-/* 侧边栏底部设置按钮点击 */
+/* 侧边栏底部设置按钮点击: 与卡带完全同级切换 */
 static void on_sidebar_settings_clicked(void *user_data)
 {
     phoenix_ui_t *ui = (phoenix_ui_t *)user_data;
-    if (ui && ui->settings) {
-        ui_settings_toggle(ui->settings);
+    if (!ui || !ui->settings) return;
+
+    if (ui_settings_is_open(ui->settings)) {
+        ui_settings_close(ui->settings);
+        if (ui->stage && ui->stage->container) {
+            lv_obj_clear_flag(ui->stage->container, LV_OBJ_FLAG_HIDDEN);
+        }
         if (ui->sidebar) {
-            ui_sidebar_set_settings_active(ui->sidebar, ui_settings_is_open(ui->settings));
+            ui_sidebar_set_settings_active(ui->sidebar, false);
+        }
+    } else {
+        if (ui->stage && ui->stage->container) {
+            lv_obj_add_flag(ui->stage->container, LV_OBJ_FLAG_HIDDEN);
+        }
+        ui_settings_open(ui->settings);
+        if (ui->sidebar) {
+            ui_sidebar_set_settings_active(ui->sidebar, true);
         }
     }
 }
 
-/* 设置面板关闭时联动取消侧边栏高亮 */
+/* 设置面板关闭时联动恢复主舞台卡带与侧边栏高亮 */
 static void on_settings_closed(void *user_data)
 {
     phoenix_ui_t *ui = (phoenix_ui_t *)user_data;
-    if (ui && ui->sidebar) {
-        ui_sidebar_set_settings_active(ui->sidebar, false);
+    if (ui) {
+        if (ui->stage && ui->stage->container) {
+            lv_obj_clear_flag(ui->stage->container, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (ui->sidebar) {
+            ui_sidebar_set_settings_active(ui->sidebar, false);
+        }
+    }
+}
+
+/* 配网完成点击返回主页卡带 */
+static void on_settings_switch_home(void *user_data)
+{
+    phoenix_ui_t *ui = (phoenix_ui_t *)user_data;
+    if (ui) {
+        if (ui->settings) {
+            ui_settings_close(ui->settings);
+        }
+        if (ui->stage && ui->stage->container) {
+            lv_obj_clear_flag(ui->stage->container, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (ui->sidebar) {
+            ui_sidebar_set_settings_active(ui->sidebar, false);
+        }
+        cartridge_mgr_switch_to("home");
     }
 }
 
@@ -273,6 +322,17 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
             bool slide_to_left = (event->data.cartridge.index >= s_prev_index);
             s_prev_index = event->data.cartridge.index;
 
+            /* 切换卡带时，若设置界面处于展示状态，自动收起设置并呈现卡带舞台 */
+            if (ui->settings && ui_settings_is_open(ui->settings)) {
+                ui_settings_close(ui->settings);
+            }
+            if (ui->stage && ui->stage->container) {
+                lv_obj_clear_flag(ui->stage->container, LV_OBJ_FLAG_HIDDEN);
+            }
+            if (ui->sidebar) {
+                ui_sidebar_set_settings_active(ui->sidebar, false);
+            }
+
             /* 驱动舞台执行平滑进场动效 */
             if (ui->stage) {
                 ui_stage_play_enter_anim(ui->stage, slide_to_left);
@@ -298,15 +358,31 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
             const char *ssid = event->data.net.ssid ? event->data.net.ssid : "";
             char bbuf[128];
 
+            const char *msg = event->data.net.msg;
+
+            if (ui->settings) {
+                if (mode == 1 /* NET_MODE_STA_CONNECTING */) {
+                    if (!ui_settings_is_open(ui->settings)) {
+                        ui_settings_open(ui->settings);
+                        if (ui->stage && ui->stage->container) {
+                            lv_obj_add_flag(ui->stage->container, LV_OBJ_FLAG_HIDDEN);
+                        }
+                        if (ui->sidebar) {
+                            ui_sidebar_set_settings_active(ui->sidebar, true);
+                        }
+                    }
+                    ui_settings_switch_tab(ui->settings, UI_SETTINGS_TAB_HOTSPOT);
+                }
+                ui_settings_update_net_progress(ui->settings, mode, ssid, ip, msg);
+                ui_settings_refresh_data(ui->settings);
+            }
+
             if (mode == 1 /* NET_MODE_STA_CONNECTING */) {
                 phoenix_ui_show_flying_text(ui, "正在连入 Wi-Fi...", lv_color_hex(0xFFB700));
                 snprintf(bbuf, sizeof(bbuf), "正在连接 Wi-Fi: [%s]...", ssid);
                 phoenix_ui_show_bubble(ui, bbuf, 6000);
                 if (ui->capsule) {
                     ui_capsule_set_status(ui->capsule, "● 联网中", lv_color_hex(0xFFB700), true);
-                }
-                if (ui->settings) {
-                    ui_settings_refresh_data(ui->settings);
                 }
             } else if (mode == 2 /* NET_MODE_STA_CONNECTED */) {
                 phoenix_ui_show_flying_text(ui, "Wi-Fi 已连入!", lv_color_hex(0x00E676));
@@ -431,6 +507,7 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
     ui->settings = ui_settings_create(ui->screen, ui->font_chinese);
     if (ui->settings) {
         ui_settings_set_close_cb(ui->settings, on_settings_closed, ui);
+        ui_settings_set_switch_home_cb(ui->settings, on_settings_switch_home, ui);
     }
 
     /* 6. 底部动态交互气泡 (Dynamic Speech Bubble，平时隐藏，主动干预时浮现) */

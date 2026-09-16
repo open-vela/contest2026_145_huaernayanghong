@@ -56,6 +56,16 @@ void ble_prov_service_deinit(void);
 ble_prov_state_t ble_prov_service_get_state(void);
 
 /**
+ * @brief 获取当前广播设备名
+ */
+int ble_prov_service_get_dev_name(char *buf, size_t max_len);
+
+/**
+ * @brief 检查配网服务是否处于活动状态 (广播中/已连接/配网中)
+ */
+bool ble_prov_service_is_active(void);
+
+/**
  * @brief 触发向已连接的 Web 客户端主动推送网络状态与 IP 地址
  * @param state 状态字符串 ("connecting", "connected", "error", "disconnected")
  * @param ssid 当前 Wi-Fi 名称

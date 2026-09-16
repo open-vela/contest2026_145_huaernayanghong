@@ -128,7 +128,7 @@ static pthread_t        s_connect_tid = 0;
 #endif
 static bool             s_worker_running = false;
 
-static void notify_state_changed_unlocked(void)
+static void notify_state_changed_with_msg_unlocked(const char *custom_msg)
 {
     if (s_state_cb) {
         s_state_cb(s_mode, s_current_ip, s_state_user_data);
@@ -140,7 +140,9 @@ static void notify_state_changed_unlocked(void)
     evt.data.net.mode = (int)s_mode;
     evt.data.net.ssid = s_current_ssid;
     evt.data.net.ip = s_current_ip;
-    if (s_mode == NET_MODE_STA_CONNECTED) {
+    if (custom_msg && custom_msg[0]) {
+        evt.data.net.msg = custom_msg;
+    } else if (s_mode == NET_MODE_STA_CONNECTED) {
         evt.data.net.msg = "Wi-Fi 连接成功";
     } else if (s_mode == NET_MODE_STA_CONNECTING) {
         evt.data.net.msg = "正在连接 Wi-Fi";
@@ -159,6 +161,11 @@ static void notify_state_changed_unlocked(void)
     const char *ble_state_str = (s_mode == NET_MODE_STA_CONNECTED) ? "connected" :
                                 (s_mode == NET_MODE_STA_CONNECTING) ? "connecting" : "disconnected";
     ble_prov_service_notify_net_status(ble_state_str, s_current_ssid, s_current_ip, evt.data.net.msg);
+}
+
+static void notify_state_changed_unlocked(void)
+{
+    notify_state_changed_with_msg_unlocked(NULL);
 }
 
 /**
@@ -242,6 +249,11 @@ static void* sta_connect_worker_thread(void *arg)
     system("wapi disconnect wlan0 > /dev/null 2>&1");
     usleep(300000);
 
+    pthread_mutex_lock(&s_lock);
+    s_mode = NET_MODE_STA_CONNECTING;
+    notify_state_changed_with_msg_unlocked("热点已关闭，正在关联 Wi-Fi...");
+    pthread_mutex_unlock(&s_lock);
+
     /* 2. 原生 WAPI C API 下发 STA 连接序列 */
     int sock = wapi_make_socket();
     if (sock >= 0) {
@@ -272,6 +284,10 @@ static void* sta_connect_worker_thread(void *arg)
     /* 等待 4 秒供无线网卡完成 AP 关联与信道对齐 */
     sleep(4);
 
+    pthread_mutex_lock(&s_lock);
+    notify_state_changed_with_msg_unlocked("目标 Wi-Fi 已关联，正在申请 DHCP IP 租约...");
+    pthread_mutex_unlock(&s_lock);
+
     /* 4. DHCP 租约重试获取 IP (最多 5 次) */
     char acquired_ip[NET_MAX_IP_LEN] = {0};
     bool connected = false;
@@ -294,7 +310,7 @@ static void* sta_connect_worker_thread(void *arg)
         s_mode = NET_MODE_STA_CONNECTED;
         snprintf(s_current_ip, sizeof(s_current_ip), "%s", acquired_ip);
         LOG_I(TAG, "🎉 [Worker] Wi-Fi 成功连入局域网! 物理 IP: [%s]", s_current_ip);
-        notify_state_changed_unlocked();
+        notify_state_changed_with_msg_unlocked("Wi-Fi 连接成功");
 
         bool web_en = s_web_enabled;
         pthread_mutex_unlock(&s_lock);
@@ -306,7 +322,7 @@ static void* sta_connect_worker_thread(void *arg)
     } else {
         LOG_W(TAG, "⚠️ [Worker] Wi-Fi 握手或 DHCP 超时，通知界面并自动恢复 SoftAP 独立热点");
         s_mode = NET_MODE_DISCONNECTED;
-        notify_state_changed_unlocked();
+        notify_state_changed_with_msg_unlocked("Wi-Fi 连接超时或失败");
         pthread_mutex_unlock(&s_lock);
 
         /* 自动恢复独立热点供用户继续配网 */
@@ -718,9 +734,6 @@ int net_mgr_connect_sta(const char *ssid, const char *psk)
         LOG_W(TAG, "Wi-Fi 正在连接中，忽略重复连接请求");
         return -2;
     }
-
-    /* 若之前处于 SoftAP 状态，切 STA 时关闭 SoftAP */
-    net_mgr_stop_softap();
 
     s_mode = NET_MODE_STA_CONNECTING;
     snprintf(s_current_ssid, sizeof(s_current_ssid), "%.31s", ssid);
