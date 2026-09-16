@@ -28,6 +28,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <poll.h>
 
 #if defined(__has_include)
 #  if __has_include(<netutils/cJSON.h>)
@@ -51,7 +52,8 @@
 
 static bool g_server_running = false;
 static int g_server_fd = -1;
-static uint16_t g_server_port = PHOENIX_DEFAULT_WEB_PORT;
+static int g_server_fd_alt = -1; /* 辅助端口 socket (80/8080 双端口并发) */
+static uint16_t g_server_port = PHOENIX_STANDARD_HTTP_PORT;
 static pthread_t g_server_thread;
 static phoenix_agent_ctx_t *g_bound_agent = NULL;
 
@@ -142,8 +144,17 @@ int phoenix_web_portal_handle_request(const char *req_str, char *resp_out, size_
     /* Captive Portal / SoftAP redirect checks */
     bool is_softap_mode = (net_mgr_get_mode() == NET_MODE_SOFTAP_CONFIG);
 
-    if (strncmp(req_str, "GET /setup", 10) == 0 ||
-        (is_softap_mode && (strncmp(req_str, "GET / ", 6) == 0 || strncmp(req_str, "GET /hotspot-detect", 19) == 0 || strncmp(req_str, "GET /generate_204", 17) == 0))) {
+    bool is_setup_req = (strncmp(req_str, "GET /setup", 10) == 0);
+    bool is_captive_probe = (strncmp(req_str, "GET /hotspot-detect", 19) == 0 ||
+                             strncmp(req_str, "GET /generate_204", 17) == 0 ||
+                             strncmp(req_str, "GET /gen_204", 12) == 0 ||
+                             strncmp(req_str, "GET /canonical.html", 19) == 0 ||
+                             strncmp(req_str, "GET /ncsi.txt", 13) == 0 ||
+                             strncmp(req_str, "GET /connecttest.txt", 20) == 0 ||
+                             strncmp(req_str, "GET /library/test/success.html", 30) == 0);
+
+    /* 手机连上 SoftAP 热点后直接输入 192.168.4.1 (即 GET /) 或探测连接，均直接返回配网页面 */
+    if (is_setup_req || (is_softap_mode && (is_captive_probe || strncmp(req_str, "GET / ", 6) == 0 || strncmp(req_str, "GET /?", 6) == 0))) {
         const char *setup_html = phoenix_web_asset_get_setup_html();
         size_t setup_len = phoenix_web_asset_get_setup_html_len();
         snprintf(resp_out, max_len,
@@ -581,6 +592,81 @@ int phoenix_web_portal_handle_request(const char *req_str, char *resp_out, size_
     return (int)strlen(resp_out);
 }
 
+static int bind_and_listen_socket(uint16_t port)
+{
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) return -1;
+
+    int opt = 1;
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    struct sockaddr_in serv_addr;
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    serv_addr.sin_port = htons(port);
+
+    if (bind(fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        close(fd);
+        return -1;
+    }
+
+    if (listen(fd, 5) < 0) {
+        close(fd);
+        return -1;
+    }
+    return fd;
+}
+
+static void handle_single_client(int client_fd, char *req_buf, char *resp_buf)
+{
+    /* 设置 300ms 接收超时，彻底防止 Chrome 等浏览器建立空预连接导致单线程无限死锁 */
+    struct timeval tv_client;
+    tv_client.tv_sec = 0;
+    tv_client.tv_usec = 300000;
+    setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv_client, sizeof(tv_client));
+
+    ssize_t n = recv(client_fd, req_buf, 2048 - 1, 0);
+    if (n > 0) {
+        req_buf[n] = '\0';
+        /* 提取首行日志输出 */
+        char req_summary[64] = {0};
+        char *crlf = strstr(req_buf, "\r\n");
+        if (crlf) {
+            size_t line_len = (size_t)(crlf - req_buf);
+            if (line_len >= sizeof(req_summary)) line_len = sizeof(req_summary) - 1;
+            strncpy(req_summary, req_buf, line_len);
+        } else {
+            strncpy(req_summary, req_buf, sizeof(req_summary) - 1);
+        }
+        printf("[PhoenixWeb] 📥 Client connected: %s\n", req_summary);
+
+        int resp_len = phoenix_web_portal_handle_request(req_buf, resp_buf, 16384);
+        if (resp_len > 0) {
+            ssize_t total_sent = 0;
+            while (total_sent < resp_len) {
+                ssize_t s = send(client_fd, resp_buf + total_sent, (size_t)(resp_len - total_sent), 0);
+                if (s <= 0) break;
+                total_sent += s;
+            }
+            printf("[PhoenixWeb] 📤 Sent %zd/%d bytes\n", total_sent, resp_len);
+        }
+    }
+
+    /* 优雅结束：半关闭写端，排空残余接收缓冲以防内核发出 TCP RST 导致浏览器 ERR_EMPTY_RESPONSE */
+    shutdown(client_fd, SHUT_WR);
+    char drain_buf[128];
+    while (recv(client_fd, drain_buf, sizeof(drain_buf), MSG_DONTWAIT) > 0) {
+        /* 丢弃未读完的请求冗余头 */
+    }
+    close(client_fd);
+}
+
 static void *server_thread_worker(void *arg)
 {
     (void)arg;
@@ -597,55 +683,43 @@ static void *server_thread_worker(void *arg)
         return NULL;
     }
 
-    while (g_server_running && g_server_fd >= 0) {
-        client_len = sizeof(client_addr);
-        int client_fd = accept(g_server_fd, (struct sockaddr *)&client_addr, &client_len);
-        if (client_fd < 0) {
-            if (!g_server_running) break;
-            usleep(10000);
+    while (g_server_running && (g_server_fd >= 0 || g_server_fd_alt >= 0)) {
+        struct pollfd pfds[2];
+        int pfd_cnt = 0;
+
+        if (g_server_fd >= 0) {
+            pfds[pfd_cnt].fd = g_server_fd;
+            pfds[pfd_cnt].events = POLLIN;
+            pfds[pfd_cnt].revents = 0;
+            pfd_cnt++;
+        }
+        if (g_server_fd_alt >= 0) {
+            pfds[pfd_cnt].fd = g_server_fd_alt;
+            pfds[pfd_cnt].events = POLLIN;
+            pfds[pfd_cnt].revents = 0;
+            pfd_cnt++;
+        }
+
+        if (pfd_cnt == 0) {
+            usleep(20000);
             continue;
         }
 
-        /* 设置 300ms 接收超时，彻底防止 Chrome 等浏览器建立空预连接导致单线程无限死锁 */
-        struct timeval tv_client;
-        tv_client.tv_sec = 0;
-        tv_client.tv_usec = 300000;
-        setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv_client, sizeof(tv_client));
+        int poll_ret = poll(pfds, pfd_cnt, 500);
+        if (poll_ret <= 0) {
+            if (!g_server_running) break;
+            continue;
+        }
 
-        ssize_t n = recv(client_fd, req_buf, 2048 - 1, 0);
-        if (n > 0) {
-            req_buf[n] = '\0';
-            /* 提取首行日志输出 */
-            char req_summary[64] = {0};
-            char *crlf = strstr(req_buf, "\r\n");
-            if (crlf) {
-                size_t line_len = (size_t)(crlf - req_buf);
-                if (line_len >= sizeof(req_summary)) line_len = sizeof(req_summary) - 1;
-                strncpy(req_summary, req_buf, line_len);
-            } else {
-                strncpy(req_summary, req_buf, sizeof(req_summary) - 1);
-            }
-            printf("[PhoenixWeb] 📥 Client connected: %s\n", req_summary);
-
-            int resp_len = phoenix_web_portal_handle_request(req_buf, resp_buf, 16384);
-            if (resp_len > 0) {
-                ssize_t total_sent = 0;
-                while (total_sent < resp_len) {
-                    ssize_t s = send(client_fd, resp_buf + total_sent, (size_t)(resp_len - total_sent), 0);
-                    if (s <= 0) break;
-                    total_sent += s;
+        for (int i = 0; i < pfd_cnt; i++) {
+            if (pfds[i].revents & POLLIN) {
+                client_len = sizeof(client_addr);
+                int client_fd = accept(pfds[i].fd, (struct sockaddr *)&client_addr, &client_len);
+                if (client_fd >= 0) {
+                    handle_single_client(client_fd, req_buf, resp_buf);
                 }
-                printf("[PhoenixWeb] 📤 Sent %zd/%d bytes\n", total_sent, resp_len);
             }
         }
-
-        /* 优雅结束：半关闭写端，排空残余接收缓冲以防内核发出 TCP RST 导致浏览器 ERR_EMPTY_RESPONSE */
-        shutdown(client_fd, SHUT_WR);
-        char drain_buf[128];
-        while (recv(client_fd, drain_buf, sizeof(drain_buf), MSG_DONTWAIT) > 0) {
-            /* 丢弃未读完的请求冗余头 */
-        }
-        close(client_fd);
     }
 
     free(req_buf);
@@ -658,41 +732,25 @@ int phoenix_web_portal_start(uint16_t port, phoenix_agent_ctx_t *agent_ctx)
     if (g_server_running) return 0;
 
     g_bound_agent = agent_ctx;
-    g_server_port = port > 0 ? port : PHOENIX_DEFAULT_WEB_PORT;
 
-    g_server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (g_server_fd < 0) {
-        printf("[PhoenixWeb] Warning: socket creation failed, standalone memory mode available.\n");
-        g_server_running = true;
-        return 0;
+    /* 端口策略：默认支持 80 (免端口直接访问) 与 8080 (兼容访问) 双路并发监听 */
+    uint16_t primary_port = port > 0 ? port : PHOENIX_STANDARD_HTTP_PORT;
+    uint16_t alt_port = (primary_port == PHOENIX_STANDARD_HTTP_PORT) ? PHOENIX_DEFAULT_WEB_PORT : PHOENIX_STANDARD_HTTP_PORT;
+
+    g_server_fd = bind_and_listen_socket(primary_port);
+    g_server_fd_alt = bind_and_listen_socket(alt_port);
+
+    /* 若 80 端口因宿主机普通权限受限无法绑定，但 8080 成功，优雅对调 */
+    if (g_server_fd < 0 && g_server_fd_alt >= 0) {
+        g_server_fd = g_server_fd_alt;
+        g_server_fd_alt = -1;
+        g_server_port = alt_port;
+    } else {
+        g_server_port = primary_port;
     }
 
-    int opt = 1;
-    setsockopt(g_server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-
-    /* 设置 1 秒超时避免 accept 在退出时无限阻塞 */
-    struct timeval tv;
-    tv.tv_sec = 1;
-    tv.tv_usec = 0;
-    setsockopt(g_server_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-
-    struct sockaddr_in serv_addr;
-    memset(&serv_addr, 0, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(g_server_port);
-
-    if (bind(g_server_fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        printf("[PhoenixWeb] Port %u bind failed, fallback to memory mode.\n", g_server_port);
-        close(g_server_fd);
-        g_server_fd = -1;
-        g_server_running = true;
-        return 0;
-    }
-
-    if (listen(g_server_fd, 5) < 0) {
-        close(g_server_fd);
-        g_server_fd = -1;
+    if (g_server_fd < 0 && g_server_fd_alt < 0) {
+        printf("[PhoenixWeb] Warning: ports %u and %u bind failed, standalone memory mode available.\n", primary_port, alt_port);
         g_server_running = true;
         return 0;
     }
@@ -707,13 +765,18 @@ int phoenix_web_portal_start(uint16_t port, phoenix_agent_ctx_t *agent_ctx)
 
     if (ret != 0) {
         printf("[PhoenixWeb] Warning: pthread_create failed with code %d\n", ret);
-        close(g_server_fd);
-        g_server_fd = -1;
+        if (g_server_fd >= 0) { close(g_server_fd); g_server_fd = -1; }
+        if (g_server_fd_alt >= 0) { close(g_server_fd_alt); g_server_fd_alt = -1; }
         g_server_running = false;
         return -1;
     }
 
-    printf("[PhoenixWeb] 🌐 Web Portal listening at http://0.0.0.0:%u\n", g_server_port);
+    if (g_server_fd_alt >= 0) {
+        printf("[PhoenixWeb] 🌐 Web Portal listening on BOTH http://0.0.0.0:%u (免端口直达) & :%u (兼容)\n",
+               g_server_port, alt_port);
+    } else {
+        printf("[PhoenixWeb] 🌐 Web Portal listening at http://0.0.0.0:%u\n", g_server_port);
+    }
     return 0;
 }
 
@@ -724,6 +787,10 @@ void phoenix_web_portal_stop(void)
     if (g_server_fd >= 0) {
         close(g_server_fd);
         g_server_fd = -1;
+    }
+    if (g_server_fd_alt >= 0) {
+        close(g_server_fd_alt);
+        g_server_fd_alt = -1;
     }
     pthread_join(g_server_thread, NULL);
     printf("[PhoenixWeb] 🛑 Web Portal stopped cleanly.\n");

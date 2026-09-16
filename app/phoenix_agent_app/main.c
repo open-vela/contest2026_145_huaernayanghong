@@ -19,6 +19,7 @@
 #include "core/event_bus.h"
 #include "core/tool_registry.h"
 #include "core/agent_core.h"
+#include "core/web_portal.h"
 #include "ui/ui.h"
 #include "test/test_autodrive.h"
 
@@ -169,7 +170,7 @@ int main(int argc, FAR char *argv[])
     phoenix_app_config_t app_cfg;
     memset(&app_cfg, 0, sizeof(app_cfg));
     app_cfg.enable_web_portal = true;
-    app_cfg.web_port = 8080;
+    app_cfg.web_port = PHOENIX_STANDARD_HTTP_PORT;
     if (phoenix_app_init(&app_cfg) != 0) {
         printf("[PhoenixApp] ❌ Error: Phoenix Application Facade init failed!\n");
         return -1;

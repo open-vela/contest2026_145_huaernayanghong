@@ -15,7 +15,8 @@ extern "C" {
 #include <stdbool.h>
 #include "agent_core.h"
 
-#define PHOENIX_DEFAULT_WEB_PORT 8080
+#define PHOENIX_STANDARD_HTTP_PORT 80
+#define PHOENIX_DEFAULT_WEB_PORT   8080
 
 /**
  * @brief Start the background embedded Web Portal HTTP server

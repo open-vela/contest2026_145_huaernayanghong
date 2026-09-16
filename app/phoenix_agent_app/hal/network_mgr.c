@@ -41,6 +41,9 @@
 #include <sys/ioctl.h>
 
 #if !defined(HOST_TEST_RUNNER)
+#  if defined(__has_include) && __has_include(<wireless/wapi.h>)
+#    include <wireless/wapi.h>
+#  else
 /* WAPI C 语言原生底层接口声明 (链接自 apps/wireless/wapi) */
 #define WAPI_ESSID_OFF 0
 #define WAPI_ESSID_ON  1
@@ -53,6 +56,36 @@
 #define IW_AUTH_CIPHER_CCMP      0x00000008
 #define WPA_ALG_CCMP             3
 
+struct ether_addr_sub {
+    uint8_t ether_addr_octet[6];
+};
+
+struct wapi_scan_info_s {
+    struct wapi_scan_info_s *next;
+    struct ether_addr_sub ap;
+    int has_essid;
+    char essid[32 + 1];
+    int essid_flag;
+    int has_freq;
+    double freq;
+    int has_mode;
+    int mode;
+    int has_bitrate;
+    int bitrate;
+    int has_rssi;
+    int rssi;
+    int has_encode;
+    int encode;
+};
+
+struct wapi_list_s {
+    union {
+        void *string;
+        struct wapi_scan_info_s *scan;
+        void *route;
+    } head;
+};
+
 int  wapi_make_socket(void);
 int  wapi_set_ifup(int sock, const char *ifname);
 int  wapi_set_ifdown(int sock, const char *ifname);
@@ -63,6 +96,11 @@ int  wapi_set_essid(int sock, const char *ifname, const char *essid, int flag);
 void wpa_driver_wext_disconnect(int sockfd, const char *ifname);
 int  wpa_driver_wext_set_auth_param(int sockfd, const char *ifname, int idx, uint32_t value);
 int  wpa_driver_wext_set_key_ext(int sockfd, const char *ifname, int alg, const char *key, size_t key_len);
+int  wapi_scan_init(int sock, const char *ifname);
+int  wapi_scan_stat(int sock, const char *ifname);
+int  wapi_scan_coll(int sock, const char *ifname, struct wapi_list_s *list);
+void wapi_scan_coll_free(struct wapi_list_s *list);
+#  endif
 #endif
 
 #define TAG "NetMgr"
@@ -233,8 +271,8 @@ static void* sta_connect_worker_thread(void *arg)
         pthread_mutex_unlock(&s_lock);
 
         if (web_en) {
-            phoenix_web_portal_start(8080, NULL);
-            LOG_I(TAG, "🌐 局域网 Web 伴侣已启动: http://%s:8080", acquired_ip);
+            phoenix_web_portal_start(80, NULL);
+            LOG_I(TAG, "🌐 局域网 Web 伴侣已启动: http://%s/ (或 :8080)", acquired_ip);
         }
     } else {
         LOG_W(TAG, "⚠️ [Worker] Wi-Fi 握手或 DHCP 超时，自动回退至 SoftAP 独立热点以便重新配网");
@@ -274,8 +312,8 @@ int net_mgr_init(void)
         pthread_mutex_unlock(&s_lock);
 
         if (web_en) {
-            phoenix_web_portal_start(8080, NULL);
-            LOG_I(TAG, "🌐 局域网 Web 伴侣已启动: http://%s:8080", existing_ip);
+            phoenix_web_portal_start(80, NULL);
+            LOG_I(TAG, "🌐 局域网 Web 伴侣已启动: http://%s/ (或 :8080)", existing_ip);
         }
         return 0;
     }
@@ -577,7 +615,7 @@ int net_mgr_start_softap(const char *custom_ssid)
     snprintf(s_current_ssid, sizeof(s_current_ssid), "%s", ssid);
     snprintf(s_current_ip, sizeof(s_current_ip), "%s", NET_DEFAULT_SOFTAP_IP);
 
-    LOG_I(TAG, "📡 启动 SoftAP: SSID=[%s], 网关=[192.168.4.1], Web=[http://192.168.4.1:8080]", 
+    LOG_I(TAG, "📡 启动 SoftAP: SSID=[%s], 网关=[192.168.4.1], Web免端口直达: [http://192.168.4.1/]", 
           s_current_ssid);
 
 #if !defined(HOST_TEST_RUNNER)
@@ -618,8 +656,8 @@ int net_mgr_start_softap(const char *custom_ssid)
     notify_state_changed_unlocked();
     pthread_mutex_unlock(&s_lock);
 
-    /* 启动 Web 配网服务 */
-    phoenix_web_portal_start(8080, NULL);
+    /* 启动 Web 配网服务 (优先 80 端口，备用 8080 端口双路监听) */
+    phoenix_web_portal_start(80, NULL);
     return 0;
 }
 
@@ -794,6 +832,91 @@ int net_mgr_scan_wifi(net_wifi_ap_info_t *aps_out, size_t max_count)
 {
     if (!aps_out || max_count == 0) return -1;
 
+#if !defined(HOST_TEST_RUNNER)
+    int sock = wapi_make_socket();
+    if (sock >= 0) {
+        LOG_I(TAG, "📡 正在通过物理网卡 wlan0 发起实时空中 Wi-Fi 扫描...");
+        int ret = wapi_scan_init(sock, "wlan0");
+        if (ret >= 0) {
+            /* 轮询等待驱动空中抓包完成 (通常耗时 300ms ~ 1.2s) */
+            int tries = 15;
+            while (--tries > 0) {
+                ret = wapi_scan_stat(sock, "wlan0");
+                if (ret == 0) {
+                    /* 扫描完成 */
+                    break;
+                }
+                usleep(100 * 1000);
+            }
+
+            struct wapi_list_s list;
+            memset(&list, 0, sizeof(list));
+            ret = wapi_scan_coll(sock, "wlan0", &list);
+            if (ret == 0 && list.head.scan != NULL) {
+                size_t real_count = 0;
+                struct wapi_scan_info_s *info = list.head.scan;
+
+                while (info != NULL && real_count < max_count) {
+                    if (info->has_essid && info->essid[0] != '\0') {
+                        /* 检查同名 SSID 去重 (双频 2.4G/5G 保留最强信号) */
+                        int dup_idx = -1;
+                        for (size_t i = 0; i < real_count; i++) {
+                            if (strcmp(aps_out[i].ssid, info->essid) == 0) {
+                                dup_idx = (int)i;
+                                break;
+                            }
+                        }
+
+                        int rssi_val = info->has_rssi ? info->rssi : -75;
+                        const char *auth_type = "OPEN";
+                        if (info->has_encode && info->encode != 0) {
+                            auth_type = "WPA2";
+                        }
+
+                        if (dup_idx >= 0) {
+                            if (rssi_val > aps_out[dup_idx].rssi) {
+                                aps_out[dup_idx].rssi = (int16_t)rssi_val;
+                                strncpy(aps_out[dup_idx].auth, auth_type, sizeof(aps_out[dup_idx].auth) - 1);
+                            }
+                        } else {
+                            strncpy(aps_out[real_count].ssid, info->essid, sizeof(aps_out[real_count].ssid) - 1);
+                            aps_out[real_count].rssi = (int16_t)rssi_val;
+                            strncpy(aps_out[real_count].auth, auth_type, sizeof(aps_out[real_count].auth) - 1);
+                            real_count++;
+                        }
+                    }
+                    info = info->next;
+                }
+
+                wapi_scan_coll_free(&list);
+                close(sock);
+
+                if (real_count > 0) {
+                    /* 按信号强度从强到弱排序 (RSSI 降序) */
+                    for (size_t i = 0; i < real_count - 1; i++) {
+                        for (size_t j = 0; j < real_count - 1 - i; j++) {
+                            if (aps_out[j].rssi < aps_out[j + 1].rssi) {
+                                net_wifi_ap_info_t tmp = aps_out[j];
+                                aps_out[j] = aps_out[j + 1];
+                                aps_out[j + 1] = tmp;
+                            }
+                        }
+                    }
+
+                    LOG_I(TAG, "📡 真实 Wi-Fi 扫描成功，捕获周边 %zu 个活跃热点", real_count);
+                    return (int)real_count;
+                }
+            } else {
+                close(sock);
+            }
+        } else {
+            close(sock);
+        }
+        LOG_W(TAG, "物理网卡扫描暂无空中数据，回退至安全模式");
+    }
+#endif
+
+    /* 宿主机仿真测试 (HOST_TEST_RUNNER) 或无线驱动初始化未就绪时的备用数据 */
     static const net_wifi_ap_info_t s_default_aps[] = {
         {"Office-5G",          -45, "WPA2"},
         {"Home-Mesh-2.4G",     -58, "WPA2"},
@@ -809,6 +932,6 @@ int net_mgr_scan_wifi(net_wifi_ap_info_t *aps_out, size_t max_count)
         aps_out[i] = s_default_aps[i];
     }
 
-    LOG_I(TAG, "📡 扫描周边 Wi-Fi 完成，发现 %zu 个热点", count);
+    LOG_I(TAG, "📡 Wi-Fi 扫描完成 (宿主机/备用模式)，返回 %zu 个测试热点", count);
     return (int)count;
 }
