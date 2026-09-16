@@ -1,6 +1,6 @@
 /**
  * @file network_mgr.c
- * @brief 网络连接与 SoftAP 双模管理组件实现
+ * @brief 网络连接与 SoftAP 双模管理组件实现 (OpenVela WAPI & Dual-Mode State Machine)
  * @author OpenVela Contest 2026 Team 145
  */
 
@@ -9,11 +9,24 @@
 #include "../core/web_portal.h"
 #include "../core/event_bus.h"
 #include "../utils/log_utils.h"
+
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <pthread.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <net/if.h>
+#include <sys/ioctl.h>
 
 #define TAG "NetMgr"
+
+#define WAPI_CONF_DIR  "/data/etc/wifi"
+#define WAPI_CONF_FILE "/data/etc/wifi/wapi.conf"
 
 static net_mode_t       s_mode = NET_MODE_DISCONNECTED;
 static char             s_current_ip[NET_MAX_IP_LEN] = {0};
@@ -23,6 +36,10 @@ static net_state_cb_t   s_state_cb = NULL;
 static void            *s_state_user_data = NULL;
 static pthread_mutex_t  s_lock = PTHREAD_MUTEX_INITIALIZER;
 static bool             s_initialized = false;
+#if !defined(HOST_TEST_RUNNER)
+static pthread_t        s_connect_tid = 0;
+#endif
+static bool             s_worker_running = false;
 
 static void notify_state_changed_unlocked(void)
 {
@@ -30,6 +47,153 @@ static void notify_state_changed_unlocked(void)
         s_state_cb(s_mode, s_current_ip, s_state_user_data);
     }
 }
+
+/**
+ * @brief 持久化保存 Wi-Fi 配置至 /data/etc/wifi/wapi.conf
+ */
+static int save_wapi_conf(const char *ssid, const char *psk)
+{
+    struct stat st;
+    if (stat("/data", &st) != 0) {
+        /* /data 分区若未挂载，尝试写入当前工作区或忽略 */
+        return -1;
+    }
+
+    mkdir("/data/etc", 0755);
+    mkdir(WAPI_CONF_DIR, 0755);
+
+    FILE *fp = fopen(WAPI_CONF_FILE, "w");
+    if (!fp) {
+        LOG_W(TAG, "无法写入 %s，请检查文件权限", WAPI_CONF_FILE);
+        return -1;
+    }
+
+    fprintf(fp, "{\n  \"ssid\": \"%s\",\n  \"psk\": \"%s\",\n  \"bssid\": \"\"\n}\n",
+            ssid ? ssid : "", psk ? psk : "");
+    fclose(fp);
+    sync();
+
+    LOG_I(TAG, "已成功写入无线凭证至持久化文件: %s", WAPI_CONF_FILE);
+    return 0;
+}
+
+#if !defined(HOST_TEST_RUNNER)
+/**
+ * @brief 通过网络套接字与 ioctl 查询指定接口的 IPv4 地址
+ */
+static int query_interface_ip(const char *ifname, char *ip_buf, size_t max_len)
+{
+    if (!ifname || !ip_buf || max_len == 0) return -1;
+
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) return -1;
+
+    struct ifreq ifr;
+    memset(&ifr, 0, sizeof(ifr));
+    strncpy(ifr.ifr_name, ifname, IFNAMSIZ - 1);
+
+    if (ioctl(sock, SIOCGIFADDR, &ifr) == 0) {
+        struct sockaddr_in *sin = (struct sockaddr_in *)&ifr.ifr_addr;
+        char *addr_str = inet_ntoa(sin->sin_addr);
+        if (addr_str && strcmp(addr_str, "0.0.0.0") != 0 && strcmp(addr_str, "127.0.0.1") != 0) {
+            snprintf(ip_buf, max_len, "%s", addr_str);
+            close(sock);
+            return 0;
+        }
+    }
+    close(sock);
+    return -1;
+}
+
+typedef struct {
+    char ssid[NET_MAX_SSID_LEN];
+    char psk[NET_MAX_PSK_LEN];
+} connect_param_t;
+
+/**
+ * @brief 真机异步连网工作线程
+ */
+static void* sta_connect_worker_thread(void *arg)
+{
+    connect_param_t *p = (connect_param_t *)arg;
+    char target_ssid[NET_MAX_SSID_LEN];
+    char target_psk[NET_MAX_PSK_LEN];
+    strncpy(target_ssid, p->ssid, sizeof(target_ssid) - 1);
+    strncpy(target_psk, p->psk, sizeof(target_psk) - 1);
+    free(p);
+
+    LOG_I(TAG, "[Worker] 开始向底层 WAPI 下发连接序列: SSID=[%s]", target_ssid);
+
+    /* 1. 先断开并等待状态清理 */
+    system("wapi disconnect wlan0 > /dev/null 2>&1");
+    usleep(500000); /* 500ms */
+
+    /* 2. 下发 SSID */
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd), "wapi essid wlan0 \"%s\" 1", target_ssid);
+    system(cmd);
+
+    /* 3. 下发密码 (3: WPA2-PSK) */
+    if (target_psk[0] != '\0') {
+        snprintf(cmd, sizeof(cmd), "wapi psk wlan0 \"%s\" 1 3", target_psk);
+        system(cmd);
+    }
+
+    /* 4. 关闭自适应与省电模式，提升嵌入式长连接可靠性 */
+    system("wapi private wlan0 adaptivity 0 > /dev/null 2>&1");
+    system("wapi power_save wlan0 off > /dev/null 2>&1");
+
+    /* 5. 保存并重连 */
+    system("wapi save_config wlan0 > /dev/null 2>&1");
+    system("wapi reconnect wlan0 > /dev/null 2>&1");
+
+    LOG_I(TAG, "[Worker] WAPI 关联指令已发出，等待链路就绪并申请 DHCP...");
+
+    /* 6. 等待 AP 关联握手 (通常需要 3~4 秒) */
+    sleep(4);
+
+    /* 7. DHCP 租约重试获取 IP */
+    char acquired_ip[NET_MAX_IP_LEN] = {0};
+    bool connected = false;
+
+    for (int retry = 1; retry <= 4; retry++) {
+        LOG_I(TAG, "[Worker] 尝试申请 DHCP 租约 (第 %d/4 次)...", retry);
+        system("renew wlan0 > /dev/null 2>&1");
+        sleep(2);
+
+        if (query_interface_ip("wlan0", acquired_ip, sizeof(acquired_ip)) == 0) {
+            connected = true;
+            break;
+        }
+    }
+
+    pthread_mutex_lock(&s_lock);
+    s_worker_running = false;
+
+    if (connected && acquired_ip[0] != '\0') {
+        s_mode = NET_MODE_STA_CONNECTED;
+        snprintf(s_current_ip, sizeof(s_current_ip), "%s", acquired_ip);
+        LOG_I(TAG, "🎉 [Worker] Wi-Fi 成功连入局域网! 物理 IP: [%s]", s_current_ip);
+        notify_state_changed_unlocked();
+
+        bool web_en = s_web_enabled;
+        pthread_mutex_unlock(&s_lock);
+
+        if (web_en) {
+            phoenix_web_portal_start(8080, NULL);
+            LOG_I(TAG, "🌐 局域网 Web 伴侣已启动: http://%s:8080", acquired_ip);
+        }
+    } else {
+        LOG_W(TAG, "⚠️ [Worker] Wi-Fi 握手或 DHCP 超时，进入未连接状态");
+        s_mode = NET_MODE_DISCONNECTED;
+        s_current_ip[0] = '\0';
+        notify_state_changed_unlocked();
+        pthread_mutex_unlock(&s_lock);
+    }
+
+    return NULL;
+}
+#endif
 
 int net_mgr_init(void)
 {
@@ -92,6 +256,11 @@ int net_mgr_start_softap(const char *custom_ssid)
     LOG_I(TAG, "📡 SoftAP 广播开启: SSID=[%s], 配网地址=[http://%s:8080]", 
           s_current_ssid, s_current_ip);
 
+#if !defined(HOST_TEST_RUNNER)
+    /* 配置热点物理网关 IP */
+    system("ifconfig wlan0 192.168.4.1 netmask 255.255.255.0 up > /dev/null 2>&1");
+#endif
+
     notify_state_changed_unlocked();
     pthread_mutex_unlock(&s_lock);
 
@@ -105,8 +274,7 @@ int net_mgr_connect_sta(const char *ssid, const char *psk)
     if (!ssid || !ssid[0]) return -1;
 
     pthread_mutex_lock(&s_lock);
-    /* 防并发频繁重入 */
-    if (s_mode == NET_MODE_STA_CONNECTING) {
+    if (s_mode == NET_MODE_STA_CONNECTING || s_worker_running) {
         pthread_mutex_unlock(&s_lock);
         LOG_W(TAG, "Wi-Fi 正在连接中，忽略重复连接请求");
         return -2;
@@ -117,7 +285,7 @@ int net_mgr_connect_sta(const char *ssid, const char *psk)
     LOG_I(TAG, "正在连接 Wi-Fi: [%s]...", s_current_ssid);
     notify_state_changed_unlocked();
 
-    /* 持久化 Wi-Fi 凭证 */
+    /* 1. 持久化 Wi-Fi 凭证至系统 Config */
     phoenix_config_set_str(PHOENIX_CFG_WIFI_SSID, s_current_ssid);
     if (psk) {
         char safe_psk[NET_MAX_PSK_LEN] = {0};
@@ -125,26 +293,39 @@ int net_mgr_connect_sta(const char *ssid, const char *psk)
         phoenix_config_set_str(PHOENIX_CFG_WIFI_PSK, safe_psk);
     }
 
-    /* 模拟连接成功，分配局域网内网 IP (真机底层由 DHCP 客户端回填) */
+    /* 2. 持久化至全志原厂 /data/etc/wifi/wapi.conf 配置文件 */
+    save_wapi_conf(s_current_ssid, psk);
+
+#if defined(HOST_TEST_RUNNER)
+    /* Host 单测模式：同步完成以便单元测试断言 */
     s_mode = NET_MODE_STA_CONNECTED;
     snprintf(s_current_ip, sizeof(s_current_ip), "192.168.1.108");
-
-    LOG_I(TAG, "✅ Wi-Fi 连接成功! 分配 IP: [%s]", s_current_ip);
+    LOG_I(TAG, "✅ [Host] Wi-Fi 连接成功! 分配 IP: [%s]", s_current_ip);
     notify_state_changed_unlocked();
 
     bool web_en = s_web_enabled;
     pthread_mutex_unlock(&s_lock);
 
-    /* 按需管理 Web 伴侣服务 */
     if (web_en) {
         phoenix_web_portal_start(8080, NULL);
-        LOG_I(TAG, "🌐 局域网 Web 伴侣已待命: http://%s:8080", s_current_ip);
-    } else {
-        phoenix_web_portal_stop();
-        LOG_I(TAG, "🔒 根据配置，局域网 Web 伴侣已禁用");
     }
-
     return 0;
+#else
+    /* 真机模式：启动后台异步工作线程下发 WAPI 序列，防止阻塞 LVGL 界面 */
+    s_worker_running = true;
+    connect_param_t *param = (connect_param_t *)malloc(sizeof(connect_param_t));
+    if (param) {
+        strncpy(param->ssid, s_current_ssid, sizeof(param->ssid) - 1);
+        if (psk) strncpy(param->psk, psk, sizeof(param->psk) - 1);
+        else param->psk[0] = '\0';
+        pthread_create(&s_connect_tid, NULL, sta_connect_worker_thread, param);
+        pthread_detach(s_connect_tid);
+    } else {
+        s_worker_running = false;
+    }
+    pthread_mutex_unlock(&s_lock);
+    return 0;
+#endif
 }
 
 void net_mgr_disconnect(void)
@@ -153,6 +334,11 @@ void net_mgr_disconnect(void)
     s_mode = NET_MODE_DISCONNECTED;
     s_current_ip[0] = '\0';
     s_current_ssid[0] = '\0';
+
+#if !defined(HOST_TEST_RUNNER)
+    system("wapi disconnect wlan0 > /dev/null 2>&1");
+#endif
+
     notify_state_changed_unlocked();
     pthread_mutex_unlock(&s_lock);
 

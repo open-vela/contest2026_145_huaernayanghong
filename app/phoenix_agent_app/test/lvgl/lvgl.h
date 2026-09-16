@@ -65,6 +65,16 @@ typedef enum {
 
 #define LV_ANIM_OFF 0
 
+#define LV_STATE_DEFAULT   0x0000
+#define LV_STATE_CHECKED   0x0001
+#define LV_STATE_FOCUSED   0x0002
+#define LV_STATE_FOCUS_KEY 0x0004
+#define LV_STATE_EDITED    0x0008
+#define LV_STATE_HOVERED   0x0010
+#define LV_STATE_PRESSED   0x0020
+#define LV_STATE_SCROLLED  0x0040
+#define LV_STATE_DISABLED  0x0080
+
 typedef struct {
     uint8_t blue;
     uint8_t green;
@@ -118,6 +128,7 @@ static inline void lv_obj_set_style_text_font(lv_obj_t *obj, const lv_font_t *fo
 static inline void lv_obj_clear_flag(lv_obj_t *obj, uint32_t flag) { (void)obj; (void)flag; }
 static inline void lv_obj_add_flag(lv_obj_t *obj, uint32_t flag) { (void)obj; (void)flag; }
 static inline void lv_obj_move_foreground(lv_obj_t *obj) { (void)obj; }
+static inline void lv_obj_set_ext_click_area(lv_obj_t *obj, int32_t size) { (void)obj; (void)size; }
 
 /* Button & Label */
 static inline lv_obj_t* lv_btn_create(lv_obj_t *parent) { (void)parent; return (lv_obj_t*)malloc(16); }

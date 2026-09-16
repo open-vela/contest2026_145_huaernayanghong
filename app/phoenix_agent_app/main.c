@@ -185,12 +185,15 @@ int main(int argc, FAR char *argv[])
 #ifdef CONFIG_LV_USE_NUTTX_LCD
     info.fb_path = "/dev/lcd0";
 #endif
-#ifdef CONFIG_INPUT_TOUCHSCREEN
+#if defined(CONFIG_LV_USE_NUTTX_TOUCHSCREEN) || defined(CONFIG_INPUT_TOUCHSCREEN) || defined(CONFIG_INPUT)
 #  ifdef CONFIG_EXAMPLES_LVGLDEMO_INPUT_DEVPATH
     info.input_path = CONFIG_EXAMPLES_LVGLDEMO_INPUT_DEVPATH;
 #  else
     info.input_path = "/dev/input0";
 #  endif
+#elif !defined(HOST_TEST_RUNNER)
+    /* 默认在目标板硬件上绑定触控设备 /dev/input0 */
+    info.input_path = "/dev/input0";
 #endif
 
     printf("[PhoenixApp] Initializing LVGL display (fb_path: %s)...\n",

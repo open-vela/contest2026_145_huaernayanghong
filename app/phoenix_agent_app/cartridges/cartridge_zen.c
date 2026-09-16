@@ -101,18 +101,23 @@ static int zen_on_load(lv_obj_t *stage_parent)
     lv_obj_set_style_border_width(s_ui.halo_fish, 1, 0);
     lv_obj_set_style_radius(s_ui.halo_fish, 49, 0);
     lv_obj_clear_flag(s_ui.halo_fish, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(s_ui.halo_fish, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(s_ui.halo_fish, LV_OBJ_FLAG_EVENT_BUBBLE);
 
-    /* 4. 中央极简微拟态木鱼印台 (直径 82px) */
+    /* 4. 中央极简微拟态木鱼印台 (直径 82px，加宽点击热区与按下触控微反馈) */
     s_ui.btn_fish = lv_obj_create(s_ui.halo_fish);
     lv_obj_set_size(s_ui.btn_fish, 82, 82);
     lv_obj_center(s_ui.btn_fish);
     lv_obj_set_style_bg_color(s_ui.btn_fish, lv_color_hex(0x221C12), 0);
+    lv_obj_set_style_bg_color(s_ui.btn_fish, lv_color_hex(0x382E1E), LV_STATE_PRESSED);
     lv_obj_set_style_border_color(s_ui.btn_fish, lv_color_hex(0xC9A84E), 0);
+    lv_obj_set_style_border_color(s_ui.btn_fish, lv_color_hex(0xFFD700), LV_STATE_PRESSED);
     lv_obj_set_style_border_width(s_ui.btn_fish, 2, 0);
     lv_obj_set_style_radius(s_ui.btn_fish, 41, 0);
     lv_obj_clear_flag(s_ui.btn_fish, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(s_ui.btn_fish, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_flag(s_ui.btn_fish, LV_OBJ_FLAG_EVENT_BUBBLE);
+    lv_obj_set_ext_click_area(s_ui.btn_fish, 16);
 
     s_ui.lbl_fish = lv_label_create(s_ui.btn_fish);
     lv_obj_center(s_ui.lbl_fish);

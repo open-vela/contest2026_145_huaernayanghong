@@ -41,17 +41,24 @@ static void stage_touch_event_cb(lv_event_t *e)
     lv_indev_t *indev = lv_indev_get_act();
     if (!indev) return;
 
-    /* 0. 支持 LVGL 原生手势事件直接派发 */
+    uint32_t now = lv_tick_get();
+
+    /* 0. 原生手势事件优先处理 (带 400ms 节流防抖) */
     if (code == LV_EVENT_GESTURE) {
+        if (now - stage->last_gesture_time_ms < 400) return;
         lv_dir_t dir = lv_indev_get_gesture_dir(indev);
         if (dir == LV_DIR_LEFT) {
+            stage->last_gesture_time_ms = now;
             cartridge_mgr_next();
             return;
         } else if (dir == LV_DIR_RIGHT) {
+            stage->last_gesture_time_ms = now;
             cartridge_mgr_prev();
             return;
         } else if (dir == LV_DIR_BOTTOM) {
-            if (stage->on_swipe_down) {
+            /* 仅当触控起始位置在屏幕顶部边缘 (Y < 55) 时呼出抽屉 */
+            if (stage->press_point.y < 55 && stage->on_swipe_down) {
+                stage->last_gesture_time_ms = now;
                 stage->on_swipe_down(stage->user_data);
             }
             return;
@@ -60,7 +67,7 @@ static void stage_touch_event_cb(lv_event_t *e)
 
     if (code == LV_EVENT_PRESSED) {
         lv_indev_get_point(indev, &stage->press_point);
-        stage->press_time_ms = lv_tick_get();
+        stage->press_time_ms = now;
         stage->is_pressed = true;
     } else if (code == LV_EVENT_RELEASED) {
         if (!stage->is_pressed) return;
@@ -74,30 +81,33 @@ static void stage_touch_event_cb(lv_event_t *e)
         int32_t abs_dx = (dx < 0) ? -dx : dx;
         int32_t abs_dy = (dy < 0) ? -dy : dy;
 
-        /* 1. 灵敏手势：水平滑动优先 (位移 > 25px 即判定有效滑屏) */
-        if (abs_dx > 25 && abs_dx > abs_dy) {
+        /* 防抖检查：忽略 400ms 内的连续误触发 */
+        if (now - stage->last_gesture_time_ms < 400) return;
+
+        /* 1. 水平滑动切换卡带：阈值提升至 55px，且水平位移显著主导 */
+        if (abs_dx >= 55 && abs_dx >= (abs_dy * 15 / 10)) {
+            stage->last_gesture_time_ms = now;
             if (dx < 0) {
-                /* 向左划：轮换至下一个卡带 */
                 cartridge_mgr_next();
             } else {
-                /* 向右划：轮换至上一个卡带 */
                 cartridge_mgr_prev();
             }
             return;
         }
 
-        /* 2. 灵敏手势：全屏下滑呼出设置抽屉 (位移 > 25px) */
-        if (dy > 25 && abs_dy > abs_dx) {
+        /* 2. 下滑呼出设置抽屉：必须起始于屏幕顶部 (Y < 55) 且下滑位移 >= 45px */
+        if (stage->press_point.y < 55 && dy >= 45 && abs_dy >= (abs_dx * 15 / 10)) {
+            stage->last_gesture_time_ms = now;
             if (stage->on_swipe_down) {
                 stage->on_swipe_down(stage->user_data);
             }
             return;
         }
 
-        /* 3. 轻敲点击判定 (位移 < 15px 且时长 < 600ms) */
-        if (abs_dx < 15 && abs_dy < 15) {
+        /* 3. 屏幕空白处轻敲点击判定 (位移 < 18px 且时长 < 500ms) */
+        if (abs_dx < 18 && abs_dy < 18) {
             uint32_t elapsed = lv_tick_elaps(stage->press_time_ms);
-            if (elapsed < 600) {
+            if (elapsed > 20 && elapsed < 500) {
                 /* 分发敲击事件至当前活跃卡带 */
                 cartridge_mgr_dispatch_knock(1, 1);
             }
@@ -133,7 +143,7 @@ ui_stage_t* ui_stage_create(lv_obj_t *parent)
     lv_obj_set_style_pad_all(stage->container, 0, LV_PART_MAIN);
     lv_obj_clear_flag(stage->container, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* 监听全屏触摸手势与点击 */
+    /* 仅在舞台容器单点监听触摸手势，不再对子视图重复注册，杜绝冒泡三次重入 */
     ui_stage_bind_touch(stage, stage->container);
 
     return stage;
@@ -173,8 +183,9 @@ void ui_stage_transition_to(ui_stage_t *stage, lv_obj_t *new_view, bool slide_to
 {
     if (!stage || !new_view) return;
 
-    /* 确保新进入视窗的卡带自动具备触摸冒泡与轻敲手势联动 */
-    ui_stage_bind_touch(stage, new_view);
+    /* 确保新进入视窗的卡带具备点击与事件向上冒泡，不重复注册回调 */
+    lv_obj_add_flag(new_view, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(new_view, LV_OBJ_FLAG_EVENT_BUBBLE);
 
     /* 架构师优化：强制停止正在运行的过渡动画，避免重入与野指针 */
     if (stage->old_view) {

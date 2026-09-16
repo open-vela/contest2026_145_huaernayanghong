@@ -138,6 +138,8 @@ phoenix_eye_t* phoenix_eye_create(lv_obj_t *parent, uint16_t size)
     lv_obj_set_style_bg_opa(eye->container, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_opa(eye->container, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_remove_flag(eye->container, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(eye->container, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(eye->container, LV_OBJ_FLAG_EVENT_BUBBLE);
     lv_obj_center(eye->container);
 
     // 2. Outer Halo (Luminous Pulsing Aura - Lightweight without heavy software shadow)

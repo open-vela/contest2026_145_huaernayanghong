@@ -319,16 +319,20 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
     /* 2. 创建卡带主舞台视窗 (Shell Viewport & Touch Engine) */
     ui->stage = ui_stage_create(ui->screen);
     if (ui->stage) {
-        ui_stage_bind_touch(ui->stage, ui->screen);
         ui_stage_set_swipe_down_cb(ui->stage, on_stage_swipe_down, ui);
         cartridge_mgr_set_stage(ui_stage_get_canvas(ui->stage));
     }
 
-    /* 3. 顶部极窄微状态胶囊 (22px，半透明常驻) */
+    /* 3. 顶部极窄微状态胶囊 (22px，半透明常驻，点击呼出控制中心) */
     ui->capsule = ui_capsule_create(ui->screen, ui->font_chinese);
     if (ui->capsule && ui->capsule->container) {
         lv_obj_add_flag(ui->capsule->container, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_ext_click_area(ui->capsule->container, 8);
         lv_obj_add_event_cb(ui->capsule->container, on_capsule_clicked, LV_EVENT_CLICKED, ui);
+        if (ui->capsule->pill_status) {
+            lv_obj_add_flag(ui->capsule->pill_status, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_event_cb(ui->capsule->pill_status, on_capsule_clicked, LV_EVENT_CLICKED, ui);
+        }
     }
 
     /* 4. 顶部控制中心抽屉与设置面板 (Settings Drawer，默认滑入在屏幕上方外) */

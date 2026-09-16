@@ -29,6 +29,7 @@ struct ui_stage_s {
 
     lv_point_t press_point;
     uint32_t   press_time_ms;
+    uint32_t   last_gesture_time_ms;        /**< 手势事件防抖节流时间戳 */
     bool       is_pressed;
     bool       is_animating;
 };
