@@ -54,6 +54,76 @@ static uint16_t g_server_port = PHOENIX_DEFAULT_WEB_PORT;
 static pthread_t g_server_thread;
 static phoenix_agent_ctx_t *g_bound_agent = NULL;
 
+typedef enum {
+    WEB_CMD_NONE = 0,
+    WEB_CMD_SWITCH_CARTRIDGE,
+    WEB_CMD_ADD_MEMO,
+    WEB_CMD_ACTION
+} web_cmd_type_t;
+
+typedef struct {
+    web_cmd_type_t type;
+    char param[128];
+} web_cmd_t;
+
+#define MAX_WEB_CMDS 16
+static web_cmd_t g_web_cmd_queue[MAX_WEB_CMDS];
+static size_t g_web_cmd_head = 0;
+static size_t g_web_cmd_tail = 0;
+static pthread_mutex_t g_web_cmd_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static void enqueue_web_cmd(web_cmd_type_t type, const char *param)
+{
+    pthread_mutex_lock(&g_web_cmd_lock);
+    size_t next = (g_web_cmd_tail + 1) % MAX_WEB_CMDS;
+    if (next != g_web_cmd_head) {
+        g_web_cmd_queue[g_web_cmd_tail].type = type;
+        if (param) {
+            strncpy(g_web_cmd_queue[g_web_cmd_tail].param, param, sizeof(g_web_cmd_queue[g_web_cmd_tail].param) - 1);
+            g_web_cmd_queue[g_web_cmd_tail].param[sizeof(g_web_cmd_queue[g_web_cmd_tail].param) - 1] = '\0';
+        } else {
+            g_web_cmd_queue[g_web_cmd_tail].param[0] = '\0';
+        }
+        g_web_cmd_tail = next;
+    }
+    pthread_mutex_unlock(&g_web_cmd_lock);
+}
+
+void phoenix_web_portal_drain_commands(void)
+{
+    while (1) {
+        web_cmd_t cmd;
+        pthread_mutex_lock(&g_web_cmd_lock);
+        if (g_web_cmd_head == g_web_cmd_tail) {
+            pthread_mutex_unlock(&g_web_cmd_lock);
+            break;
+        }
+        cmd = g_web_cmd_queue[g_web_cmd_head];
+        g_web_cmd_head = (g_web_cmd_head + 1) % MAX_WEB_CMDS;
+        pthread_mutex_unlock(&g_web_cmd_lock);
+
+        switch (cmd.type) {
+            case WEB_CMD_SWITCH_CARTRIDGE:
+                cartridge_mgr_switch_to(cmd.param);
+                break;
+            case WEB_CMD_ADD_MEMO:
+                cartridge_memo_add_entry(cmd.param);
+                break;
+            case WEB_CMD_ACTION:
+                if (strcmp(cmd.param, "pet") == 0) {
+                    cartridge_mgr_dispatch_knock(1, 1);
+                } else if (strcmp(cmd.param, "knock_fish") == 0) {
+                    phoenix_tool_execute("knock_wooden_fish", "{\"count\":1}", NULL, 0);
+                } else if (strcmp(cmd.param, "pomo_toggle") == 0) {
+                    cartridge_mgr_dispatch_knock(1, 1);
+                }
+                break;
+            default:
+                break;
+        }
+    }
+}
+
 void phoenix_web_portal_bind_agent(phoenix_agent_ctx_t *agent_ctx)
 {
     g_bound_agent = agent_ctx;
@@ -182,13 +252,15 @@ int phoenix_web_portal_handle_request(const char *req_str, char *resp_out, size_
 
         /* Current active cartridge */
         cartridge_t *cur = cartridge_mgr_get_current();
-        const char *act_id = cur ? cur->ops.id : "familiar";
+        const char *act_id = cur ? cur->ops.id : "home";
 
         /* Fetch statuses from registered cartridges */
         char fam_buf[128] = "{}";
         char memo_buf[128] = "{}";
         char clk_buf[128] = "{}";
         char zen_buf[128] = "{}";
+        char home_buf[128] = "{}";
+        char agent_buf[128] = "{}";
 
         size_t total_c = cartridge_mgr_get_count();
         for (size_t i = 0; i < total_c; i++) {
@@ -202,17 +274,21 @@ int phoenix_web_portal_handle_request(const char *req_str, char *resp_out, size_
                 c->ops.get_web_status(c, clk_buf, sizeof(clk_buf));
             } else if (strcmp(c->ops.id, "zen") == 0) {
                 c->ops.get_web_status(c, zen_buf, sizeof(zen_buf));
+            } else if (strcmp(c->ops.id, "home") == 0) {
+                c->ops.get_web_status(c, home_buf, sizeof(home_buf));
+            } else if (strcmp(c->ops.id, "agent") == 0) {
+                c->ops.get_web_status(c, agent_buf, sizeof(agent_buf));
             }
         }
 
-        char json_buf[1024];
+        char json_buf[1536];
         snprintf(json_buf, sizeof(json_buf),
                  "{\"device\":\"Gemini-S1\",\"active_cartridge\":\"%s\","
                  "\"stats\":{\"merit\":%u,\"total_tokens\":%u,\"last_latency_ms\":%u,\"pomodoro_active\":%s,\"state\":%d},"
-                 "\"cartridges\":{\"familiar\":%s,\"memo\":%s,\"clock\":%s,\"zen\":%s},"
+                 "\"cartridges\":{\"familiar\":%s,\"memo\":%s,\"clock\":%s,\"zen\":%s,\"home\":%s,\"agent\":%s},"
                  "\"tools\":%d}",
                  act_id, merit, tokens, latency, pomo_active ? "true" : "false", state,
-                 fam_buf, memo_buf, clk_buf, zen_buf, tool_count);
+                 fam_buf, memo_buf, clk_buf, zen_buf, home_buf, agent_buf, tool_count);
 
         snprintf(resp_out, max_len,
                  "HTTP/1.1 200 OK\r\n"
@@ -240,7 +316,12 @@ int phoenix_web_portal_handle_request(const char *req_str, char *resp_out, size_
             }
         }
         if (target_id[0] != '\0') {
-            cartridge_mgr_switch_to(target_id);
+            bool in_server_thread = g_server_running && (pthread_equal(pthread_self(), g_server_thread) != 0);
+            if (in_server_thread) {
+                enqueue_web_cmd(WEB_CMD_SWITCH_CARTRIDGE, target_id);
+            } else {
+                cartridge_mgr_switch_to(target_id);
+            }
         }
         const char *resp_json = "{\"success\":true,\"message\":\"cartridge switched\"}";
         snprintf(resp_out, max_len,
@@ -269,7 +350,12 @@ int phoenix_web_portal_handle_request(const char *req_str, char *resp_out, size_
             }
         }
         if (memo_text[0] != '\0') {
-            cartridge_memo_add_entry(memo_text);
+            bool in_server_thread = g_server_running && (pthread_equal(pthread_self(), g_server_thread) != 0);
+            if (in_server_thread) {
+                enqueue_web_cmd(WEB_CMD_ADD_MEMO, memo_text);
+            } else {
+                cartridge_memo_add_entry(memo_text);
+            }
         }
         const char *resp_json = "{\"success\":true,\"message\":\"memo entry added\"}";
         snprintf(resp_out, max_len,
@@ -298,12 +384,17 @@ int phoenix_web_portal_handle_request(const char *req_str, char *resp_out, size_
             }
         }
 
-        if (strcmp(action, "pet") == 0) {
-            cartridge_mgr_dispatch_knock(1, 1);
-        } else if (strcmp(action, "knock_fish") == 0) {
-            phoenix_tool_execute("knock_wooden_fish", "{\"count\":1}", NULL, 0);
-        } else if (strcmp(action, "pomo_toggle") == 0) {
-            cartridge_mgr_dispatch_knock(1, 1);
+        bool in_server_thread = g_server_running && (pthread_equal(pthread_self(), g_server_thread) != 0);
+        if (in_server_thread) {
+            enqueue_web_cmd(WEB_CMD_ACTION, action);
+        } else {
+            if (strcmp(action, "pet") == 0) {
+                cartridge_mgr_dispatch_knock(1, 1);
+            } else if (strcmp(action, "knock_fish") == 0) {
+                phoenix_tool_execute("knock_wooden_fish", "{\"count\":1}", NULL, 0);
+            } else if (strcmp(action, "pomo_toggle") == 0) {
+                cartridge_mgr_dispatch_knock(1, 1);
+            }
         }
 
         const char *resp_json = "{\"success\":true,\"message\":\"action dispatched\"}";

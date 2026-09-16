@@ -51,6 +51,11 @@ void phoenix_web_portal_bind_agent(phoenix_agent_ctx_t *agent_ctx);
  */
 int phoenix_web_portal_handle_request(const char *req_str, char *resp_out, size_t max_len);
 
+/**
+ * @brief Drain pending remote web commands in the main GUI thread
+ */
+void phoenix_web_portal_drain_commands(void);
+
 #ifdef __cplusplus
 }
 #endif

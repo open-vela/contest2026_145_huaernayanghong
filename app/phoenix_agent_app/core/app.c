@@ -12,7 +12,10 @@
 #include "tool_registry.h"
 #include "cartridge_mgr.h"
 #include "../cartridges/cartridge_home.h"
+#include "../cartridges/cartridge_familiar.h"
 #include "../cartridges/cartridge_clock.h"
+#include "../cartridges/cartridge_zen.h"
+#include "../cartridges/cartridge_memo.h"
 #include "../cartridges/cartridge_agent.h"
 #include "web_portal.h"
 #include "../utils/time_utils.h"
@@ -119,15 +122,18 @@ int phoenix_app_init(const phoenix_app_config_t *config)
         phoenix_web_portal_start(config->web_port, NULL);
     }
 
-    /* 11. Cartridge Plugin & Orchestrator Engine */
+    /* 11. Cartridge Plugin & Orchestrator Engine (全量注册 6 大卡带) */
     cartridge_mgr_init(NULL);
     cartridge_home_register();
+    cartridge_familiar_register();
     cartridge_clock_register();
+    cartridge_zen_register();
+    cartridge_memo_register();
     cartridge_agent_register();
     cartridge_mgr_switch_to("home");
 
     g_app_initialized = true;
-    printf("[PhoenixApp] ✅ All Phoenix subsystems initialized successfully.\n");
+    printf("[PhoenixApp] ✅ All Phoenix subsystems initialized successfully (6 Cartridges active).\n");
     return 0;
 }
 
@@ -137,10 +143,19 @@ void phoenix_app_tick(void)
     phoenix_event_bus_drain();
     phoenix_voice_pipeline_tick();
     phoenix_store_flush();
+    phoenix_web_portal_drain_commands();
+
+    /* 20Hz (50ms) 具身环境与微敲击感知主循环驱动 */
+    static uint64_t s_last_percept_ms = 0;
+    uint64_t now_ms = time_utils_get_ms();
+    if (now_ms - s_last_percept_ms >= 50) {
+        s_last_percept_ms = now_ms;
+        phoenix_perception_step();
+    }
 
     /* 1s heart beat tick dispatch for active cartridge */
     static uint32_t s_last_tick_sec = 0;
-    uint32_t now_sec = (uint32_t)(time_utils_get_ms() / 1000);
+    uint32_t now_sec = (uint32_t)(now_ms / 1000);
     if (now_sec != s_last_tick_sec) {
         s_last_tick_sec = now_sec;
         cartridge_mgr_dispatch_tick_1s();

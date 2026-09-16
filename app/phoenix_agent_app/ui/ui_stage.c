@@ -81,11 +81,11 @@ static void stage_touch_event_cb(lv_event_t *e)
         int32_t abs_dx = (dx < 0) ? -dx : dx;
         int32_t abs_dy = (dy < 0) ? -dy : dy;
 
-        /* 防抖检查：忽略 400ms 内的连续误触发 */
-        if (now - stage->last_gesture_time_ms < 400) return;
+        /* 防抖检查：忽略 300ms 内的连续误触发 */
+        if (now - stage->last_gesture_time_ms < 300) return;
 
-        /* 1. 水平滑动切换卡带：阈值提升至 55px，且水平位移显著主导 */
-        if (abs_dx >= 55 && abs_dx >= (abs_dy * 15 / 10)) {
+        /* 1. 水平滑动切换卡带：阈值优化为 35px，水平位移大于垂直位移即可切卡 */
+        if (abs_dx >= 35 && abs_dx > abs_dy) {
             stage->last_gesture_time_ms = now;
             if (dx < 0) {
                 cartridge_mgr_next();
@@ -95,8 +95,8 @@ static void stage_touch_event_cb(lv_event_t *e)
             return;
         }
 
-        /* 2. 下滑呼出设置抽屉：必须起始于屏幕顶部 (Y < 55) 且下滑位移 >= 45px */
-        if (stage->press_point.y < 55 && dy >= 45 && abs_dy >= (abs_dx * 15 / 10)) {
+        /* 2. 下滑呼出设置抽屉：起始于屏幕顶部 1/3 (Y < 80) 且下滑位移 >= 30px */
+        if (stage->press_point.y < 80 && dy >= 30 && abs_dy > abs_dx) {
             stage->last_gesture_time_ms = now;
             if (stage->on_swipe_down) {
                 stage->on_swipe_down(stage->user_data);
@@ -104,8 +104,8 @@ static void stage_touch_event_cb(lv_event_t *e)
             return;
         }
 
-        /* 3. 屏幕空白处轻敲点击判定 (位移 < 18px 且时长 < 500ms) */
-        if (abs_dx < 18 && abs_dy < 18) {
+        /* 3. 屏幕空白处轻敲点击判定 (位移 < 15px 且时长 < 500ms) */
+        if (abs_dx < 15 && abs_dy < 15) {
             uint32_t elapsed = lv_tick_elaps(stage->press_time_ms);
             if (elapsed > 20 && elapsed < 500) {
                 /* 分发敲击事件至当前活跃卡带 */

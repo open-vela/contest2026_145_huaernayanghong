@@ -150,11 +150,8 @@ void cartridge_agent_trigger_voice_chat(const char *prompt_override)
         lv_label_set_text(s_ui.lbl_agent_msg, "正在规划执行链并思考...");
     }
 
-    /* 2. 调用 Agent 核心进行 ReAct 推理 */
-    phoenix_agent_chat(agent, prompt);
-
-    /* 3. 恢复为待命态 */
-    update_ui_state(VOICE_UI_IDLE);
+    /* 2. 异步调用 Agent 核心进行 ReAct 推理 (后台线程执行，主界面保持 60fps) */
+    phoenix_agent_chat_async(agent, prompt);
 }
 
 static void on_mic_button_clicked(lv_event_t *e)
@@ -201,6 +198,7 @@ static void on_agent_event(const phoenix_event_data_t *evt, void *user_data)
         if (s_ui.lbl_agent_msg) {
             lv_label_set_text(s_ui.lbl_agent_msg, evt->data.llm_text.text);
         }
+        update_ui_state(VOICE_UI_IDLE);
     } else if (evt->type == PHOENIX_EVT_TOOL_TRIGGERED) {
         if (s_ui.lbl_tool && evt->data.tool.tool_name) {
             char tbuf[64];

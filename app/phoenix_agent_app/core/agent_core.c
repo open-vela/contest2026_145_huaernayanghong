@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 #define AGENT_MAX_TURNS 5
 
@@ -267,6 +268,48 @@ int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input)
 
     if (tools_schema) {
         free(tools_schema);
+    }
+    return 0;
+}
+
+typedef struct {
+    phoenix_agent_ctx_t *ctx;
+    char user_input[256];
+} agent_async_req_t;
+
+static void *agent_async_chat_worker(void *arg)
+{
+    agent_async_req_t *req = (agent_async_req_t *)arg;
+    if (req) {
+        phoenix_agent_chat(req->ctx, req->user_input);
+        free(req);
+    }
+    return NULL;
+}
+
+int phoenix_agent_chat_async(phoenix_agent_ctx_t *ctx, const char *user_input)
+{
+    if (!ctx || !user_input || !user_input[0]) return -1;
+
+    agent_async_req_t *req = (agent_async_req_t *)malloc(sizeof(agent_async_req_t));
+    if (!req) {
+        return phoenix_agent_chat(ctx, user_input);
+    }
+    req->ctx = ctx;
+    strncpy(req->user_input, user_input, sizeof(req->user_input) - 1);
+    req->user_input[sizeof(req->user_input) - 1] = '\0';
+
+    pthread_t tid;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    int rc = pthread_create(&tid, &attr, agent_async_chat_worker, req);
+    pthread_attr_destroy(&attr);
+
+    if (rc != 0) {
+        int ret = phoenix_agent_chat(ctx, user_input);
+        free(req);
+        return ret;
     }
     return 0;
 }

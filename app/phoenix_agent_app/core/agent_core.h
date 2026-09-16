@@ -93,12 +93,20 @@ int phoenix_agent_trigger_proactive(phoenix_agent_ctx_t *ctx, phoenix_proactive_
 void phoenix_agent_set_state(phoenix_agent_ctx_t *ctx, phoenix_core_state_t new_state, const char *message);
 
 /**
- * @brief Dispatch user prompt into ReAct Agent loop
+ * @brief Dispatch user prompt into ReAct Agent loop synchronously
  * @param ctx Agent context
  * @param user_input User question or intent string
  * @return 0 on success
  */
 int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input);
+
+/**
+ * @brief Dispatch user prompt into ReAct Agent loop asynchronously in background pthread
+ * @param ctx Agent context
+ * @param user_input User question or intent string
+ * @return 0 on success
+ */
+int phoenix_agent_chat_async(phoenix_agent_ctx_t *ctx, const char *user_input);
 
 /**
  * @brief Periodic timer tick (for Pomodoro countdown, stats update)

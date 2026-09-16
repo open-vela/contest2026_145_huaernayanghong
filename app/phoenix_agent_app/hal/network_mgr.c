@@ -10,6 +10,24 @@
 #include "../core/event_bus.h"
 #include "../utils/log_utils.h"
 
+#if defined(__has_include)
+#  if __has_include(<netutils/cJSON.h>)
+#    include <netutils/cJSON.h>
+#  elif __has_include(<cJSON/cJSON.h>)
+#    include <cJSON/cJSON.h>
+#  elif __has_include(<cjson/cJSON.h>)
+#    include <cjson/cJSON.h>
+#  elif __has_include(<cJSON.h>)
+#    include <cJSON.h>
+#  elif __has_include("../../../../apps/netutils/cjson/cJSON/cJSON.h")
+#    include "../../../../apps/netutils/cjson/cJSON/cJSON.h"
+#  else
+#    include <cJSON.h>
+#  endif
+#else
+#  include <netutils/cJSON.h>
+#endif
+
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -124,40 +142,43 @@ static void* sta_connect_worker_thread(void *arg)
 
     LOG_I(TAG, "[Worker] 开始向底层 WAPI 下发连接序列: SSID=[%s]", target_ssid);
 
-    /* 1. 先断开并等待状态清理 */
-    system("wapi disconnect wlan0 > /dev/null 2>&1");
-    usleep(500000); /* 500ms */
+    if (access("/etc/wifi/start_wifi.sh", X_OK | R_OK) == 0) {
+        LOG_I(TAG, "[Worker] 发现系统启动脚本 /etc/wifi/start_wifi.sh，执行官方 Wi-Fi 初始化流程...");
+        system("sh /etc/wifi/start_wifi.sh > /dev/null 2>&1");
+    } else {
+        /* 1. 先断开并等待状态清理 */
+        system("wapi disconnect wlan0 > /dev/null 2>&1");
+        usleep(500000); /* 500ms */
 
-    /* 2. 下发 SSID */
-    char cmd[256];
-    snprintf(cmd, sizeof(cmd), "wapi essid wlan0 \"%s\" 1", target_ssid);
-    system(cmd);
-
-    /* 3. 下发密码 (3: WPA2-PSK) */
-    if (target_psk[0] != '\0') {
-        snprintf(cmd, sizeof(cmd), "wapi psk wlan0 \"%s\" 1 3", target_psk);
+        /* 2. 下发 SSID */
+        char cmd[256];
+        snprintf(cmd, sizeof(cmd), "wapi essid wlan0 \"%s\" 1", target_ssid);
         system(cmd);
+
+        /* 3. 下发密码 (3: WPA2-PSK) */
+        if (target_psk[0] != '\0') {
+            snprintf(cmd, sizeof(cmd), "wapi psk wlan0 \"%s\" 1 3", target_psk);
+            system(cmd);
+        }
+
+        /* 4. 关闭自适应与省电模式，提升嵌入式长连接可靠性 */
+        system("wapi private wlan0 adaptivity 0 > /dev/null 2>&1");
+        system("wapi power_save wlan0 off > /dev/null 2>&1");
+
+        /* 5. 保存并重连 */
+        system("wapi save_config wlan0 > /dev/null 2>&1");
+        system("wapi reconnect wlan0 > /dev/null 2>&1");
+
+        LOG_I(TAG, "[Worker] WAPI 关联指令已发出，等待链路就绪并申请 DHCP...");
+        sleep(5);
     }
 
-    /* 4. 关闭自适应与省电模式，提升嵌入式长连接可靠性 */
-    system("wapi private wlan0 adaptivity 0 > /dev/null 2>&1");
-    system("wapi power_save wlan0 off > /dev/null 2>&1");
-
-    /* 5. 保存并重连 */
-    system("wapi save_config wlan0 > /dev/null 2>&1");
-    system("wapi reconnect wlan0 > /dev/null 2>&1");
-
-    LOG_I(TAG, "[Worker] WAPI 关联指令已发出，等待链路就绪并申请 DHCP...");
-
-    /* 6. 等待 AP 关联握手 (通常需要 3~4 秒) */
-    sleep(4);
-
-    /* 7. DHCP 租约重试获取 IP */
+    /* 6. DHCP 租约重试获取 IP */
     char acquired_ip[NET_MAX_IP_LEN] = {0};
     bool connected = false;
 
-    for (int retry = 1; retry <= 4; retry++) {
-        LOG_I(TAG, "[Worker] 尝试申请 DHCP 租约 (第 %d/4 次)...", retry);
+    for (int retry = 1; retry <= 5; retry++) {
+        LOG_I(TAG, "[Worker] 尝试申请 DHCP 租约 (第 %d/5 次)...", retry);
         system("renew wlan0 > /dev/null 2>&1");
         sleep(2);
 
@@ -184,11 +205,9 @@ static void* sta_connect_worker_thread(void *arg)
             LOG_I(TAG, "🌐 局域网 Web 伴侣已启动: http://%s:8080", acquired_ip);
         }
     } else {
-        LOG_W(TAG, "⚠️ [Worker] Wi-Fi 握手或 DHCP 超时，进入未连接状态");
-        s_mode = NET_MODE_DISCONNECTED;
-        s_current_ip[0] = '\0';
-        notify_state_changed_unlocked();
+        LOG_W(TAG, "⚠️ [Worker] Wi-Fi 握手或 DHCP 超时，自动回退至 SoftAP 独立热点以便重新配网");
         pthread_mutex_unlock(&s_lock);
+        net_mgr_start_softap(NULL);
     }
 
     return NULL;
@@ -208,11 +227,61 @@ int net_mgr_init(void)
     /* 读取 Web 服务偏好设置 (默认开启) */
     s_web_enabled = (phoenix_config_get_int("web_portal_en", 1) != 0);
 
-    /* 检查本地是否保存了 Wi-Fi SSID */
+#if !defined(HOST_TEST_RUNNER)
+    /* 1. 优先检查网卡 wlan0 是否已经由系统脚本分配了 IP */
+    char existing_ip[NET_MAX_IP_LEN] = {0};
+    if (query_interface_ip("wlan0", existing_ip, sizeof(existing_ip)) == 0 &&
+        strcmp(existing_ip, NET_DEFAULT_SOFTAP_IP) != 0) {
+        s_mode = NET_MODE_STA_CONNECTED;
+        snprintf(s_current_ip, sizeof(s_current_ip), "%s", existing_ip);
+        phoenix_config_get_str(PHOENIX_CFG_WIFI_SSID, "Connected-WiFi", s_current_ssid, sizeof(s_current_ssid));
+        LOG_I(TAG, "检测到 wlan0 已经就绪并持有局域网 IP: [%s]", s_current_ip);
+        notify_state_changed_unlocked();
+
+        bool web_en = s_web_enabled;
+        pthread_mutex_unlock(&s_lock);
+
+        if (web_en) {
+            phoenix_web_portal_start(8080, NULL);
+            LOG_I(TAG, "🌐 局域网 Web 伴侣已启动: http://%s:8080", existing_ip);
+        }
+        return 0;
+    }
+#endif
+
+    /* 2. 检查本地是否保存了 Wi-Fi SSID */
     char saved_ssid[NET_MAX_SSID_LEN] = {0};
     char saved_psk[NET_MAX_PSK_LEN] = {0};
     phoenix_config_get_str(PHOENIX_CFG_WIFI_SSID, "", saved_ssid, sizeof(saved_ssid));
     phoenix_config_get_str(PHOENIX_CFG_WIFI_PSK, "", saved_psk, sizeof(saved_psk));
+
+#if !defined(HOST_TEST_RUNNER)
+    /* 3. 若本地 config 无配置，尝试从全志持久化文件 /data/etc/wifi/wapi.conf 读取 */
+    if (saved_ssid[0] == '\0') {
+        FILE *fp = fopen(WAPI_CONF_FILE, "r");
+        if (fp) {
+            char fbuf[512] = {0};
+            size_t n = fread(fbuf, 1, sizeof(fbuf) - 1, fp);
+            fclose(fp);
+            if (n > 0) {
+                cJSON *root = cJSON_Parse(fbuf);
+                if (root) {
+                    cJSON *s = cJSON_GetObjectItem(root, "ssid");
+                    cJSON *p = cJSON_GetObjectItem(root, "psk");
+                    if (s && s->valuestring && s->valuestring[0] != '\0') {
+                        strncpy(saved_ssid, s->valuestring, sizeof(saved_ssid) - 1);
+                        phoenix_config_set_str(PHOENIX_CFG_WIFI_SSID, saved_ssid);
+                    }
+                    if (p && p->valuestring) {
+                        strncpy(saved_psk, p->valuestring, sizeof(saved_psk) - 1);
+                        phoenix_config_set_str(PHOENIX_CFG_WIFI_PSK, saved_psk);
+                    }
+                    cJSON_Delete(root);
+                }
+            }
+        }
+    }
+#endif
 
     pthread_mutex_unlock(&s_lock);
 

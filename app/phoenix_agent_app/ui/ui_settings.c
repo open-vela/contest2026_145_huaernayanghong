@@ -69,8 +69,8 @@ static void on_drawer_touch(lv_event_t *e)
             int16_t abs_dx = (dx < 0) ? -dx : dx;
             int16_t abs_dy = (dy < 0) ? -dy : dy;
 
-            /* 向上明确滑动超过 45px 且垂直主导时收起抽屉，避免调节音量/亮度滑块时误收起 */
-            if (dy < -45 && abs_dy >= (abs_dx * 15 / 10) && s->is_open) {
+            /* 向上滑动超过 30px 且垂直分量主导时收起抽屉，平滑顺畅 */
+            if (dy < -30 && abs_dy > abs_dx && s->is_open) {
                 ui_settings_close(s);
             }
         }

@@ -49,6 +49,7 @@ $COMPILER -O2 -Wall -Wextra -std=gnu99 \
     "$APP_DIR/cartridges/cartridge_familiar.c" \
     "$APP_DIR/cartridges/cartridge_memo.c" \
     "$APP_DIR/cartridges/cartridge_clock.c" \
+    "$APP_DIR/cartridges/cartridge_zen.c" \
     "$APP_DIR/cartridges/cartridge_agent.c" \
     "$APP_DIR/core/web_assets.c" \
     "$APP_DIR/core/web_portal.c" \
