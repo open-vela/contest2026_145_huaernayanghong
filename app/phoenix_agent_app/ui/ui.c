@@ -254,11 +254,56 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
                 ui_stage_play_enter_anim(ui->stage, slide_to_left);
             }
 
+            /* 联动更新左侧侧边栏选中高亮态 */
+            if (ui->sidebar && event->data.cartridge.id) {
+                ui_sidebar_set_active(ui->sidebar, event->data.cartridge.id);
+            }
+
             if (ui->capsule) {
                 ui_capsule_update_cartridge(ui->capsule, 
                                             event->data.cartridge.name, 
                                             event->data.cartridge.icon);
                 ui_capsule_set_status(ui->capsule, "● 已载入", COLOR_HEALTH_GREEN, false);
+            }
+            break;
+        }
+
+        case PHOENIX_EVT_NET_STATUS: {
+            int mode = event->data.net.mode;
+            const char *ip = event->data.net.ip ? event->data.net.ip : "";
+            const char *ssid = event->data.net.ssid ? event->data.net.ssid : "";
+            char bbuf[128];
+
+            if (mode == 1 /* NET_MODE_STA_CONNECTING */) {
+                snprintf(bbuf, sizeof(bbuf), "正在连接 Wi-Fi: [%s]...", ssid);
+                phoenix_ui_show_bubble(ui, bbuf, 6000);
+                if (ui->capsule) {
+                    ui_capsule_set_status(ui->capsule, "● 联网中", lv_color_hex(0xFFB700), true);
+                }
+            } else if (mode == 2 /* NET_MODE_STA_CONNECTED */) {
+                phoenix_ui_show_flying_text(ui, "Wi-Fi 已连入!", lv_color_hex(0x00E676));
+                snprintf(bbuf, sizeof(bbuf), "[Wi-Fi 就绪] %s (IP: %s)", ssid, ip);
+                phoenix_ui_show_bubble(ui, bbuf, 6000);
+                if (ui->capsule) {
+                    ui_capsule_set_status(ui->capsule, "● 已联网", lv_color_hex(0x00E676), false);
+                    ui_capsule_update_telemetry(ui->capsule, ip[0] ? ip : "Wi-Fi", ui->battery_pct);
+                }
+                if (ui->settings) {
+                    ui_settings_refresh_data(ui->settings);
+                }
+            } else if (mode == 3 /* NET_MODE_SOFTAP_CONFIG */) {
+                phoenix_ui_show_flying_text(ui, "独立热点已就绪", lv_color_hex(0xFFB300));
+                snprintf(bbuf, sizeof(bbuf), "[热点广播] %s (192.168.4.1)", ssid);
+                phoenix_ui_show_bubble(ui, bbuf, 6000);
+                if (ui->capsule) {
+                    ui_capsule_set_status(ui->capsule, "● AP配网", lv_color_hex(0xFFB300), false);
+                    ui_capsule_update_telemetry(ui->capsule, "192.168.4.1", ui->battery_pct);
+                }
+                if (ui->settings) {
+                    ui_settings_refresh_data(ui->settings);
+                }
+            } else {
+                phoenix_ui_show_bubble(ui, "网络已断开连接", 4000);
             }
             break;
         }
@@ -336,6 +381,7 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
     phoenix_event_subscribe(PHOENIX_EVT_MERIT_UPDATED, on_event_bus_event, ui);
     phoenix_event_subscribe(PHOENIX_EVT_HAL_BATTERY, on_event_bus_event, ui);
     phoenix_event_subscribe(PHOENIX_EVT_CARTRIDGE_SWITCHED, on_event_bus_event, ui);
+    phoenix_event_subscribe(PHOENIX_EVT_NET_STATUS, on_event_bus_event, ui);
 
     /* 2. 创建卡带主舞台视窗 (Shell Viewport & Touch Engine: 支持双击/长按/下滑呼出设置) */
     ui->stage = ui_stage_create(ui->screen);
@@ -346,7 +392,10 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
         cartridge_mgr_set_stage(ui_stage_get_canvas(ui->stage));
     }
 
-    /* 3. 顶部极窄微状态胶囊 (22px，半透明常驻，点击呼出控制中心，热区外扩 12px) */
+    /* 3. 左侧常驻导航栏：点击直达切卡 (宽 36px, Y=24) */
+    ui->sidebar = ui_sidebar_create(ui->screen, ui->font_chinese);
+
+    /* 4. 顶部极窄微状态胶囊 (22px，半透明常驻，点击呼出控制中心，热区外扩 12px) */
     ui->capsule = ui_capsule_create(ui->screen, ui->font_chinese);
     if (ui->capsule && ui->capsule->container) {
         lv_obj_add_flag(ui->capsule->container, LV_OBJ_FLAG_CLICKABLE);
@@ -359,10 +408,10 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
         }
     }
 
-    /* 4. 顶部控制中心抽屉与设置面板 (Settings Drawer，默认滑入在屏幕上方外) */
+    /* 5. 顶部控制中心抽屉与二级设置面板 (Settings Drawer，默认滑入在屏幕上方外) */
     ui->settings = ui_settings_create(ui->screen, ui->font_chinese);
 
-    /* 5. 底部动态交互气泡 (Dynamic Speech Bubble，平时隐藏，主动干预时浮现) */
+    /* 6. 底部动态交互气泡 (Dynamic Speech Bubble，平时隐藏，主动干预时浮现) */
     int32_t bubble_h = (scr_h < 260) ? 36 : 46;
     ui->bubble_card = lv_obj_create(ui->screen);
     lv_obj_set_size(ui->bubble_card, scr_w - 20, bubble_h);
@@ -409,6 +458,10 @@ void phoenix_ui_destroy(phoenix_ui_t *ui)
         ui_settings_destroy(ui->settings);
         ui->settings = NULL;
     }
+    if (ui->sidebar) {
+        ui_sidebar_destroy(ui->sidebar);
+        ui->sidebar = NULL;
+    }
     if (ui->capsule) {
         ui_capsule_destroy(ui->capsule);
         ui->capsule = NULL;
@@ -431,4 +484,5 @@ void phoenix_ui_destroy(phoenix_ui_t *ui)
     phoenix_event_unsubscribe(PHOENIX_EVT_POMODORO_TICK, on_event_bus_event, ui);
     phoenix_event_unsubscribe(PHOENIX_EVT_MERIT_UPDATED, on_event_bus_event, ui);
     phoenix_event_unsubscribe(PHOENIX_EVT_HAL_BATTERY, on_event_bus_event, ui);
+    phoenix_event_unsubscribe(PHOENIX_EVT_NET_STATUS, on_event_bus_event, ui);
 }

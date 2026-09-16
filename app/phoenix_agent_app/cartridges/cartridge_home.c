@@ -275,27 +275,27 @@ static void home_enter(cartridge_t *cart, void *stage)
 
     const lv_font_t *font = phoenix_ui_get_font();
 
-    /* 主舞台全屏容器 (留出顶部 24px Header 空间) */
+    /* 主舞台全屏容器 (舞台位于 36,24, 宽 284, 高 216) */
     u->container = lv_obj_create(stage_obj);
-    lv_obj_set_size(u->container, 320, 214);
-    lv_obj_align(u->container, LV_ALIGN_TOP_MID, 0, 24);
+    lv_obj_set_size(u->container, 284, 214);
+    lv_obj_align(u->container, LV_ALIGN_TOP_MID, 0, 0);
     lv_obj_set_style_bg_opa(u->container, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(u->container, 0, 0);
-    lv_obj_set_style_pad_all(u->container, 3, 0);
+    lv_obj_set_style_pad_all(u->container, 2, 0);
     lv_obj_clear_flag(u->container, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(u->container, LV_OBJ_FLAG_EVENT_BUBBLE);
 
     /* ===================================================================== */
-    /* 1. 左侧面板：时间与内嵌番茄钟 (宽 134px, 高 204px)                     */
+    /* 1. 左侧面板：时间与内嵌番茄钟 (宽 120px, 高 204px)                     */
     /* ===================================================================== */
     u->panel_left = lv_obj_create(u->container);
-    lv_obj_set_size(u->panel_left, 134, 204);
-    lv_obj_align(u->panel_left, LV_ALIGN_LEFT_MID, 2, 0);
+    lv_obj_set_size(u->panel_left, 120, 204);
+    lv_obj_align(u->panel_left, LV_ALIGN_LEFT_MID, 1, 0);
     lv_obj_set_style_bg_color(u->panel_left, COLOR_CARD_BG, 0);
     lv_obj_set_style_border_color(u->panel_left, COLOR_CARD_BORDER, 0);
     lv_obj_set_style_border_width(u->panel_left, 1, 0);
     lv_obj_set_style_radius(u->panel_left, 10, 0);
-    lv_obj_set_style_pad_all(u->panel_left, 6, 0);
+    lv_obj_set_style_pad_all(u->panel_left, 5, 0);
     lv_obj_clear_flag(u->panel_left, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(u->panel_left, LV_OBJ_FLAG_EVENT_BUBBLE);
 
@@ -308,7 +308,7 @@ static void home_enter(cartridge_t *cart, void *stage)
 
     /* 1.2 分割细线 */
     lv_obj_t *line_div = lv_obj_create(u->panel_left);
-    lv_obj_set_size(line_div, 114, 1);
+    lv_obj_set_size(line_div, 102, 1);
     lv_obj_align(line_div, LV_ALIGN_TOP_MID, 0, 44);
     lv_obj_set_style_bg_color(line_div, lv_color_hex(0x182638), 0);
     lv_obj_set_style_border_width(line_div, 0, 0);
@@ -322,7 +322,7 @@ static void home_enter(cartridge_t *cart, void *stage)
 
     /* 1.4 内嵌番茄钟控制卡片 (Y=72 ~ 188) */
     u->card_pomo = lv_obj_create(u->panel_left);
-    lv_obj_set_size(u->card_pomo, 122, 116);
+    lv_obj_set_size(u->card_pomo, 108, 116);
     lv_obj_align(u->card_pomo, LV_ALIGN_TOP_MID, 0, 72);
     lv_obj_set_style_bg_color(u->card_pomo, lv_color_hex(0x0e1726), 0);
     lv_obj_set_style_border_color(u->card_pomo, lv_color_hex(0x1c2b40), 0);
@@ -350,7 +350,7 @@ static void home_enter(cartridge_t *cart, void *stage)
 
     /* 线性微进度条 */
     u->bar_pomo = lv_bar_create(u->card_pomo);
-    lv_obj_set_size(u->bar_pomo, 104, 3);
+    lv_obj_set_size(u->bar_pomo, 94, 3);
     lv_obj_align(u->bar_pomo, LV_ALIGN_TOP_MID, 0, 62);
     lv_obj_set_style_bg_color(u->bar_pomo, lv_color_hex(0x152233), LV_PART_MAIN);
     lv_obj_set_style_bg_color(u->bar_pomo, COLOR_WARN_ORANGE, LV_PART_INDICATOR);
@@ -362,7 +362,7 @@ static void home_enter(cartridge_t *cart, void *stage)
 
     /* 按钮胶囊容器 */
     u->btn_pomo = lv_obj_create(u->card_pomo);
-    lv_obj_set_size(u->btn_pomo, 104, 24);
+    lv_obj_set_size(u->btn_pomo, 94, 24);
     lv_obj_align(u->btn_pomo, LV_ALIGN_TOP_MID, 0, 72);
     lv_obj_set_style_bg_color(u->btn_pomo, lv_color_hex(0x002c38), 0);
     lv_obj_set_style_border_color(u->btn_pomo, COLOR_ACCENT_CYAN, 0);
@@ -381,36 +381,36 @@ static void home_enter(cartridge_t *cart, void *stage)
     lv_label_set_text(u->lbl_pomo_btn, "[ 开启专注 ]");
 
     /* ===================================================================== */
-    /* 2. 右侧面板：今日待办事项 (宽 172px, 高 204px)                        */
+    /* 2. 右侧面板：今日待办事项 (宽 156px, 高 204px)                        */
     /* ===================================================================== */
     u->panel_right = lv_obj_create(u->container);
-    lv_obj_set_size(u->panel_right, 172, 204);
-    lv_obj_align(u->panel_right, LV_ALIGN_RIGHT_MID, -2, 0);
+    lv_obj_set_size(u->panel_right, 156, 204);
+    lv_obj_align(u->panel_right, LV_ALIGN_RIGHT_MID, -1, 0);
     lv_obj_set_style_bg_color(u->panel_right, COLOR_CARD_BG, 0);
     lv_obj_set_style_border_color(u->panel_right, COLOR_CARD_BORDER, 0);
     lv_obj_set_style_border_width(u->panel_right, 1, 0);
     lv_obj_set_style_radius(u->panel_right, 10, 0);
-    lv_obj_set_style_pad_all(u->panel_right, 6, 0);
+    lv_obj_set_style_pad_all(u->panel_right, 5, 0);
     lv_obj_clear_flag(u->panel_right, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(u->panel_right, LV_OBJ_FLAG_EVENT_BUBBLE);
 
     /* 2.1 待办标题栏 */
     u->lbl_todo_header = lv_label_create(u->panel_right);
-    lv_obj_align(u->lbl_todo_header, LV_ALIGN_TOP_LEFT, 6, 4);
+    lv_obj_align(u->lbl_todo_header, LV_ALIGN_TOP_LEFT, 4, 4);
     if (font) lv_obj_set_style_text_font(u->lbl_todo_header, font, 0);
     lv_obj_set_style_text_color(u->lbl_todo_header, COLOR_ACCENT_CYAN, 0);
     lv_label_set_text(u->lbl_todo_header, "今日待办");
 
     /* 完成进度标签 (如 "1/4") */
     u->lbl_todo_progress = lv_label_create(u->panel_right);
-    lv_obj_align(u->lbl_todo_progress, LV_ALIGN_TOP_RIGHT, -6, 4);
+    lv_obj_align(u->lbl_todo_progress, LV_ALIGN_TOP_RIGHT, -4, 4);
     if (font) lv_obj_set_style_text_font(u->lbl_todo_progress, font, 0);
     lv_obj_set_style_text_color(u->lbl_todo_progress, COLOR_HEALTH_GREEN, 0);
     lv_label_set_text(u->lbl_todo_progress, "1/4");
 
     /* 待办行分割线 */
     lv_obj_t *todo_div = lv_obj_create(u->panel_right);
-    lv_obj_set_size(todo_div, 156, 1);
+    lv_obj_set_size(todo_div, 142, 1);
     lv_obj_align(todo_div, LV_ALIGN_TOP_MID, 0, 26);
     lv_obj_set_style_bg_color(todo_div, lv_color_hex(0x182638), 0);
     lv_obj_set_style_border_width(todo_div, 0, 0);
@@ -418,13 +418,13 @@ static void home_enter(cartridge_t *cart, void *stage)
     /* 2.2 紧凑 3 条待办行卡片 */
     for (int i = 0; i < 3; i++) {
         u->todo_rows[i] = lv_obj_create(u->panel_right);
-        lv_obj_set_size(u->todo_rows[i], 158, 48);
+        lv_obj_set_size(u->todo_rows[i], 144, 48);
         lv_obj_align(u->todo_rows[i], LV_ALIGN_TOP_MID, 0, 32 + i * 50);
         lv_obj_set_style_bg_color(u->todo_rows[i], lv_color_hex(0x0e1726), 0);
         lv_obj_set_style_border_color(u->todo_rows[i], lv_color_hex(0x1c2b40), 0);
         lv_obj_set_style_border_width(u->todo_rows[i], 1, 0);
         lv_obj_set_style_radius(u->todo_rows[i], 6, 0);
-        lv_obj_set_style_pad_all(u->todo_rows[i], 4, 0);
+        lv_obj_set_style_pad_all(u->todo_rows[i], 3, 0);
         lv_obj_clear_flag(u->todo_rows[i], LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_add_flag(u->todo_rows[i], LV_OBJ_FLAG_EVENT_BUBBLE);
 

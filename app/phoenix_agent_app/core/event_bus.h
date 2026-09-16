@@ -35,6 +35,7 @@ typedef enum {
     PHOENIX_EVT_HAL_LIGHT,        /**< Ambient light sensor change (Lux) */
     PHOENIX_EVT_HAL_BATTERY,      /**< Power & battery level update */
     PHOENIX_EVT_CARTRIDGE_SWITCHED, /**< Active cartridge switched */
+    PHOENIX_EVT_NET_STATUS,       /**< Wi-Fi network mode, SSID, IP and state change */
     PHOENIX_EVT_COUNT
 } phoenix_event_type_t;
 
@@ -130,6 +131,13 @@ typedef struct {
             size_t index;
             size_t total;
         } cartridge;
+
+        struct {
+            int mode;              /**< net_mode_t */
+            const char *ssid;
+            const char *ip;
+            const char *msg;
+        } net;
     } data;
 } phoenix_event_data_t;
 

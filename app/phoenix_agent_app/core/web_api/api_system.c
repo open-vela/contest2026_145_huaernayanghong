@@ -104,20 +104,29 @@ int handle_system_status(const http_req_t *req, http_resp_t *resp)
     hal_sdcard_info_t sd_info;
     memset(&sd_info, 0, sizeof(sd_info));
     bool sd_mounted = hal_sdcard_is_mounted();
-    if (sd_mounted) {
-        hal_sdcard_get_info(&sd_info);
-    }
     const char *data_dir = hal_system_get_storage_base_path();
     const char *temp_dir = hal_system_get_temp_base_path();
 
-    char json_buf[1792];
+    /* Network status */
+    char net_ip[32] = {0};
+    char net_ssid[32] = {0};
+    net_mode_t net_mode = net_mgr_get_mode();
+    net_mgr_get_ip(net_ip, sizeof(net_ip));
+    net_mgr_get_ssid(net_ssid, sizeof(net_ssid));
+    const char *mode_str = (net_mode == NET_MODE_STA_CONNECTED) ? "STA_CONNECTED" :
+                           (net_mode == NET_MODE_STA_CONNECTING) ? "CONNECTING" :
+                           (net_mode == NET_MODE_SOFTAP_CONFIG) ? "SOFTAP" : "DISCONNECTED";
+
+    char json_buf[2048];
     snprintf(json_buf, sizeof(json_buf),
              "{\"device\":\"Gemini-S1\",\"active_cartridge\":\"%s\","
              "\"stats\":{\"merit\":%u,\"total_tokens\":%u,\"last_latency_ms\":%u,\"pomodoro_active\":%s,\"state\":%d},"
+             "\"network\":{\"mode\":\"%s\",\"ip\":\"%s\",\"ssid\":\"%s\",\"connected\":%s},"
              "\"storage\":{\"data_dir\":\"%s\",\"temp_dir\":\"%s\",\"sdcard_mounted\":%s,\"sdcard_mount_point\":\"%s\",\"sdcard_used_pct\":%u,\"sdcard_total_mb\":%u,\"sdcard_free_mb\":%u},"
              "\"cartridges\":{\"familiar\":%s,\"memo\":%s,\"clock\":%s,\"zen\":%s,\"home\":%s,\"agent\":%s},"
              "\"tools\":%d}",
              act_id, merit, tokens, latency, pomo_active ? "true" : "false", state,
+             mode_str, net_ip, net_ssid, (net_mode == NET_MODE_STA_CONNECTED) ? "true" : "false",
              data_dir, temp_dir, sd_mounted ? "true" : "false", sd_info.mount_point, (unsigned int)sd_info.used_pct,
              (unsigned int)sd_info.total_mb, (unsigned int)sd_info.free_mb,
              fam_buf, memo_buf, clk_buf, zen_buf, home_buf, agent_buf, tool_count);

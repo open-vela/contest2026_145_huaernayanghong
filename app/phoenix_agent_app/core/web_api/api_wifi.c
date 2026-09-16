@@ -36,6 +36,30 @@ int handle_wifi_scan(const http_req_t *req, http_resp_t *resp)
     return 0;
 }
 
+int handle_wifi_status(const http_req_t *req, http_resp_t *resp)
+{
+    (void)req;
+    char ip[32] = {0};
+    char ssid[32] = {0};
+    net_mode_t mode = net_mgr_get_mode();
+    net_mgr_get_ip(ip, sizeof(ip));
+    net_mgr_get_ssid(ssid, sizeof(ssid));
+
+    const char *mode_str = (mode == NET_MODE_STA_CONNECTED) ? "STA_CONNECTED" :
+                           (mode == NET_MODE_STA_CONNECTING) ? "CONNECTING" :
+                           (mode == NET_MODE_SOFTAP_CONFIG) ? "SOFTAP" : "DISCONNECTED";
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "success", true);
+    cJSON_AddStringToObject(root, "mode", mode_str);
+    cJSON_AddStringToObject(root, "ip", ip);
+    cJSON_AddStringToObject(root, "ssid", ssid);
+    cJSON_AddBoolToObject(root, "is_connected", (mode == NET_MODE_STA_CONNECTED));
+
+    http_resp_json_obj(resp, 200, root);
+    return 0;
+}
+
 int handle_wifi_connect(const http_req_t *req, http_resp_t *resp)
 {
     char ssid[32] = {0};

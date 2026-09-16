@@ -32,6 +32,7 @@ int handle_system_proactive(const http_req_t *req, http_resp_t *resp);
  * 模块 2: Wi-Fi 扫描、连接与重置 (api_wifi.c)
  * ========================================================================= */
 int handle_wifi_scan(const http_req_t *req, http_resp_t *resp);
+int handle_wifi_status(const http_req_t *req, http_resp_t *resp);
 int handle_wifi_connect(const http_req_t *req, http_resp_t *resp);
 int handle_wifi_reset(const http_req_t *req, http_resp_t *resp);
 

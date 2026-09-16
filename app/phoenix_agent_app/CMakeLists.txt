@@ -17,6 +17,7 @@ if(CONFIG_LVX_USE_DEMO_CONTEST2026_145_PHOENIX_AGENT_APP)
       utils/time_utils.c
       ui/ui.c
       ui/ui_capsule.c
+      ui/ui_sidebar.c
       ui/ui_stage.c
       ui/ui_settings.c
       ui/lv_font_chinese_16.c
@@ -32,6 +33,7 @@ if(CONFIG_LVX_USE_DEMO_CONTEST2026_145_PHOENIX_AGENT_APP)
       core/cartridge_mgr.c
       cartridges/cartridge_home.c
       cartridges/cartridge_familiar.c
+      cartridges/cartridge_zen.c
       cartridges/cartridge_memo.c
       cartridges/cartridge_clock.c
       cartridges/cartridge_agent.c

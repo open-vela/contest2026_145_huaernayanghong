@@ -284,6 +284,7 @@ static const http_route_t g_web_api_routes[] = {
 
     /* 2. Wi-Fi 配网 */
     { HTTP_METHOD_GET,  "/api/wifi/scan",                false, handle_wifi_scan },
+    { HTTP_METHOD_GET,  "/api/wifi/status",              false, handle_wifi_status },
     { HTTP_METHOD_POST, "/api/wifi/connect",             false, handle_wifi_connect },
     { HTTP_METHOD_POST, "/api/wifi/reset",               false, handle_wifi_reset },
 

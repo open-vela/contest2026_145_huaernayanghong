@@ -16,6 +16,7 @@ extern "C" {
 #include "ui_capsule.h"
 #include "ui_stage.h"
 #include "ui_settings.h"
+#include "ui_sidebar.h"
 #include "core/agent_core.h"
 #include "core/event_bus.h"
 
@@ -28,10 +29,13 @@ typedef struct {
     /* 1. 顶部微状态胶囊 (Top Status Capsule, 24px) */
     ui_capsule_t *capsule;
 
-    /* 2. 核心舞台视窗：承载各卡带渲染与横向滑动过渡 */
+    /* 2. 核心舞台视窗：承载各卡带渲染 (宽 284px, X=36) */
     ui_stage_t   *stage;
 
-    /* 3. 顶部控制中心抽屉与设置面板 (Settings Drawer) */
+    /* 3. 左侧常驻导航栏：点击直达切卡 (宽 36px, X=0) */
+    ui_sidebar_t *sidebar;
+
+    /* 4. 顶部控制中心抽屉与二级设置面板 (Settings Drawer) */
     ui_settings_t *settings;
 
     /* 兼容保留字段用于灵眸卡带或飞字气泡 */

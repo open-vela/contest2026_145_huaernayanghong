@@ -121,7 +121,7 @@ static int memo_on_load(lv_obj_t *stage_parent)
 
     /* 2. 核心便签卡片 (微晶深蓝底色、圆润微边框、呼吸留白、加宽触控热区) */
     s_ui.card_memo = lv_obj_create(s_ui.container);
-    lv_obj_set_size(s_ui.card_memo, 290, 110);
+    lv_obj_set_size(s_ui.card_memo, 268, 110);
     lv_obj_align(s_ui.card_memo, LV_ALIGN_CENTER, 0, 8);
     lv_obj_set_style_bg_color(s_ui.card_memo, lv_color_hex(0x0C1220), 0);
     lv_obj_set_style_bg_color(s_ui.card_memo, lv_color_hex(0x141F36), LV_STATE_PRESSED);

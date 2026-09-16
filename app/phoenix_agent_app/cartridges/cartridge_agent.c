@@ -259,9 +259,9 @@ static void agent_enter(cartridge_t *self, void *stage_view)
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
     s_ui.container = cont;
 
-    /* 1. 顶部标题与状态栏 (y=2, h=22) */
+    /* 1. 顶部标题与状态栏 (y=2, h=22, 宽 272) */
     lv_obj_t *header = lv_obj_create(cont);
-    lv_obj_set_size(header, 308, 22);
+    lv_obj_set_size(header, 272, 22);
     lv_obj_align(header, LV_ALIGN_TOP_MID, 0, 2);
     lv_obj_set_style_bg_opa(header, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(header, 0, 0);
@@ -269,13 +269,13 @@ static void agent_enter(cartridge_t *self, void *stage_view)
     lv_obj_clear_flag(header, LV_OBJ_FLAG_SCROLLABLE);
 
     s_ui.lbl_title = lv_label_create(header);
-    lv_obj_align(s_ui.lbl_title, LV_ALIGN_LEFT_MID, 4, 0);
+    lv_obj_align(s_ui.lbl_title, LV_ALIGN_LEFT_MID, 2, 0);
     if (font_zh) lv_obj_set_style_text_font(s_ui.lbl_title, font_zh, 0);
     lv_label_set_text(s_ui.lbl_title, "灵眸具身智能体");
     lv_obj_set_style_text_color(s_ui.lbl_title, lv_color_hex(0x00E5FF), 0);
 
     s_ui.pill_status = lv_obj_create(header);
-    lv_obj_set_size(s_ui.pill_status, 68, 20);
+    lv_obj_set_size(s_ui.pill_status, 64, 20);
     lv_obj_align(s_ui.pill_status, LV_ALIGN_RIGHT_MID, -2, 0);
     lv_obj_set_style_bg_color(s_ui.pill_status, lv_color_hex(0x101C2E), 0);
     lv_obj_set_style_border_color(s_ui.pill_status, lv_color_hex(0x1E3352), 0);
@@ -287,18 +287,18 @@ static void agent_enter(cartridge_t *self, void *stage_view)
     s_ui.lbl_status = lv_label_create(s_ui.pill_status);
     lv_obj_center(s_ui.lbl_status);
     if (font_zh) lv_obj_set_style_text_font(s_ui.lbl_status, font_zh, 0);
-    lv_label_set_text(s_ui.lbl_status, "● 待命中");
+    lv_label_set_text(s_ui.lbl_status, "● 待命");
     lv_obj_set_style_text_color(s_ui.lbl_status, lv_color_hex(0x00FF88), 0);
 
-    /* 2. 对话流与思维执行展示卡片 (y=28, h=106, w=308, 居中) */
+    /* 2. 对话流与思维执行展示卡片 (y=26, h=106, w=272, 居中) */
     s_ui.card_dialog = lv_obj_create(cont);
-    lv_obj_set_size(s_ui.card_dialog, 308, 106);
+    lv_obj_set_size(s_ui.card_dialog, 272, 106);
     lv_obj_align(s_ui.card_dialog, LV_ALIGN_TOP_MID, 0, 26);
     lv_obj_set_style_bg_color(s_ui.card_dialog, lv_color_hex(0x0B1220), 0);
     lv_obj_set_style_border_color(s_ui.card_dialog, lv_color_hex(0x1B2A42), 0);
     lv_obj_set_style_border_width(s_ui.card_dialog, 1, 0);
     lv_obj_set_style_radius(s_ui.card_dialog, 10, 0);
-    lv_obj_set_style_pad_all(s_ui.card_dialog, 6, 0);
+    lv_obj_set_style_pad_all(s_ui.card_dialog, 5, 0);
     lv_obj_clear_flag(s_ui.card_dialog, LV_OBJ_FLAG_SCROLLABLE);
 
     /* 用户行 */
@@ -309,8 +309,8 @@ static void agent_enter(cartridge_t *self, void *stage_view)
     lv_obj_set_style_text_color(s_ui.lbl_user_tag, lv_color_hex(0x8B9EB5), 0);
 
     s_ui.lbl_user_msg = lv_label_create(s_ui.card_dialog);
-    lv_obj_set_width(s_ui.lbl_user_msg, 240);
-    lv_obj_align(s_ui.lbl_user_msg, LV_ALIGN_TOP_LEFT, 50, 2);
+    lv_obj_set_width(s_ui.lbl_user_msg, 206);
+    lv_obj_align(s_ui.lbl_user_msg, LV_ALIGN_TOP_LEFT, 48, 2);
     if (font_zh) lv_obj_set_style_text_font(s_ui.lbl_user_msg, font_zh, 0);
     lv_label_set_long_mode(s_ui.lbl_user_msg, LV_LABEL_LONG_DOT);
     lv_label_set_text(s_ui.lbl_user_msg, "\"帮我开启25分钟专注流\"");
@@ -318,14 +318,14 @@ static void agent_enter(cartridge_t *self, void *stage_view)
 
     /* 灵眸行 */
     s_ui.lbl_agent_tag = lv_label_create(s_ui.card_dialog);
-    lv_obj_align(s_ui.lbl_agent_tag, LV_ALIGN_TOP_LEFT, 4, 30);
+    lv_obj_align(s_ui.lbl_agent_tag, LV_ALIGN_TOP_LEFT, 4, 28);
     if (font_zh) lv_obj_set_style_text_font(s_ui.lbl_agent_tag, font_zh, 0);
     lv_label_set_text(s_ui.lbl_agent_tag, "灵眸:");
     lv_obj_set_style_text_color(s_ui.lbl_agent_tag, lv_color_hex(0xFFD54F), 0);
 
     s_ui.lbl_agent_msg = lv_label_create(s_ui.card_dialog);
-    lv_obj_set_width(s_ui.lbl_agent_msg, 240);
-    lv_obj_align(s_ui.lbl_agent_msg, LV_ALIGN_TOP_LEFT, 50, 30);
+    lv_obj_set_width(s_ui.lbl_agent_msg, 206);
+    lv_obj_align(s_ui.lbl_agent_msg, LV_ALIGN_TOP_LEFT, 48, 28);
     if (font_zh) lv_obj_set_style_text_font(s_ui.lbl_agent_msg, font_zh, 0);
     lv_label_set_long_mode(s_ui.lbl_agent_msg, LV_LABEL_LONG_WRAP);
     lv_label_set_text(s_ui.lbl_agent_msg, "收到！已为您设定 25 分钟极客专注流，现在开始倒计时！");
@@ -333,7 +333,7 @@ static void agent_enter(cartridge_t *self, void *stage_view)
 
     /* 工具调用徽章 */
     s_ui.pill_tool = lv_obj_create(s_ui.card_dialog);
-    lv_obj_set_size(s_ui.pill_tool, 180, 20);
+    lv_obj_set_size(s_ui.pill_tool, 172, 20);
     lv_obj_align(s_ui.pill_tool, LV_ALIGN_BOTTOM_LEFT, 4, -2);
     lv_obj_set_style_bg_color(s_ui.pill_tool, lv_color_hex(0x0E261A), 0);
     lv_obj_set_style_border_color(s_ui.pill_tool, lv_color_hex(0x1B4D34), 0);
@@ -348,9 +348,9 @@ static void agent_enter(cartridge_t *self, void *stage_view)
     lv_label_set_text(s_ui.lbl_tool, "[✓ manage_pomodoro 已执行]");
     lv_obj_set_style_text_color(s_ui.lbl_tool, lv_color_hex(0x00E676), 0);
 
-    /* 3. 主动语音交互核心按钮 (y=138, 宽 240px, 高 38px) */
+    /* 3. 主动语音交互核心按钮 (y=138, 宽 220px, 高 38px) */
     s_ui.btn_mic = lv_btn_create(cont);
-    lv_obj_set_size(s_ui.btn_mic, 240, 38);
+    lv_obj_set_size(s_ui.btn_mic, 220, 38);
     lv_obj_align(s_ui.btn_mic, LV_ALIGN_TOP_MID, 0, 138);
     lv_obj_set_style_bg_color(s_ui.btn_mic, lv_color_hex(0x122438), 0);
     lv_obj_set_style_border_color(s_ui.btn_mic, lv_color_hex(0x00E5FF), 0);

@@ -9,6 +9,12 @@
 #include "../core/web_portal.h"
 #include "../utils/log_utils.h"
 
+#if defined(__has_include) && __has_include("core/event_bus.h")
+#  include "core/event_bus.h"
+#else
+#  include "../core/event_bus.h"
+#endif
+
 #if defined(__has_include)
 #  if __has_include(<netutils/cJSON.h>)
 #    include <netutils/cJSON.h>
@@ -126,6 +132,23 @@ static void notify_state_changed_unlocked(void)
     if (s_state_cb) {
         s_state_cb(s_mode, s_current_ip, s_state_user_data);
     }
+
+    phoenix_event_data_t evt;
+    memset(&evt, 0, sizeof(evt));
+    evt.type = PHOENIX_EVT_NET_STATUS;
+    evt.data.net.mode = (int)s_mode;
+    evt.data.net.ssid = s_current_ssid;
+    evt.data.net.ip = s_current_ip;
+    if (s_mode == NET_MODE_STA_CONNECTED) {
+        evt.data.net.msg = "Wi-Fi 连接成功";
+    } else if (s_mode == NET_MODE_STA_CONNECTING) {
+        evt.data.net.msg = "正在连接 Wi-Fi";
+    } else if (s_mode == NET_MODE_SOFTAP_CONFIG) {
+        evt.data.net.msg = "独立热点配网就绪";
+    } else {
+        evt.data.net.msg = "网络未连接";
+    }
+    phoenix_event_publish(&evt);
 }
 
 /**
@@ -605,6 +628,50 @@ int net_mgr_stop_softap(void)
     return 0;
 }
 
+#if !defined(HOST_TEST_RUNNER)
+static void* softap_worker_thread(void *arg)
+{
+    (void)arg;
+    char ssid[NET_MAX_SSID_LEN];
+    pthread_mutex_lock(&s_lock);
+    strncpy(ssid, s_current_ssid, sizeof(ssid) - 1);
+    pthread_mutex_unlock(&s_lock);
+
+    LOG_I(TAG, "[SoftAP:Worker] 正在后台配置 SoftAP 物理网卡与射频...");
+    net_mgr_stop_softap();
+
+    int sock = wapi_make_socket();
+    if (sock >= 0) {
+        struct in_addr ip, mask;
+        inet_aton("192.168.4.1", &ip);
+        inet_aton("255.255.255.0", &mask);
+
+        wapi_set_ip(sock, "wlan1", &ip);
+        wapi_set_netmask(sock, "wlan1", &mask);
+        wapi_set_ifup(sock, "wlan1");
+        usleep(50000);
+
+        wapi_set_mode(sock, "wlan1", WAPI_MODE_MASTER);
+        usleep(50000);
+
+        wapi_set_essid(sock, "wlan1", ssid, WAPI_ESSID_ON);
+        close(sock);
+        LOG_I(TAG, "⚡ [Native WAPI] SoftAP 射频与网卡已在后台激活");
+    } else {
+        system("ifconfig wlan1 192.168.4.1 netmask 255.255.255.0 up > /dev/null 2>&1");
+        system("wapi mode wlan1 3 > /dev/null 2>&1");
+        char cmd[256];
+        snprintf(cmd, sizeof(cmd), "wapi essid wlan1 \"%s\" 1 > /dev/null 2>&1", ssid);
+        system(cmd);
+    }
+
+    mini_dhcpd_start();
+    phoenix_web_portal_start(80, NULL);
+    LOG_I(TAG, "📡 [SoftAP:Worker] 热点广播与内嵌 MiniDHCP 服务已就绪");
+    return NULL;
+}
+#endif
+
 int net_mgr_start_softap(const char *custom_ssid)
 {
     pthread_mutex_lock(&s_lock);
@@ -619,45 +686,15 @@ int net_mgr_start_softap(const char *custom_ssid)
           s_current_ssid);
 
 #if !defined(HOST_TEST_RUNNER)
-    /* 1. 先清理旧的 SoftAP 与 DHCP 状态 */
-    net_mgr_stop_softap();
-
-    /* 2. 通过原生 WAPI C API 极速配置 wlan1 网卡、AP 模式与 SSID */
-    int sock = wapi_make_socket();
-    if (sock >= 0) {
-        struct in_addr ip, mask;
-        inet_aton("192.168.4.1", &ip);
-        inet_aton("255.255.255.0", &mask);
-
-        wapi_set_ip(sock, "wlan1", &ip);
-        wapi_set_netmask(sock, "wlan1", &mask);
-        wapi_set_ifup(sock, "wlan1");
-        usleep(100000);
-
-        wapi_set_mode(sock, "wlan1", WAPI_MODE_MASTER);
-        usleep(100000);
-
-        wapi_set_essid(sock, "wlan1", s_current_ssid, WAPI_ESSID_ON);
-        close(sock);
-        LOG_I(TAG, "⚡ [Native WAPI] SoftAP 射频与网卡已通过底层 C API 激活");
-    } else {
-        /* Fallback 安全降级 */
-        system("ifconfig wlan1 192.168.4.1 netmask 255.255.255.0 up > /dev/null 2>&1");
-        system("wapi mode wlan1 3 > /dev/null 2>&1");
-        char cmd[256];
-        snprintf(cmd, sizeof(cmd), "wapi essid wlan1 \"%s\" 1 > /dev/null 2>&1", s_current_ssid);
-        system(cmd);
-    }
-
-    /* 3. 启动内嵌微型 DHCP 服务，为手机自动分配 192.168.4.100 */
-    mini_dhcpd_start();
+    pthread_t softap_tid;
+    pthread_create(&softap_tid, NULL, softap_worker_thread, NULL);
+    pthread_detach(softap_tid);
+#else
+    phoenix_web_portal_start(80, NULL);
 #endif
 
     notify_state_changed_unlocked();
     pthread_mutex_unlock(&s_lock);
-
-    /* 启动 Web 配网服务 (优先 80 端口，备用 8080 端口双路监听) */
-    phoenix_web_portal_start(80, NULL);
     return 0;
 }
 

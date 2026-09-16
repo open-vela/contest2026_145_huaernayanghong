@@ -47,15 +47,7 @@ static void stage_touch_event_cb(lv_event_t *e)
     if (code == LV_EVENT_GESTURE) {
         if (now - stage->last_gesture_time_ms < 400) return;
         lv_dir_t dir = lv_indev_get_gesture_dir(indev);
-        if (dir == LV_DIR_LEFT) {
-            stage->last_gesture_time_ms = now;
-            cartridge_mgr_next();
-            return;
-        } else if (dir == LV_DIR_RIGHT) {
-            stage->last_gesture_time_ms = now;
-            cartridge_mgr_prev();
-            return;
-        } else if (dir == LV_DIR_BOTTOM) {
+        if (dir == LV_DIR_BOTTOM) {
             /* 仅当触控起始位置在屏幕顶部边缘 (Y < 55) 时呼出抽屉 */
             if (stage->press_point.y < 55 && stage->on_swipe_down) {
                 stage->last_gesture_time_ms = now;
@@ -84,18 +76,7 @@ static void stage_touch_event_cb(lv_event_t *e)
         /* 防抖检查：忽略 300ms 内的连续误触发 */
         if (now - stage->last_gesture_time_ms < 300) return;
 
-        /* 1. 水平滑动切换卡带：阈值优化为 35px，水平位移大于垂直位移即可切卡 */
-        if (abs_dx >= 35 && abs_dx > abs_dy) {
-            stage->last_gesture_time_ms = now;
-            if (dx < 0) {
-                cartridge_mgr_next();
-            } else {
-                cartridge_mgr_prev();
-            }
-            return;
-        }
-
-        /* 2. 下滑呼出设置抽屉：起始于屏幕顶部 1/3 (Y < 80) 且下滑位移 >= 30px */
+        /* 1. 下滑呼出设置抽屉：起始于屏幕顶部 1/3 (Y < 80) 且下滑位移 >= 30px */
         if (stage->press_point.y < 80 && dy >= 30 && abs_dy > abs_dx) {
             stage->last_gesture_time_ms = now;
             if (stage->on_swipe_down) {
@@ -104,11 +85,11 @@ static void stage_touch_event_cb(lv_event_t *e)
             return;
         }
 
-        /* 3. 轻敲 / 双击 / 长按判定 (位移 < 15px) */
+        /* 2. 轻敲 / 双击 / 长按判定 (位移 < 15px) */
         if (abs_dx < 15 && abs_dy < 15) {
             uint32_t elapsed = lv_tick_elaps(stage->press_time_ms);
 
-            /* 3.1 长按判定 (按住超过 600ms，呼出设置抽屉) */
+            /* 2.1 长按判定 (按住超过 600ms，呼出设置抽屉) */
             if (elapsed >= 600) {
                 stage->last_gesture_time_ms = now;
                 if (stage->on_long_press) {
@@ -119,7 +100,7 @@ static void stage_touch_event_cb(lv_event_t *e)
                 return;
             }
 
-            /* 3.2 双击判定 (间隔 50ms ~ 380ms 且位移 < 25px，切换控制中心) */
+            /* 2.2 双击判定 (间隔 50ms ~ 380ms 且位移 < 25px，切换控制中心) */
             uint32_t tap_interval = now - stage->last_tap_time_ms;
             int32_t tap_dx = release_point.x - stage->last_tap_point.x;
             int32_t tap_dy = release_point.y - stage->last_tap_point.y;
@@ -140,7 +121,7 @@ static void stage_touch_event_cb(lv_event_t *e)
             stage->last_tap_time_ms = now;
             stage->last_tap_point = release_point;
 
-            /* 3.3 分发单次轻敲事件至当前活跃卡带 (敲木鱼/互动) */
+            /* 2.3 分发单次轻敲事件至当前活跃卡带 (敲木鱼/互动) */
             if (elapsed > 20 && elapsed < 500) {
                 cartridge_mgr_dispatch_knock(1, 1);
             }
@@ -166,8 +147,8 @@ ui_stage_t* ui_stage_create(lv_obj_t *parent)
     if (!stage) return NULL;
 
     stage->container = lv_obj_create(parent);
-    lv_obj_set_size(stage->container, lv_pct(100), lv_pct(100));
-    lv_obj_center(stage->container);
+    lv_obj_set_size(stage->container, 284, 216);
+    lv_obj_set_pos(stage->container, 36, 24);
 
     /* 样式：纯净无边框黑底 */
     lv_obj_set_style_bg_color(stage->container, lv_color_hex(0x04060a), LV_PART_MAIN);
@@ -249,7 +230,7 @@ void ui_stage_transition_to(ui_stage_t *stage, lv_obj_t *new_view, bool slide_to
     stage->is_animating = true;
 
     lv_coord_t w = lv_obj_get_width(stage->container);
-    if (w <= 0) w = 320; /* 默认保底宽度 */
+    if (w <= 0) w = 284; /* 侧边栏模式下舞台宽度保底 */
 
     lv_coord_t enter_start_x = slide_to_left ? w : -w;
     lv_coord_t exit_end_x    = slide_to_left ? -w : w;
@@ -291,7 +272,7 @@ void ui_stage_play_enter_anim(ui_stage_t *stage, bool slide_to_left)
     if (!top_view) return;
 
     lv_coord_t w = lv_obj_get_width(stage->container);
-    if (w <= 0) w = 320;
+    if (w <= 0) w = 284;
 
     lv_coord_t enter_start_x = slide_to_left ? w : -w;
 

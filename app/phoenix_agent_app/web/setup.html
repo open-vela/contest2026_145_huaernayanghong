@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gemini-S1 智能硬件热点配网</title>
+  <title>Gemini-S1 硬件热点配网</title>
   <style>
     :root {
       --bg: #080c14;
@@ -11,6 +11,7 @@
       --border: #1c2a44;
       --accent: #00e5ff;
       --accent-sub: #00ff88;
+      --warn: #ffb700;
       --text: #e6edf3;
       --muted: #8b9eb5;
     }
@@ -140,7 +141,7 @@
       color: #04060a;
       border: none;
       border-radius: 8px;
-      padding: 12px;
+      padding: 13px;
       font-size: 15px;
       font-weight: bold;
       cursor: pointer;
@@ -167,6 +168,141 @@
       border-radius: 10px;
       background: #182842;
       color: var(--accent-sub);
+    }
+
+    /* 全屏科技感加载与状态反馈模态框 */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(4, 7, 13, 0.88);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      padding: 16px;
+    }
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal-card {
+      max-width: 400px;
+      width: 100%;
+      background: #0d1424;
+      border: 1px solid #1c2b45;
+      border-radius: 18px;
+      padding: 28px 24px;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0, 229, 255, 0.15);
+      position: relative;
+    }
+    .radar-box {
+      width: 76px;
+      height: 76px;
+      margin: 0 auto 18px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .radar-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      border-top-color: var(--accent);
+      border-right-color: var(--accent-sub);
+      animation: radar-spin 1.2s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
+    }
+    .radar-pulse {
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 229, 255, 0.2);
+      animation: radar-pulse 2s ease-out infinite;
+    }
+    .radar-icon {
+      font-size: 30px;
+      z-index: 2;
+    }
+    @keyframes radar-spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    @keyframes radar-pulse {
+      0% { transform: scale(0.9); opacity: 0.8; }
+      100% { transform: scale(1.3); opacity: 0; }
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    .modal-desc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+    .ip-display-card {
+      background: #070b14;
+      border: 1px solid #00ff88;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .ip-label {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .ip-value {
+      font-size: 20px;
+      font-weight: 800;
+      font-family: monospace;
+      color: var(--accent-sub);
+      letter-spacing: 1px;
+    }
+    .action-btn {
+      display: inline-block;
+      width: 100%;
+      box-sizing: border-box;
+      background: var(--accent-sub);
+      color: #040810;
+      font-size: 14px;
+      font-weight: bold;
+      padding: 11px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      transition: 0.2s;
+    }
+    .action-btn:hover {
+      background: #33ff9f;
+      transform: translateY(-1px);
+    }
+    .cancel-btn {
+      margin-top: 12px;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 12px;
+      cursor: pointer;
+      text-decoration: underline;
     }
   </style>
 </head>
@@ -198,12 +334,38 @@
     <button class="submit-btn" onclick="connectWifi()">🚀 保存凭证并连接 Wi-Fi</button>
 
     <div class="tip" id="msg">
-      💡 连接后设备将切换并获取局域网 IP。请将手机/电脑连入同一 Wi-Fi，访问小屏顶部显示的 IP 即可打开极客伴侣看板配置 Agent。
+      💡 连接后设备将自动切换并向路由器获取局域网 IP。设备正面屏幕将实时弹出连网动效与微胶囊 IP，同时此网页也将自动同步展示新 IP。
+    </div>
+  </div>
+
+  <!-- 全屏连接与配网状态模态框 -->
+  <div class="modal-overlay" id="connectingModal">
+    <div class="modal-card">
+      <div class="radar-box">
+        <div class="radar-pulse" id="radarPulse"></div>
+        <div class="radar-ring" id="radarRing"></div>
+        <div class="radar-icon" id="radarIcon">📡</div>
+      </div>
+      <div class="modal-title" id="modalTitle">正在连接无线网络...</div>
+      <div class="modal-desc" id="modalDesc">
+        正在将 Wi-Fi 凭证下发给设备硬件，并向路由器发起 DHCP 握手以获取局域网 IP 地址。<br>请保持当前页面开启...
+      </div>
+
+      <div class="ip-display-card" id="ipCard">
+        <div class="ip-label">设备新局域网 IP 地址</div>
+        <div class="ip-value" id="ipVal">0.0.0.0</div>
+      </div>
+
+      <a id="btnGoDashboard" class="action-btn" style="display:none;" href="#">🎉 打开极客伴侣看板</a>
+      <button class="cancel-btn" id="btnCloseModal" onclick="closeModal()" style="display:none;">关闭此弹窗</button>
     </div>
   </div>
 
   <script>
     let scanData = [];
+    let pollTimer = null;
+    let pollCount = 0;
+    let targetSsid = '';
 
     function scanWifi() {
       const sel = document.getElementById('wifiSelect');
@@ -268,6 +430,19 @@
       }
     }
 
+    function showModal(title, desc, icon) {
+      const modal = document.getElementById('connectingModal');
+      document.getElementById('modalTitle').innerText = title;
+      document.getElementById('modalDesc').innerHTML = desc;
+      if (icon) document.getElementById('radarIcon').innerText = icon;
+      modal.classList.add('active');
+    }
+
+    function closeModal() {
+      if (pollTimer) clearInterval(pollTimer);
+      document.getElementById('connectingModal').classList.remove('active');
+    }
+
     function connectWifi() {
       let s = document.getElementById('wifiSelect').value;
       if (s === '__manual__' || !s) {
@@ -277,18 +452,119 @@
         alert('请先选择或输入 Wi-Fi 名称！');
         return;
       }
+      targetSsid = s;
       const p = document.getElementById('psk').value;
-      document.getElementById('msg').innerHTML = '⏳ 正在连接 Wi-Fi [' + s + ']，请稍候...';
+
+      showModal(
+        '正在连接无线网络...',
+        '已向设备下发网络凭证，正在尝试加入 <b>' + s + '</b> 并通过 DHCP 获取 IP 地址。<br>请稍候，设备屏幕也将同步显示连网动效...',
+        '📡'
+      );
+      document.getElementById('ipCard').style.display = 'none';
+      document.getElementById('btnGoDashboard').style.display = 'none';
+      document.getElementById('btnCloseModal').style.display = 'none';
 
       fetch('/api/wifi/connect', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ssid: s, psk: p})
       }).then(r => r.json()).then(d => {
-        document.getElementById('msg').innerHTML = '✅ 联网指令已下发！设备正在获取局域网 IP。<br>请将电脑/手机连入同一 Wi-Fi，访问小屏显示的 IP 进入伴侣看板配置 Agent！';
+        startPollingStatus();
       }).catch(e => {
-        document.getElementById('msg').innerHTML = '⚠️ 网络请求已提交，设备正在切换并连入局域网。';
+        /* 射频切换可能瞬间切断 SoftAP，直接启动轮询检测 */
+        startPollingStatus();
       });
+    }
+
+    function startPollingStatus() {
+      if (pollTimer) clearInterval(pollTimer);
+      pollCount = 0;
+
+      pollTimer = setInterval(() => {
+        pollCount++;
+
+        /* 轮询 Wi-Fi 与系统状态 */
+        fetch('/api/wifi/status', {cache: 'no-store'}).then(r => r.json()).then(d => {
+          checkConnectionResult(d);
+        }).catch(() => {
+          /* 如果 wifi/status 访问失败，尝试备用 /api/status */
+          fetch('/api/status', {cache: 'no-store'}).then(r => r.json()).then(d => {
+            const net = d.network || {};
+            checkConnectionResult({
+              is_connected: net.connected || false,
+              ip: net.ip || '',
+              mode: net.mode || '',
+              ssid: net.ssid || ''
+            });
+          }).catch(() => {
+            /* 超过 15 次 (约 18 秒) 且无法连接 192.168.4.1，说明手机从 SoftAP 断开 */
+            if (pollCount > 15) {
+              handleSoftApDisconnected();
+            }
+          });
+        });
+
+        /* 超时保护 (35秒) */
+        if (pollCount > 28) {
+          clearInterval(pollTimer);
+          handleSoftApDisconnected();
+        }
+      }, 1200);
+    }
+
+    function checkConnectionResult(d) {
+      const isConnected = d.is_connected || d.mode === 'STA_CONNECTED';
+      const ip = d.ip;
+
+      if (isConnected && ip && ip !== '0.0.0.0' && !ip.startsWith('192.168.4.')) {
+        if (pollTimer) clearInterval(pollTimer);
+
+        document.getElementById('radarRing').style.animation = 'none';
+        document.getElementById('radarRing').style.borderColor = 'var(--accent-sub)';
+        document.getElementById('radarIcon').innerText = '✅';
+        document.getElementById('modalTitle').innerText = '🎉 Wi-Fi 连接成功！';
+        document.getElementById('modalDesc').innerHTML =
+          '设备已成功加入网络 <b>' + (d.ssid || targetSsid) + '</b>！<br>' +
+          '设备正面微胶囊已实时更新 IP。请将手机/电脑连入同一 Wi-Fi，即可无缝进入极客伴侣看板。';
+
+        document.getElementById('ipVal').innerText = ip;
+        document.getElementById('ipCard').style.display = 'block';
+
+        const dashUrl = 'http://' + ip + ':8080/';
+        const btnDash = document.getElementById('btnGoDashboard');
+        btnDash.href = dashUrl;
+        btnDash.style.display = 'inline-block';
+        document.getElementById('btnCloseModal').style.display = 'inline-block';
+
+        /* 倒计时 3 秒后尝试自动跳转 */
+        let countdown = 3;
+        btnDash.innerText = '🚀 立即进入极客伴侣看板 (' + countdown + 's)';
+        const cTimer = setInterval(() => {
+          countdown--;
+          if (countdown > 0) {
+            btnDash.innerText = '🚀 立即进入极客伴侣看板 (' + countdown + 's)';
+          } else {
+            clearInterval(cTimer);
+            btnDash.innerText = '🚀 正在跳转至 ' + ip + '...';
+            window.location.href = dashUrl;
+          }
+        }, 1000);
+      }
+    }
+
+    function handleSoftApDisconnected() {
+      if (pollTimer) clearInterval(pollTimer);
+      document.getElementById('radarIcon').innerText = 'ℹ️';
+      document.getElementById('radarRing').style.animation = 'none';
+      document.getElementById('radarRing').style.borderColor = 'var(--warn)';
+      document.getElementById('modalTitle').innerText = '📡 设备正在连网中';
+      document.getElementById('modalDesc').innerHTML =
+        '设备已切换至客户端连网模式，由于独立热点已关闭或手机与热点断开，网页无法继续直连。<br><br>' +
+        '<b>请直接查看设备正面屏幕：</b><br>' +
+        '屏幕上方会弹出金色连网飞字，微胶囊将直接显示获得的局域网 IP（例如 <code>192.168.x.x</code>）。<br>' +
+        '将手机/电脑接入同个 Wi-Fi，在浏览器中输入该 IP 即可畅快体验！';
+      document.getElementById('btnCloseModal').style.display = 'inline-block';
+      document.getElementById('btnCloseModal').innerText = '我知道了，返回页面';
     }
 
     scanWifi();
