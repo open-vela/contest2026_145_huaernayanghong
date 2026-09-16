@@ -255,8 +255,8 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
             }
 
             /* 联动更新左侧侧边栏选中高亮态 */
-            if (ui->sidebar && event->data.cartridge.id) {
-                ui_sidebar_set_active(ui->sidebar, event->data.cartridge.id);
+            if (ui->sidebar && event->data.cartridge.to_id) {
+                ui_sidebar_set_active(ui->sidebar, event->data.cartridge.to_id);
             }
 
             if (ui->capsule) {
