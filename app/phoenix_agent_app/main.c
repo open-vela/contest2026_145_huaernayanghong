@@ -23,6 +23,15 @@
 #include "ui/ui.h"
 #include "test/test_autodrive.h"
 
+#if !defined(HOST_TEST_RUNNER) && (defined(__NuttX__) || defined(__openvela__) || defined(CONFIG_LV_USE_NUTTX_LCD))
+#define HAS_NUTTX_LCD_DEV 1
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <nuttx/lcd/lcd_dev.h>
+#else
+#define HAS_NUTTX_LCD_DEV 0
+#endif
+
 #ifdef CONFIG_LV_USE_NUTTX_LIBUV
 static void lv_nuttx_uv_loop(uv_loop_t *loop, lv_nuttx_result_t *result)
 {
@@ -129,6 +138,152 @@ static int run_cli_mode(int argc, char *argv[])
     return 0;
 }
 
+#if HAS_NUTTX_LCD_DEV
+typedef struct {
+    int fd;
+    lv_display_t *disp;
+    void *draw_buf;
+    struct lcddev_area_s area;
+    struct lcddev_area_align_s align_info;
+} phoenix_lcd_dev_t;
+
+static int32_t align_round_up(int32_t v, uint16_t align)
+{
+    return (v + align - 1) & ~(align - 1);
+}
+
+static void lcd_rounder_cb(lv_event_t *e)
+{
+    phoenix_lcd_dev_t *lcd = lv_event_get_user_data(e);
+    lv_area_t *area = lv_event_get_param(e);
+    struct lcddev_area_align_s *align_info = &lcd->align_info;
+    int32_t w;
+    int32_t h;
+
+    area->x1 &= ~(align_info->col_start_align - 1);
+    area->y1 &= ~(align_info->row_start_align - 1);
+
+    w = align_round_up(lv_area_get_width(area), align_info->width_align);
+    h = align_round_up(lv_area_get_height(area), align_info->height_align);
+
+    area->x2 = area->x1 + w - 1;
+    area->y2 = area->y1 + h - 1;
+}
+
+static void lcd_flush_cb(lv_display_t *disp, const lv_area_t *area_p, uint8_t *color_p)
+{
+    phoenix_lcd_dev_t *lcd = disp->driver_data;
+    if (!lcd || lcd->fd < 0) {
+        lv_display_flush_ready(disp);
+        return;
+    }
+
+    lcd->area.row_start = area_p->y1;
+    lcd->area.row_end = area_p->y2;
+    lcd->area.col_start = area_p->x1;
+    lcd->area.col_end = area_p->x2;
+    lcd->area.data = (uint8_t *)color_p;
+    ioctl(lcd->fd, LCDDEVIO_PUTAREA, (unsigned long)&(lcd->area));
+    lv_display_flush_ready(disp);
+}
+
+static void lcd_release_cb(lv_event_t *e)
+{
+    lv_display_t *disp = (lv_display_t *)lv_event_get_user_data(e);
+    phoenix_lcd_dev_t *lcd = lv_display_get_driver_data(disp);
+    if (lcd) {
+        lv_display_set_driver_data(disp, NULL);
+        lv_display_set_flush_cb(disp, NULL);
+
+        if (lcd->draw_buf) {
+            free(lcd->draw_buf);
+            lcd->draw_buf = NULL;
+        }
+        if (lcd->fd >= 0) {
+            close(lcd->fd);
+            lcd->fd = -1;
+        }
+        free(lcd);
+    }
+}
+
+/**
+ * @brief 在业务层创建严格 64 字节硬件对齐的 LCD 显示屏 (/dev/lcd0)
+ * 
+ * 针对全志 R528-S3 (Gemini-S1) 启用 G2D 硬件加速器时 CONFIG_LV_DRAW_BUF_ALIGN=64 的硬性要求，
+ * 使用 memalign 显式按 64 字节边界分配屏幕渲染显存，彻底解决底层 lv_nuttx_lcd.c 使用普通
+ * malloc 导致 lv_display_set_buffers 断言崩溃的问题。
+ */
+static lv_display_t *phoenix_create_aligned_lcd_display(const char *dev_path)
+{
+    struct fb_videoinfo_s vinfo;
+    struct lcd_planeinfo_s pinfo;
+    int fd = open(dev_path, O_CLOEXEC);
+    if (fd < 0) {
+        printf("[PhoenixApp] ❌ Error: cannot open LCD device: %s\n", dev_path);
+        return NULL;
+    }
+
+    if (ioctl(fd, LCDDEVIO_GETVIDEOINFO, (unsigned long)((uintptr_t)&vinfo)) < 0) {
+        printf("[PhoenixApp] ❌ Error: ioctl(LCDDEVIO_GETVIDEOINFO) failed\n");
+        close(fd);
+        return NULL;
+    }
+
+    if (ioctl(fd, LCDDEVIO_GETPLANEINFO, (unsigned long)((uintptr_t)&pinfo)) < 0) {
+        printf("[PhoenixApp] ❌ Error: ioctl(LCDDEVIO_GETPLANEINFO) failed\n");
+        close(fd);
+        return NULL;
+    }
+
+    phoenix_lcd_dev_t *lcd = (phoenix_lcd_dev_t *)calloc(1, sizeof(phoenix_lcd_dev_t));
+    if (!lcd) {
+        close(fd);
+        return NULL;
+    }
+
+    lv_display_t *disp = lv_display_create(vinfo.xres, vinfo.yres);
+    if (!disp) {
+        free(lcd);
+        close(fd);
+        return NULL;
+    }
+
+    uint32_t px_size = lv_color_format_get_size(lv_display_get_color_format(disp));
+    uint32_t buf_size = vinfo.xres * vinfo.yres * px_size;
+
+    /*
+     * 核心对齐保障：强制按 64 字节对齐分配显存，彻底规避未定义堆偏移引发的 Assertion Failed。
+     */
+    void *draw_buf = memalign(64, buf_size);
+    if (!draw_buf) {
+        printf("[PhoenixApp] ❌ Error: memalign 64-byte draw_buf failed!\n");
+        lv_display_delete(disp);
+        free(lcd);
+        close(fd);
+        return NULL;
+    }
+
+    lcd->fd = fd;
+    lcd->disp = disp;
+    lcd->draw_buf = draw_buf;
+    if (ioctl(fd, LCDDEVIO_GETAREAALIGN, &lcd->align_info) < 0) {
+        lcd->align_info.row_start_align = 1;
+        lcd->align_info.height_align = 1;
+        lcd->align_info.col_start_align = 1;
+        lcd->align_info.width_align = 1;
+    }
+
+    lv_display_set_buffers(disp, draw_buf, NULL, buf_size, LV_DISPLAY_RENDER_MODE_FULL);
+    lv_display_set_flush_cb(disp, lcd_flush_cb);
+    lv_display_add_event_cb(disp, lcd_rounder_cb, LV_EVENT_INVALIDATE_AREA, lcd);
+    lv_display_add_event_cb(disp, lcd_release_cb, LV_EVENT_DELETE, disp);
+    lv_display_set_driver_data(disp, lcd);
+
+    return disp;
+}
+#endif
+
 int main(int argc, FAR char *argv[])
 {
     bool autotest_gui = false;
@@ -160,32 +315,30 @@ int main(int argc, FAR char *argv[])
     printf(" 🚀 Phoenix HoloDesk-S1 Living Cyber-Eye Agent #145 \n");
     printf("====================================================\n");
 
-    /* 1. Check if already running to prevent destroying active background instance */
+    /* 1. 防多实例冲突检查：避免破坏后台已常驻运行的进程 */
     if (lv_is_initialized() || phoenix_app_is_initialized()) {
         printf("[PhoenixApp] ⚠️ Notice: Phoenix Agent GUI is already running in background.\n");
         return 0;
-    }
-
-    /* 2. Initialize Subsystems via Unified Application Facade */
-    phoenix_app_config_t app_cfg;
-    memset(&app_cfg, 0, sizeof(app_cfg));
-    app_cfg.enable_web_portal = true;
-    app_cfg.web_port = PHOENIX_STANDARD_HTTP_PORT;
-    if (phoenix_app_init(&app_cfg) != 0) {
-        printf("[PhoenixApp] ❌ Error: Phoenix Application Facade init failed!\n");
-        return -1;
     }
 
 #if defined(CONFIG_BOARDCTL) && !defined(CONFIG_NSH_ARCHINIT)
     boardctl(BOARDIOC_INIT, 0);
 #endif
 
+    /*
+     * =========================================================================
+     * 2. 【方案B - 时序前置与硬件显存对齐】
+     * 优先完成 LVGL 核心与屏幕显示驱动初始化，杜绝后续业务模块堆分配造成的地址偏移
+     * =========================================================================
+     */
     lv_init();
     lv_nuttx_dsc_init(&info);
 
-#ifdef CONFIG_LV_USE_NUTTX_LCD
-    info.fb_path = "/dev/lcd0";
-#endif
+    /*
+     * 将 info.fb_path 显式设为 NULL，避免底层 lv_nuttx_init 自动调用存在 malloc
+     * 未对齐缺陷的系统 LCD 驱动；触控输入 /dev/input0 保持由 lv_nuttx_init 初始化。
+     */
+    info.fb_path = NULL;
 #if defined(CONFIG_LV_USE_NUTTX_TOUCHSCREEN) || defined(CONFIG_INPUT_TOUCHSCREEN) || defined(CONFIG_INPUT)
 #  ifdef CONFIG_EXAMPLES_LVGLDEMO_INPUT_DEVPATH
     info.input_path = CONFIG_EXAMPLES_LVGLDEMO_INPUT_DEVPATH;
@@ -193,40 +346,59 @@ int main(int argc, FAR char *argv[])
     info.input_path = "/dev/input0";
 #  endif
 #elif !defined(HOST_TEST_RUNNER)
-    /* 默认在目标板硬件上绑定触控设备 /dev/input0 */
     info.input_path = "/dev/input0";
 #endif
 
-    printf("[PhoenixApp] Initializing LVGL display (fb_path: %s)...\n",
-           info.fb_path ? info.fb_path : "default");
     lv_nuttx_init(&info, &result);
-    usleep(100000);
+    usleep(50000);
+
+#if HAS_NUTTX_LCD_DEV
+    printf("[PhoenixApp] Initializing 64-byte aligned LVGL display (/dev/lcd0)...\n");
+    result.disp = phoenix_create_aligned_lcd_display("/dev/lcd0");
+#endif
 
     if (result.disp == NULL) {
         printf("[PhoenixApp] ❌ ERROR: LVGL display initialization failure (result.disp is NULL)!\n");
+        lv_nuttx_deinit(&result);
         lv_deinit();
-        phoenix_app_deinit();
         return 1;
     }
-    printf("[PhoenixApp] ✅ LVGL display initialized successfully.\n");
+    printf("[PhoenixApp] ✅ LVGL display & input initialized successfully.\n");
 
-    /* 3. Create Agent Core & UI Components */
+    /*
+     * =========================================================================
+     * 3. 屏幕与显存就绪后，初始化 Phoenix 业务子系统 (HAL/感知/卡带/Web Portal)
+     * =========================================================================
+     */
+    phoenix_app_config_t app_cfg;
+    memset(&app_cfg, 0, sizeof(app_cfg));
+    app_cfg.enable_web_portal = true;
+    app_cfg.web_port = PHOENIX_STANDARD_HTTP_PORT;
+    if (phoenix_app_init(&app_cfg) != 0) {
+        printf("[PhoenixApp] ❌ Error: Phoenix Application Facade init failed!\n");
+        lv_nuttx_deinit(&result);
+        lv_deinit();
+        return -1;
+    }
+
+    /* 4. 创建智能体核心协调器与多层 UI 交互体系 */
     phoenix_agent_ctx_t *agent_core = phoenix_agent_core_init();
     phoenix_ui_t *ui = phoenix_ui_create(lv_screen_active(), agent_core);
     if (!ui) {
         printf("[PhoenixApp] ❌ ERROR: Failed to create Phoenix Agent UI!\n");
         phoenix_agent_core_destroy(agent_core);
-        lv_deinit();
         phoenix_app_deinit();
+        lv_nuttx_deinit(&result);
+        lv_deinit();
         return 1;
     }
 
-    /* 3.1 Start GUI Auto-Drive if in autotest mode */
+    /* 4.1 若开启自动化测试则启动测试挂载脚本 */
     if (autotest_gui) {
         phoenix_autodrive_start_gui(&ui_loop, ui, agent_core);
     }
 
-    /* 4. Event Loop */
+    /* 5. 交互事件主循环 */
 #ifdef CONFIG_LV_USE_NUTTX_LIBUV
     lv_nuttx_uv_loop(&ui_loop, &result);
 #else
@@ -237,7 +409,7 @@ int main(int argc, FAR char *argv[])
     }
 #endif
 
-    /* 5. Cleanup Resources */
+    /* 6. 退出与资源释放 */
     phoenix_ui_destroy(ui);
     if (agent_core) {
         phoenix_agent_core_destroy(agent_core);
@@ -245,7 +417,7 @@ int main(int argc, FAR char *argv[])
     lv_nuttx_deinit(&result);
     lv_deinit();
 
-    /* 6. Unified Subsystem Teardown */
+    /* 7. 统一业务子系统下电 */
     phoenix_app_deinit();
 
     printf("Phoenix HoloDesk-S1 Agent Exited Cleanly.\n");
