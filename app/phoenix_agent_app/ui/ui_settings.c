@@ -718,7 +718,8 @@ void ui_settings_refresh_data(ui_settings_t *settings)
 
     if (settings->lbl_sys_uptime) {
         char buf[64];
-        snprintf(buf, sizeof(buf), "● 运行时长: %02u:%02u:%02u | 感知正常", up_h, up_m, up_s);
+        snprintf(buf, sizeof(buf), "● 运行时长: %02u:%02u:%02u | 感知正常",
+                 (unsigned int)up_h, (unsigned int)up_m, (unsigned int)up_s);
         lv_label_set_text(settings->lbl_sys_uptime, buf);
     }
 
@@ -729,12 +730,13 @@ void ui_settings_refresh_data(ui_settings_t *settings)
 
     if (settings->lbl_agent_stats) {
         char stats_buf[64];
-        snprintf(stats_buf, sizeof(stats_buf), "交互: %u次 | Token: %u | 专注: %um", interactions, tokens, focus_m);
+        snprintf(stats_buf, sizeof(stats_buf), "交互: %u次 | Token: %u | 专注: %um",
+                 (unsigned int)interactions, (unsigned int)tokens, (unsigned int)focus_m);
         lv_label_set_text(settings->lbl_agent_stats, stats_buf);
     }
     if (settings->lbl_nav_agent_sub) {
         char buf[64];
-        snprintf(buf, sizeof(buf), "DeepSeek\n交互: %u次", interactions);
+        snprintf(buf, sizeof(buf), "DeepSeek\n交互: %u次", (unsigned int)interactions);
         lv_label_set_text(settings->lbl_nav_agent_sub, buf);
     }
 

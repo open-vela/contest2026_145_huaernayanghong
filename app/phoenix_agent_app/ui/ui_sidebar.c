@@ -105,7 +105,7 @@ void ui_sidebar_refresh(ui_sidebar_t *sidebar) {
 
   /* 获取当前活跃卡带 ID */
   cartridge_t *cur = cartridge_mgr_get_current();
-  if (cur && cur->ops.id) {
+  if (cur && cur->ops.id[0] != '\0') {
     strncpy(sidebar->active_id, cur->ops.id, sizeof(sidebar->active_id) - 1);
   } else if (sidebar->active_id[0] == '\0') {
     strncpy(sidebar->active_id, "home", sizeof(sidebar->active_id) - 1);
@@ -119,7 +119,7 @@ void ui_sidebar_refresh(ui_sidebar_t *sidebar) {
       /* 如果未找到，尝试按索引兜底 */
       c = cartridge_mgr_get_by_index(i);
     }
-    if (!c || !c->ops.id)
+    if (!c || c->ops.id[0] == '\0')
       continue;
 
     ui_sidebar_item_t *it = &sidebar->items[sidebar->item_count];

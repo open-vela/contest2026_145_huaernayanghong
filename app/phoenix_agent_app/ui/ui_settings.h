@@ -69,20 +69,26 @@ typedef struct {
 
     /* 3.2 二级：系统遥测 */
     lv_obj_t *sec_sys_box;
+    lv_obj_t *card_sys_info;
+    lv_obj_t *lbl_sys_uptime;
+    lv_obj_t *lbl_sys_cpu;
+    lv_obj_t *lbl_sys_fps;
     lv_obj_t *lbl_sys_env;
     lv_obj_t *lbl_sys_load;
-    lv_obj_t *lbl_sys_uptime;
 
     /* 3.3 二级：Agent 模型 */
     lv_obj_t *sec_agent_box;
+    lv_obj_t *card_agent_info;
     lv_obj_t *lbl_agent_model;
     lv_obj_t *lbl_agent_stats;
     lv_obj_t *lbl_agent_last;
 
     /* 3.4 二级：存储看板 */
     lv_obj_t *sec_store_box;
+    lv_obj_t *card_store_info;
     lv_obj_t *lbl_store_sd;
     lv_obj_t *lbl_store_web;
+    lv_obj_t *lbl_store_desc;
 
     /* 兼容保留字段供外部单元测试/引用 */
     lv_obj_t *card_hotspot;

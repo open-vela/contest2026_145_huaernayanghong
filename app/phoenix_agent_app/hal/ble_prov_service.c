@@ -161,9 +161,10 @@ static void prov_disconnected_cb(gatts_handle_t srv_handle, bt_address_t *addr)
     printf("%s Web client disconnected from BLE GATT\n", TAG);
 }
 
-static gatts_cbs_t s_gatts_cbs = {
-    .service_connected_cb    = prov_connected_cb,
-    .service_disconnected_cb = prov_disconnected_cb,
+static gatts_callbacks_t s_gatts_cbs = {
+    .size            = sizeof(gatts_callbacks_t),
+    .on_connected    = prov_connected_cb,
+    .on_disconnected = prov_disconnected_cb,
 };
 
 static int send_raw_notify(const char *json_str)
@@ -172,9 +173,9 @@ static int send_raw_notify(const char *json_str)
         return -1;
     }
     size_t len = strlen(json_str);
-    bt_status_t status = bt_gatts_send_notification(s_gatts_handle, &s_connected_addr,
-                                                   PROV_CHAR_NOTIFY_ID,
-                                                   (uint8_t *)json_str, (uint16_t)len);
+    bt_status_t status = bt_gatts_notify(s_gatts_handle, &s_connected_addr,
+                                         PROV_CHAR_NOTIFY_ID,
+                                         (uint8_t *)json_str, (uint16_t)len);
     return (status == BT_STATUS_SUCCESS) ? 0 : -1;
 }
 
@@ -287,9 +288,11 @@ int ble_prov_service_init(const char *custom_dev_name)
         return -1;
     }
 
-    ret = bt_gatts_start_service(s_gatts_handle);
+    ret = bt_gatts_add_attr_table(s_gatts_handle, &s_prov_service_db);
     if (ret != BT_STATUS_SUCCESS) {
-        printf("%s Failed to start GATT service, ret: %d\n", TAG, ret);
+        printf("%s Failed to add GATT attribute table, ret: %d\n", TAG, ret);
+        bt_gatts_unregister_service(s_gatts_handle);
+        s_gatts_handle = NULL;
         pthread_mutex_unlock(&s_lock);
         return -1;
     }
@@ -309,7 +312,7 @@ void ble_prov_service_deinit(void)
     pthread_mutex_lock(&s_lock);
 #if (defined(CONFIG_BLUETOOTH_SERVER) || defined(CONFIG_BLUETOOTH)) && !defined(HOST_TEST_RUNNER)
     if (s_gatts_handle) {
-        bt_gatts_stop_service(s_gatts_handle);
+        bt_gatts_remove_attr_table(s_gatts_handle, PROV_SERVICE_ID);
         bt_gatts_unregister_service(s_gatts_handle);
         s_gatts_handle = NULL;
     }

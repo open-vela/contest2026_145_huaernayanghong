@@ -1623,6 +1623,103 @@ api_wifi.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_a
  /root/Workspace/OpenVela/nuttx/include/nuttx/spinlock_type.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/lib/lib.h \
  /root/Workspace/OpenVela/nuttx/include/stdlib.h
+ble_prov_service.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_agent_app.o: \
+ hal/ble_prov_service.c hal/ble_prov_service.h \
+ /root/Workspace/OpenVela/nuttx/include/stdint.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/config.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/compiler.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/types.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/inttypes.h \
+ /root/Workspace/OpenVela/nuttx/include/limits.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/limits.h \
+ /root/Workspace/OpenVela/nuttx/include/stdbool.h \
+ /root/Workspace/OpenVela/nuttx/include/stddef.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/types.h hal/network_mgr.h \
+ hal/../core/config.h hal/../harness/llm_provider.h \
+ hal/../harness/llm_types.h hal/../harness/llm_backend.h \
+ /root/Workspace/OpenVela/nuttx/include/stdio.h \
+ /root/Workspace/OpenVela/prebuilts/gcc/linux-x86_64/arm-none-eabi/lib/gcc/arm-none-eabi/13.4.0/include/stdarg.h \
+ /root/Workspace/OpenVela/nuttx/include/time.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/fs/fs.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/fs/ioctl.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/serial/tioctl.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/fs/uio.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/uio.h \
+ /root/Workspace/OpenVela/nuttx/include/dirent.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/atomic.h \
+ /root/Workspace/OpenVela/prebuilts/gcc/linux-x86_64/arm-none-eabi/lib/gcc/arm-none-eabi/13.4.0/include/stdatomic.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/mutex.h \
+ /root/Workspace/OpenVela/nuttx/include/assert.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/semaphore.h \
+ /root/Workspace/OpenVela/nuttx/include/errno.h \
+ /root/Workspace/OpenVela/nuttx/include/semaphore.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/queue.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/clock.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/timex.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/time.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/select.h \
+ /root/Workspace/OpenVela/nuttx/include/signal.h \
+ /root/Workspace/OpenVela/nuttx/include/string.h \
+ /root/Workspace/OpenVela/nuttx/include/alloca.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/lib/math32.h \
+ /root/Workspace/OpenVela/nuttx/include/inttypes.h \
+ /root/Workspace/OpenVela/nuttx/include/strings.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/macro.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/mm/map.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/mm/gran.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/spawn.h \
+ /root/Workspace/OpenVela/nuttx/include/spawn.h \
+ /root/Workspace/OpenVela/nuttx/include/sched.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/irq.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/irq.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/syscall.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/chip/irq.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/chip/chip.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/chip/r528_irq.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/armv7-a/irq.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/armv7-a/cp15.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/spinlock_type.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/lib/lib.h \
+ /root/Workspace/OpenVela/nuttx/include/stdlib.h \
+ /root/Workspace/OpenVela/nuttx/include/unistd.h \
+ /root/Workspace/OpenVela/nuttx/include/pthread.h \
+ /root/Workspace/OpenVela/apps/include/netutils/cJSON.h \
+ /root/Workspace/OpenVela/apps/frameworks/connectivity/bluetooth/framework/include/bluetooth.h \
+ /root/Workspace/OpenVela/apps/system/libuv/libuv/include/uv.h \
+ /root/Workspace/OpenVela/apps/system/libuv/libuv/include/uv/errno.h \
+ /root/Workspace/OpenVela/apps/system/libuv/libuv/include/uv/version.h \
+ /root/Workspace/OpenVela/apps/system/libuv/libuv/include/uv/unix.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/stat.h \
+ /root/Workspace/OpenVela/nuttx/include/fcntl.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/socket.h \
+ /root/Workspace/OpenVela/nuttx/include/netinet/in.h \
+ /root/Workspace/OpenVela/nuttx/include/endian.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/endian.h \
+ /root/Workspace/OpenVela/nuttx/include/netinet/tcp.h \
+ /root/Workspace/OpenVela/nuttx/include/arpa/inet.h \
+ /root/Workspace/OpenVela/nuttx/include/netdb.h \
+ /root/Workspace/OpenVela/nuttx/include/termios.h \
+ /root/Workspace/OpenVela/nuttx/include/pwd.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/param.h \
+ /root/Workspace/OpenVela/apps/system/libuv/libuv/include/uv/threadpool.h \
+ /root/Workspace/OpenVela/apps/system/libuv/libuv/include/uv/linux.h \
+ /root/Workspace/OpenVela/apps/frameworks/connectivity/bluetooth/framework/include/bt_addr.h \
+ /root/Workspace/OpenVela/apps/frameworks/connectivity/bluetooth/framework/include/bt_config.h \
+ /root/Workspace/OpenVela/apps/frameworks/connectivity/bluetooth/framework/include/bt_list.h \
+ /root/Workspace/OpenVela/apps/frameworks/connectivity/bluetooth/framework/include/bt_list_internal.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/list.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/list_type.h \
+ /root/Workspace/OpenVela/apps/frameworks/connectivity/bluetooth/framework/include/bt_profile.h \
+ /root/Workspace/OpenVela/apps/frameworks/connectivity/bluetooth/framework/include/bt_status.h \
+ /root/Workspace/OpenVela/apps/frameworks/connectivity/bluetooth/framework/include/bt_uuid.h \
+ /root/Workspace/OpenVela/apps/frameworks/connectivity/bluetooth/framework/include/callbacks_list.h \
+ /root/Workspace/OpenVela/apps/frameworks/connectivity/bluetooth/framework/include/uv_thread_loop.h \
+ /root/Workspace/OpenVela/apps/frameworks/connectivity/bluetooth/framework/include/bt_gatts.h \
+ /root/Workspace/OpenVela/apps/frameworks/connectivity/bluetooth/framework/include/bluetooth.h \
+ /root/Workspace/OpenVela/apps/frameworks/connectivity/bluetooth/framework/include/bt_gatt_defs.h \
+ /root/Workspace/OpenVela/apps/frameworks/connectivity/bluetooth/framework/include/bt_adapter.h \
+ /root/Workspace/OpenVela/apps/frameworks/connectivity/bluetooth/framework/include/bt_device.h \
+ /root/Workspace/OpenVela/apps/frameworks/connectivity/bluetooth/framework/include/bt_le_advertiser.h
 hal_actuator.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_agent_app.o: \
  hal/hal_actuator.c hal/hal_actuator.h hal/hal_types.h \
  /root/Workspace/OpenVela/nuttx/include/stdint.h \
@@ -1752,7 +1849,7 @@ hal_manager.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoeni
  hal/hal_actuator.h hal/hal_system.h \
  /root/Workspace/OpenVela/nuttx/include/sys/stat.h \
  /root/Workspace/OpenVela/nuttx/include/time.h hal/hal_sdcard.h \
- /root/Workspace/OpenVela/nuttx/include/stdio.h \
+ hal/ble_prov_service.h /root/Workspace/OpenVela/nuttx/include/stdio.h \
  /root/Workspace/OpenVela/prebuilts/gcc/linux-x86_64/arm-none-eabi/lib/gcc/arm-none-eabi/13.4.0/include/stdarg.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/fs.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/ioctl.h \
@@ -1986,6 +2083,8 @@ network_mgr.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoeni
  hal/../core/../harness/llm_backend.h hal/../utils/log_utils.h \
  hal/../utils/log_mgr.h \
  /root/Workspace/OpenVela/prebuilts/gcc/linux-x86_64/arm-none-eabi/lib/gcc/arm-none-eabi/13.4.0/include/stdarg.h \
+ /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/event_bus.h \
+ hal/ble_prov_service.h \
  /root/Workspace/OpenVela/apps/include/netutils/cJSON.h \
  /root/Workspace/OpenVela/nuttx/include/string.h \
  /root/Workspace/OpenVela/nuttx/include/alloca.h \
@@ -4530,7 +4629,7 @@ ui.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_agent_a
  /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_global.h \
  ui/eye_anim.h ui/ui_capsule.h ui/ui_stage.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/cartridge.h \
- ui/ui_settings.h \
+ ui/ui_settings.h ui/ui_sidebar.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/agent_core.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/event_bus.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/tool_registry.h \
@@ -5478,11 +5577,480 @@ ui_settings.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoeni
  /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../tick/lv_tick.h \
  /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../layouts/lv_layout.h \
  /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_global.h \
- ui/../hal/network_mgr.h ui/../core/config.h ui/../core/agent_core.h \
- ui/../core/event_bus.h ui/../core/tool_registry.h \
- ui/../core/../harness/llm_provider.h ui/../core/../harness/llm_types.h \
- ui/../core/../harness/llm_backend.h ui/../harness/llm_provider.h \
- ui/../utils/log_utils.h ui/../utils/log_mgr.h ui/../utils/time_utils.h \
+ ui/../hal/network_mgr.h ui/../hal/ble_prov_service.h ui/../core/config.h \
+ ui/../core/agent_core.h ui/../core/event_bus.h \
+ ui/../core/tool_registry.h ui/../core/../harness/llm_provider.h \
+ ui/../core/../harness/llm_types.h ui/../core/../harness/llm_backend.h \
+ ui/../harness/llm_provider.h ui/../utils/log_utils.h \
+ ui/../utils/log_mgr.h ui/../utils/time_utils.h \
+ /root/Workspace/OpenVela/nuttx/include/stdio.h \
+ /root/Workspace/OpenVela/nuttx/include/time.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/fs/fs.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/fs/ioctl.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/serial/tioctl.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/fs/uio.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/uio.h \
+ /root/Workspace/OpenVela/nuttx/include/dirent.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/atomic.h \
+ /root/Workspace/OpenVela/prebuilts/gcc/linux-x86_64/arm-none-eabi/lib/gcc/arm-none-eabi/13.4.0/include/stdatomic.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/mutex.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/semaphore.h \
+ /root/Workspace/OpenVela/nuttx/include/errno.h \
+ /root/Workspace/OpenVela/nuttx/include/semaphore.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/queue.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/clock.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/timex.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/time.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/select.h \
+ /root/Workspace/OpenVela/nuttx/include/signal.h \
+ /root/Workspace/OpenVela/nuttx/include/string.h \
+ /root/Workspace/OpenVela/nuttx/include/alloca.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/lib/math32.h \
+ /root/Workspace/OpenVela/nuttx/include/strings.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/macro.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/mm/map.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/mm/gran.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/spawn.h \
+ /root/Workspace/OpenVela/nuttx/include/spawn.h \
+ /root/Workspace/OpenVela/nuttx/include/sched.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/irq.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/irq.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/syscall.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/chip/irq.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/chip/chip.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/chip/r528_irq.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/armv7-a/irq.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/armv7-a/cp15.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/spinlock_type.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/lib/lib.h \
+ /root/Workspace/OpenVela/nuttx/include/stdlib.h
+ui_sidebar.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_agent_app.o: \
+ ui/ui_sidebar.c ui/ui_sidebar.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/lvgl.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/lv_init.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/lv_conf_kconfig.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/config.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../lv_conf_internal.h \
+ /root/Workspace/OpenVela/nuttx/include/stdint.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/compiler.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/types.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/inttypes.h \
+ /root/Workspace/OpenVela/nuttx/include/limits.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/limits.h \
+ /root/Workspace/OpenVela/nuttx/include/stddef.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/types.h \
+ /root/Workspace/OpenVela/nuttx/include/stdbool.h \
+ /root/Workspace/OpenVela/nuttx/include/inttypes.h \
+ /root/Workspace/OpenVela/prebuilts/gcc/linux-x86_64/arm-none-eabi/lib/gcc/arm-none-eabi/13.4.0/include/stdarg.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/stdlib/lv_mem.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/stdlib/../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/stdlib/lv_string.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/stdlib/../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/stdlib/lv_string.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/stdlib/lv_sprintf.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_log.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_timer.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../tick/lv_tick.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../tick/../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../tick/../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_ll.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_math.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_array.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_async.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_anim_timeline.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_anim.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_math.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_timer.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_profiler_builtin.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_rb.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_assert.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_log.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../stdlib/lv_mem.h \
+ /root/Workspace/OpenVela/nuttx/include/assert.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_text_ap.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_text.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_area.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/lv_font.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/lv_symbol_def.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../draw/lv_draw_buf.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../draw/../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../draw/../misc/lv_area.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../draw/../misc/lv_color.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../draw/../misc/../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../draw/../misc/lv_assert.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../draw/../misc/lv_math.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../draw/../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../draw/../misc/lv_palette.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../draw/../misc/lv_color.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../draw/../misc/lv_color_op.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../draw/../stdlib/lv_string.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../draw/lv_image_dsc.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../draw/../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../misc/lv_area.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../misc/cache/lv_cache.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../misc/cache/../lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../misc/cache/lv_cache_entry.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../misc/cache/../../osal/lv_os.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../misc/cache/../../osal/../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../misc/cache/../../osal/../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../misc/cache/../../osal/lv_os_none.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../misc/cache/lv_cache_private.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../misc/cache/clazz/lv_cache_clazz.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../misc/cache/clazz/lv_cache_lru_rb.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../misc/cache/clazz/../lv_cache_private.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../misc/cache/instance/lv_cache_instance.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../misc/cache/instance/lv_image_header_cache.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../misc/cache/instance/../../lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../font/../misc/cache/instance/lv_image_cache.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../stdlib/lv_sprintf.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/lv_draw.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/lv_style.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/../font/lv_font.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/lv_color.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/lv_area.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/lv_anim.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/lv_text.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/lv_assert.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/lv_bidi.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/../layouts/lv_layout.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/../layouts/../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/../layouts/../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/../layouts/flex/lv_flex.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/../layouts/flex/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/../layouts/flex/../../misc/lv_area.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/../layouts/grid/lv_grid.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/../layouts/grid/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/../layouts/grid/../../misc/lv_area.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/lv_style_gen.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/lv_text.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/lv_profiler.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/lv_matrix.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/lv_image_decoder.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/lv_draw_buf.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/lv_fs.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/lv_area.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/cache/lv_cache.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../osal/lv_os.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/lv_draw_rect.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/lv_draw.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/lv_color.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/sw/lv_draw_sw_gradient.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/sw/../../misc/lv_color.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/sw/../../misc/lv_style.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/lv_draw_label.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/../misc/lv_bidi.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/lv_draw_image.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/lv_draw_arc.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/lv_draw_line.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/lv_draw_triangle.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/lv_draw_mask.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_tree.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_utils.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/../draw/lv_draw_buf.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_iter.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_circle_buf.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/cache/lv_cache.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/misc/lv_linear_allocator.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/tick/lv_tick.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../misc/lv_style.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../misc/lv_area.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../misc/lv_color.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../misc/lv_assert.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_obj_tree.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../misc/lv_anim.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../display/lv_display.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../display/../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../display/../misc/lv_timer.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../display/../misc/lv_event.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../display/../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../display/../misc/../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../display/../misc/lv_array.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../display/../misc/lv_color.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../display/../draw/lv_draw.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_obj_pos.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_obj_scroll.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_obj_style.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../misc/lv_bidi.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_obj_style_gen.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../core/lv_obj_style.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_obj_draw.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/lv_draw.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_obj_class.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_obj_property.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_obj_event.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../misc/lv_event.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../indev/lv_indev.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../indev/../core/lv_group.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../indev/../core/../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../indev/../core/../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../indev/../core/../misc/lv_ll.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../indev/../misc/lv_area.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../indev/../misc/lv_timer.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../indev/../misc/lv_event.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_group.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_group.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/indev/lv_indev.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/indev/lv_indev_gesture.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/indev/../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_refr.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/display/lv_display.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/font/lv_font.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/font/lv_binfont_loader.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/font/lv_font_fmt_txt.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/font/lv_font.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/font/../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/animimage/lv_animimage.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/animimage/../image/lv_image.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/animimage/../image/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/animimage/../image/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/animimage/../image/../../misc/lv_fs.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/animimage/../image/../../draw/lv_draw.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/arc/lv_arc.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/arc/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/arc/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/arclabel/lv_arclabel.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/arclabel/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/bar/lv_bar.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/bar/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/bar/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/bar/../../misc/lv_anim.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/bar/../label/lv_label.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/bar/../label/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/bar/../label/../../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/bar/../label/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/bar/../label/../../font/lv_font.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/bar/../label/../../font/lv_symbol_def.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/bar/../label/../../misc/lv_text.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/bar/../label/../../draw/lv_draw.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/button/lv_button.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/button/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/button/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/buttonmatrix/lv_buttonmatrix.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/buttonmatrix/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/buttonmatrix/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/calendar/lv_calendar.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/calendar/../buttonmatrix/lv_buttonmatrix.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/calendar/lv_calendar_header_arrow.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/calendar/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/calendar/lv_calendar_header_dropdown.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/canvas/lv_canvas.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/canvas/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/canvas/../image/lv_image.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/canvas/../../draw/lv_draw_image.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/chart/lv_chart.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/chart/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/chart/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/checkbox/lv_checkbox.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/checkbox/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/checkbox/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/dropdown/lv_dropdown.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/dropdown/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/dropdown/../label/lv_label.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/image/lv_image.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/imagebutton/lv_imagebutton.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/imagebutton/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/keyboard/lv_keyboard.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/keyboard/../buttonmatrix/lv_buttonmatrix.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/label/lv_label.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/led/lv_led.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/led/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/line/lv_line.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/line/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/list/lv_list.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/list/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/lottie/lv_lottie.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/lottie/../../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/menu/lv_menu.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/menu/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/msgbox/lv_msgbox.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/msgbox/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/roller/lv_roller.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/roller/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/roller/../label/lv_label.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/scale/lv_scale.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/scale/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/scale/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/scale/../line/lv_line.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/scale/../image/lv_image.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/slider/lv_slider.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/slider/../bar/lv_bar.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/span/lv_span.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/span/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/span/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/spinbox/lv_spinbox.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/spinbox/../textarea/lv_textarea.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/spinbox/../textarea/../label/lv_label.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/spinner/lv_spinner.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/spinner/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/switch/lv_switch.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/switch/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/switch/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/table/lv_table.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/table/../label/lv_label.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/tabview/lv_tabview.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/tabview/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/tabview/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/textarea/lv_textarea.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/tileview/lv_tileview.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/tileview/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/win/lv_win.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/widgets/win/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/snapshot/lv_snapshot.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/snapshot/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/sysmon/lv_sysmon.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/sysmon/../../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/sysmon/../../others/observer/lv_observer.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/sysmon/../../others/observer/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/monkey/lv_monkey.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/monkey/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/monkey/../../indev/lv_indev.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/gridnav/lv_gridnav.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/gridnav/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/fragment/lv_fragment.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/fragment/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/imgfont/lv_imgfont.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/imgfont/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/imgfont/../../font/lv_font.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/observer/lv_observer.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/ime/lv_ime_pinyin.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/ime/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/ime/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/file_explorer/lv_file_explorer.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/file_explorer/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/file_explorer/../../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/remote_ctrl/lv_remote_ctrl.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/others/remote_ctrl/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/draw/lv_draw.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/draw/lv_draw_buf.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/draw/lv_draw_buf_blur.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/draw/../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/barcode/lv_barcode.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/barcode/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/barcode/../../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/barcode/../../misc/lv_color.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/barcode/../../widgets/canvas/lv_canvas.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/bin_decoder/lv_bin_decoder.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/bin_decoder/../../draw/lv_image_decoder.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/bmp/lv_bmp.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/bmp/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/rle/lv_rle.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/rle/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/fsdrv/lv_fsdrv.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/fsdrv/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/lodepng/lv_lodepng.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/lodepng/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/libpng/lv_libpng.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/libpng/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/gif/lv_gif.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/gif/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/qrcode/lv_qrcode.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/qrcode/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/tjpgd/lv_tjpgd.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/libjpeg_turbo/lv_libjpeg_turbo.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/libjpeg_turbo/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/freetype/lv_freetype.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/freetype/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/freetype/../../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/freetype/../../misc/lv_event.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/rlottie/lv_rlottie.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/rlottie/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/ffmpeg/lv_ffmpeg.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/ffmpeg/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/ffmpeg/../../widgets/image/lv_image.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/tiny_ttf/lv_tiny_ttf.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/tiny_ttf/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/svg/lv_svg.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/svg/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/libs/svg/lv_svg_render.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/layouts/lv_layout.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/themes/lv_theme.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/themes/../core/lv_obj.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/themes/default/lv_theme_default.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/themes/default/../lv_theme.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/themes/mono/lv_theme_mono.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/themes/mono/../lv_theme.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/themes/simple/lv_theme_simple.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/themes/simple/../lv_theme.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/themes/simple/../../display/lv_display.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/lv_drivers.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/sdl/lv_sdl_window.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/sdl/../../display/lv_display.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/sdl/../../indev/lv_indev.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/sdl/lv_sdl_mouse.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/sdl/lv_sdl_window.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/sdl/lv_sdl_mousewheel.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/sdl/lv_sdl_keyboard.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/x11/lv_x11.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/x11/../../display/lv_display.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/x11/../../indev/lv_indev.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/display/drm/lv_linux_drm.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/display/drm/../../../display/lv_display.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/display/fb/lv_linux_fbdev.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/display/fb/../../../display/lv_display.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/display/tft_espi/lv_tft_espi.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/display/tft_espi/../../../display/lv_display.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/nuttx/lv_nuttx_entry.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/nuttx/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/nuttx/../../display/lv_display.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/nuttx/../../indev/lv_indev.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/nuttx/lv_nuttx_fbdev.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/nuttx/lv_nuttx_touchscreen.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/nuttx/lv_nuttx_lcd.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/nuttx/lv_nuttx_libuv.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/evdev/lv_evdev.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/evdev/../../indev/lv_indev.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/libinput/lv_libinput.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/libinput/../../indev/lv_indev.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/windows/lv_windows_input.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/windows/../../display/lv_display.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/windows/../../indev/lv_indev.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/drivers/windows/lv_windows_display.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/lv_api_map_v8.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/lv_api_map_v9_0.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_global.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/sw/lv_draw_sw.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/sw/../lv_draw.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/sw/../../misc/lv_area.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/sw/../../misc/lv_color.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/sw/../../display/lv_display.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/sw/../../osal/lv_os.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/sw/blend/lv_draw_sw_blend.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/sw/blend/../lv_draw_sw_mask.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/sw/blend/../../../misc/lv_area.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/sw/blend/../../../misc/lv_color.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/sw/blend/../../../misc/lv_math.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/sw/blend/../../../misc/lv_types.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/sw/blend/../../../misc/lv_color.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/sw/blend/../../../misc/lv_area.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/sw/blend/../../../misc/lv_style.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../misc/lv_color_op.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../misc/lv_ll.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../misc/lv_log.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../misc/lv_timer.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../others/sysmon/lv_sysmon.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../stdlib/builtin/lv_tlsf.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../stdlib/builtin/../../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/lv_draw_task.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/../lv_conf_internal.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../draw/../stdlib/lv_mem.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../tick/lv_tick.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../layouts/lv_layout.h \
+ /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_global.h \
+ ui/../core/cartridge_mgr.h ui/../core/cartridge.h \
+ ui/../utils/log_utils.h ui/../utils/log_mgr.h \
  /root/Workspace/OpenVela/nuttx/include/stdio.h \
  /root/Workspace/OpenVela/nuttx/include/time.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/fs.h \
@@ -7382,7 +7950,9 @@ cartridge_familiar.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/cartridge_mgr.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/cartridge.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/event_bus.h \
+ /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/store.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/config.h \
+ /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/time_utils.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/log_utils.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/log_mgr.h \
  /root/Workspace/OpenVela/nuttx/include/stdio.h \
@@ -9342,6 +9912,7 @@ test_autodrive.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.pho
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/ui/ui_stage.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/cartridge.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/ui/ui_settings.h \
+ /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/ui/ui_sidebar.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/agent_core.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/event_bus.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/tool_registry.h \
@@ -9843,7 +10414,7 @@ main.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_agent
  core/web_portal.h core/agent_core.h ui/ui.h ui/eye_anim.h \
  ui/ui_capsule.h ui/ui_stage.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/cartridge.h \
- ui/ui_settings.h \
+ ui/ui_settings.h ui/ui_sidebar.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/agent_core.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/event_bus.h \
  test/test_autodrive.h \
@@ -9866,6 +10437,20 @@ main.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_agent
  /root/Workspace/OpenVela/nuttx/include/pthread.h \
  /root/Workspace/OpenVela/apps/system/libuv/libuv/include/uv/threadpool.h \
  /root/Workspace/OpenVela/apps/system/libuv/libuv/include/uv/linux.h \
- /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/ui/ui.h
+ /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/ui/ui.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/ioctl.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/net/ioctl.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/wireless/wireless.h \
+ /root/Workspace/OpenVela/nuttx/include/net/if.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/input/ioctl.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/wireless/ioctl.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/lcd/lcd_dev.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/lcd/lcd.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/video/fb.h \
+ /root/Workspace/OpenVela/nuttx/include/debug.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/streams.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/mtd/mtd.h \
+ /root/Workspace/OpenVela/nuttx/include/syslog.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/ratelimit.h
 # No files specified for dependency generation
 # No files specified for dependency generation
