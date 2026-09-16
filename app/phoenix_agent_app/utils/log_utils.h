@@ -19,36 +19,43 @@
 #define PHOENIX_LOG_COLOR_PURPLE  "\033[35m"
 
 /* 编译时最高使能日志级别裁剪 (默认开启全部级别，由运行时过滤) */
+#define PHOENIX_LOG_LVL_NONE    0
+#define PHOENIX_LOG_LVL_ERROR   1
+#define PHOENIX_LOG_LVL_WARN    2
+#define PHOENIX_LOG_LVL_INFO    3
+#define PHOENIX_LOG_LVL_DEBUG   4
+#define PHOENIX_LOG_LVL_VERBOSE 5
+
 #ifndef PHOENIX_LOG_COMPILE_LEVEL
-#define PHOENIX_LOG_COMPILE_LEVEL PHOENIX_LOG_VERBOSE
+#define PHOENIX_LOG_COMPILE_LEVEL PHOENIX_LOG_LVL_VERBOSE
 #endif
 
 /* 标准模块级日志宏 (100% 向后兼容全工程历史代码) */
-#if (PHOENIX_LOG_COMPILE_LEVEL >= PHOENIX_LOG_ERROR)
+#if (PHOENIX_LOG_COMPILE_LEVEL >= PHOENIX_LOG_LVL_ERROR)
 #define LOG_E(tag, fmt, ...) phoenix_log_write(PHOENIX_LOG_ERROR, tag, fmt, ##__VA_ARGS__)
 #else
 #define LOG_E(tag, fmt, ...) ((void)0)
 #endif
 
-#if (PHOENIX_LOG_COMPILE_LEVEL >= PHOENIX_LOG_WARN)
+#if (PHOENIX_LOG_COMPILE_LEVEL >= PHOENIX_LOG_LVL_WARN)
 #define LOG_W(tag, fmt, ...) phoenix_log_write(PHOENIX_LOG_WARN, tag, fmt, ##__VA_ARGS__)
 #else
 #define LOG_W(tag, fmt, ...) ((void)0)
 #endif
 
-#if (PHOENIX_LOG_COMPILE_LEVEL >= PHOENIX_LOG_INFO)
+#if (PHOENIX_LOG_COMPILE_LEVEL >= PHOENIX_LOG_LVL_INFO)
 #define LOG_I(tag, fmt, ...) phoenix_log_write(PHOENIX_LOG_INFO, tag, fmt, ##__VA_ARGS__)
 #else
 #define LOG_I(tag, fmt, ...) ((void)0)
 #endif
 
-#if (PHOENIX_LOG_COMPILE_LEVEL >= PHOENIX_LOG_DEBUG)
+#if (PHOENIX_LOG_COMPILE_LEVEL >= PHOENIX_LOG_LVL_DEBUG)
 #define LOG_D(tag, fmt, ...) phoenix_log_write(PHOENIX_LOG_DEBUG, tag, fmt, ##__VA_ARGS__)
 #else
 #define LOG_D(tag, fmt, ...) ((void)0)
 #endif
 
-#if (PHOENIX_LOG_COMPILE_LEVEL >= PHOENIX_LOG_VERBOSE)
+#if (PHOENIX_LOG_COMPILE_LEVEL >= PHOENIX_LOG_LVL_VERBOSE)
 #define LOG_V(tag, fmt, ...) phoenix_log_write(PHOENIX_LOG_VERBOSE, tag, fmt, ##__VA_ARGS__)
 #else
 #define LOG_V(tag, fmt, ...) ((void)0)

@@ -836,7 +836,7 @@ int net_mgr_scan_wifi(net_wifi_ap_info_t *aps_out, size_t max_count)
     int sock = wapi_make_socket();
     if (sock >= 0) {
         LOG_I(TAG, "📡 正在通过物理网卡 wlan0 发起实时空中 Wi-Fi 扫描...");
-        int ret = wapi_scan_init(sock, "wlan0");
+        int ret = wapi_scan_init(sock, "wlan0", NULL);
         if (ret >= 0) {
             /* 轮询等待驱动空中抓包完成 (通常耗时 300ms ~ 1.2s) */
             int tries = 15;

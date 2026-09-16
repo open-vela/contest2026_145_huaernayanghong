@@ -1,4 +1,64 @@
 # Gen Make.dep automatically
+log_mgr.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_agent_app.o: \
+ utils/log_mgr.c utils/log_mgr.h \
+ /root/Workspace/OpenVela/nuttx/include/stddef.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/types.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/config.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/compiler.h \
+ /root/Workspace/OpenVela/nuttx/include/stdint.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/types.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/inttypes.h \
+ /root/Workspace/OpenVela/nuttx/include/limits.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/limits.h \
+ /root/Workspace/OpenVela/nuttx/include/stdbool.h \
+ /root/Workspace/OpenVela/prebuilts/gcc/linux-x86_64/arm-none-eabi/lib/gcc/arm-none-eabi/13.4.0/include/stdarg.h \
+ /root/Workspace/OpenVela/nuttx/include/stdio.h \
+ /root/Workspace/OpenVela/nuttx/include/time.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/fs/fs.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/fs/ioctl.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/serial/tioctl.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/fs/uio.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/uio.h \
+ /root/Workspace/OpenVela/nuttx/include/dirent.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/atomic.h \
+ /root/Workspace/OpenVela/prebuilts/gcc/linux-x86_64/arm-none-eabi/lib/gcc/arm-none-eabi/13.4.0/include/stdatomic.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/mutex.h \
+ /root/Workspace/OpenVela/nuttx/include/assert.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/semaphore.h \
+ /root/Workspace/OpenVela/nuttx/include/errno.h \
+ /root/Workspace/OpenVela/nuttx/include/semaphore.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/queue.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/clock.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/timex.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/time.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/select.h \
+ /root/Workspace/OpenVela/nuttx/include/signal.h \
+ /root/Workspace/OpenVela/nuttx/include/string.h \
+ /root/Workspace/OpenVela/nuttx/include/alloca.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/lib/math32.h \
+ /root/Workspace/OpenVela/nuttx/include/inttypes.h \
+ /root/Workspace/OpenVela/nuttx/include/strings.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/macro.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/mm/map.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/mm/gran.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/spawn.h \
+ /root/Workspace/OpenVela/nuttx/include/spawn.h \
+ /root/Workspace/OpenVela/nuttx/include/sched.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/irq.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/irq.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/syscall.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/chip/irq.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/chip/chip.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/chip/r528_irq.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/armv7-a/irq.h \
+ /root/Workspace/OpenVela/nuttx/include/arch/armv7-a/cp15.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/spinlock_type.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/lib/lib.h \
+ /root/Workspace/OpenVela/nuttx/include/stdlib.h \
+ /root/Workspace/OpenVela/nuttx/include/pthread.h \
+ /root/Workspace/OpenVela/nuttx/include/unistd.h \
+ /root/Workspace/OpenVela/nuttx/include/syslog.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/ratelimit.h
 ring_buffer.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_agent_app.o: \
  utils/ring_buffer.c utils/ring_buffer.h \
  /root/Workspace/OpenVela/nuttx/include/stdint.h \
@@ -129,7 +189,9 @@ agent_core.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix
  /root/Workspace/OpenVela/nuttx/include/arch/armv7-a/cp15.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/spinlock_type.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/lib/lib.h \
- /root/Workspace/OpenVela/nuttx/include/stdlib.h
+ /root/Workspace/OpenVela/nuttx/include/stdlib.h \
+ /root/Workspace/OpenVela/nuttx/include/pthread.h \
+ /root/Workspace/OpenVela/nuttx/include/unistd.h
 app.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_agent_app.o: \
  core/app.c core/app.h /root/Workspace/OpenVela/nuttx/include/stdint.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/config.h \
@@ -557,17 +619,20 @@ app.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_agent_
  /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../tick/lv_tick.h \
  /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/../layouts/lv_layout.h \
  /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/src/core/lv_global.h \
- core/../cartridges/cartridge_clock.h \
+ core/../cartridges/cartridge_familiar.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/cartridge.h \
- core/../cartridges/cartridge_agent.h core/web_portal.h core/agent_core.h \
- core/../harness/llm_provider.h core/../harness/llm_types.h \
- core/../harness/llm_backend.h core/../utils/time_utils.h \
- core/../tools/tools.h core/../tools/../core/tool_registry.h \
- core/../hal/hal_manager.h core/../hal/hal_driver.h \
- core/../hal/hal_types.h core/../hal/hal_sensor.h \
- core/../hal/hal_actuator.h core/../hal/hal_system.h \
- core/../perception/perception.h core/../voice/voice_pipeline.h \
- core/../hal/network_mgr.h /root/Workspace/OpenVela/nuttx/include/stdio.h \
+ core/../cartridges/cartridge_clock.h core/../cartridges/cartridge_zen.h \
+ core/../cartridges/cartridge_memo.h core/../cartridges/cartridge_agent.h \
+ core/web_portal.h core/agent_core.h core/../harness/llm_provider.h \
+ core/../harness/llm_types.h core/../harness/llm_backend.h \
+ core/../utils/time_utils.h core/../tools/tools.h \
+ core/../tools/../core/tool_registry.h core/../hal/hal_manager.h \
+ core/../hal/hal_driver.h core/../hal/hal_types.h \
+ core/../hal/hal_sensor.h core/../hal/hal_actuator.h \
+ core/../hal/hal_system.h core/../perception/perception.h \
+ core/../voice/voice_pipeline.h core/../hal/network_mgr.h \
+ core/../utils/log_utils.h core/../utils/log_mgr.h \
+ /root/Workspace/OpenVela/nuttx/include/stdio.h \
  /root/Workspace/OpenVela/nuttx/include/time.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/fs.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/ioctl.h \
@@ -620,9 +685,12 @@ cartridge_mgr.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoe
  /root/Workspace/OpenVela/nuttx/include/stdbool.h \
  /root/Workspace/OpenVela/nuttx/include/stddef.h \
  /root/Workspace/OpenVela/nuttx/include/sys/types.h core/event_bus.h \
- core/config.h core/../utils/log_utils.h \
- /root/Workspace/OpenVela/nuttx/include/stdio.h \
+ core/config.h core/../utils/log_utils.h core/../utils/log_mgr.h \
  /root/Workspace/OpenVela/prebuilts/gcc/linux-x86_64/arm-none-eabi/lib/gcc/arm-none-eabi/13.4.0/include/stdarg.h \
+ core/../utils/time_utils.h \
+ /root/Workspace/OpenVela/nuttx/include/string.h \
+ /root/Workspace/OpenVela/nuttx/include/alloca.h \
+ /root/Workspace/OpenVela/nuttx/include/stdio.h \
  /root/Workspace/OpenVela/nuttx/include/time.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/fs.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/ioctl.h \
@@ -643,8 +711,6 @@ cartridge_mgr.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoe
  /root/Workspace/OpenVela/nuttx/include/sys/time.h \
  /root/Workspace/OpenVela/nuttx/include/sys/select.h \
  /root/Workspace/OpenVela/nuttx/include/signal.h \
- /root/Workspace/OpenVela/nuttx/include/string.h \
- /root/Workspace/OpenVela/nuttx/include/alloca.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/lib/math32.h \
  /root/Workspace/OpenVela/nuttx/include/inttypes.h \
  /root/Workspace/OpenVela/nuttx/include/strings.h \
@@ -665,7 +731,6 @@ cartridge_mgr.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoe
  /root/Workspace/OpenVela/nuttx/include/nuttx/spinlock_type.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/lib/lib.h \
  /root/Workspace/OpenVela/nuttx/include/stdlib.h \
- core/../utils/time_utils.h \
  /root/Workspace/OpenVela/nuttx/include/pthread.h \
  /root/Workspace/OpenVela/nuttx/include/unistd.h
 config.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_agent_app.o: \
@@ -1042,11 +1107,12 @@ web_portal.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix
  core/../harness/llm_provider.h core/../harness/llm_types.h \
  core/../harness/llm_backend.h core/store.h core/config.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/harness/llm_provider.h \
- core/../hal/network_mgr.h core/cartridge_mgr.h core/cartridge.h \
+ core/../hal/network_mgr.h core/../utils/log_mgr.h \
+ /root/Workspace/OpenVela/prebuilts/gcc/linux-x86_64/arm-none-eabi/lib/gcc/arm-none-eabi/13.4.0/include/stdarg.h \
+ core/cartridge_mgr.h core/cartridge.h \
  core/../cartridges/cartridge_memo.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/cartridge.h \
  /root/Workspace/OpenVela/nuttx/include/stdio.h \
- /root/Workspace/OpenVela/prebuilts/gcc/linux-x86_64/arm-none-eabi/lib/gcc/arm-none-eabi/13.4.0/include/stdarg.h \
  /root/Workspace/OpenVela/nuttx/include/time.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/fs.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/ioctl.h \
@@ -1096,6 +1162,8 @@ web_portal.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix
  /root/Workspace/OpenVela/nuttx/include/endian.h \
  /root/Workspace/OpenVela/nuttx/include/sys/endian.h \
  /root/Workspace/OpenVela/nuttx/include/arpa/inet.h \
+ /root/Workspace/OpenVela/nuttx/include/poll.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/poll.h \
  /root/Workspace/OpenVela/apps/include/netutils/cJSON.h core/web_assets.h
 hal_actuator.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_agent_app.o: \
  hal/hal_actuator.c hal/hal_actuator.h hal/hal_types.h \
@@ -1395,9 +1463,13 @@ network_mgr.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoeni
  hal/../core/web_portal.h hal/../core/agent_core.h \
  hal/../core/event_bus.h hal/../core/tool_registry.h \
  hal/../core/../harness/llm_provider.h hal/../core/../harness/llm_types.h \
- hal/../core/../harness/llm_backend.h hal/../core/event_bus.h \
- hal/../utils/log_utils.h /root/Workspace/OpenVela/nuttx/include/stdio.h \
+ hal/../core/../harness/llm_backend.h hal/../utils/log_utils.h \
+ hal/../utils/log_mgr.h \
  /root/Workspace/OpenVela/prebuilts/gcc/linux-x86_64/arm-none-eabi/lib/gcc/arm-none-eabi/13.4.0/include/stdarg.h \
+ /root/Workspace/OpenVela/apps/include/netutils/cJSON.h \
+ /root/Workspace/OpenVela/nuttx/include/string.h \
+ /root/Workspace/OpenVela/nuttx/include/alloca.h \
+ /root/Workspace/OpenVela/nuttx/include/stdio.h \
  /root/Workspace/OpenVela/nuttx/include/time.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/fs.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/ioctl.h \
@@ -1418,8 +1490,6 @@ network_mgr.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoeni
  /root/Workspace/OpenVela/nuttx/include/sys/time.h \
  /root/Workspace/OpenVela/nuttx/include/sys/select.h \
  /root/Workspace/OpenVela/nuttx/include/signal.h \
- /root/Workspace/OpenVela/nuttx/include/string.h \
- /root/Workspace/OpenVela/nuttx/include/alloca.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/lib/math32.h \
  /root/Workspace/OpenVela/nuttx/include/inttypes.h \
  /root/Workspace/OpenVela/nuttx/include/strings.h \
@@ -1441,7 +1511,21 @@ network_mgr.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoeni
  /root/Workspace/OpenVela/nuttx/include/nuttx/lib/lib.h \
  /root/Workspace/OpenVela/nuttx/include/stdlib.h \
  /root/Workspace/OpenVela/nuttx/include/pthread.h \
- /root/Workspace/OpenVela/nuttx/include/unistd.h
+ /root/Workspace/OpenVela/nuttx/include/unistd.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/stat.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/socket.h \
+ /root/Workspace/OpenVela/nuttx/include/netinet/in.h \
+ /root/Workspace/OpenVela/nuttx/include/endian.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/endian.h \
+ /root/Workspace/OpenVela/nuttx/include/arpa/inet.h \
+ /root/Workspace/OpenVela/nuttx/include/net/if.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/ioctl.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/net/ioctl.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/wireless/wireless.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/input/ioctl.h \
+ /root/Workspace/OpenVela/nuttx/include/nuttx/wireless/ioctl.h \
+ /root/Workspace/OpenVela/apps/include/wireless/wapi.h \
+ /root/Workspace/OpenVela/nuttx/include/net/ethernet.h
 hal_driver_mock.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_agent_app.o: \
  hal/drivers/hal_driver_mock.c hal/drivers/hal_driver_mock.h \
  /root/Workspace/OpenVela/nuttx/include/stdint.h \
@@ -2446,6 +2530,13 @@ llm_cloud_backend.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.
  /root/Workspace/OpenVela/nuttx/include/nuttx/spinlock_type.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/lib/lib.h \
  /root/Workspace/OpenVela/nuttx/include/stdlib.h \
+ /root/Workspace/OpenVela/nuttx/include/unistd.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/socket.h \
+ /root/Workspace/OpenVela/nuttx/include/netinet/in.h \
+ /root/Workspace/OpenVela/nuttx/include/endian.h \
+ /root/Workspace/OpenVela/nuttx/include/sys/endian.h \
+ /root/Workspace/OpenVela/nuttx/include/arpa/inet.h \
+ /root/Workspace/OpenVela/nuttx/include/netdb.h \
  /root/Workspace/OpenVela/apps/include/netutils/cJSON.h
 llm_mock_backend.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_agent_app.o: \
  harness/llm_mock_backend.c harness/llm_mock_backend.h \
@@ -4864,7 +4955,8 @@ ui_settings.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoeni
  ui/../core/event_bus.h ui/../core/tool_registry.h \
  ui/../core/../harness/llm_provider.h ui/../core/../harness/llm_types.h \
  ui/../core/../harness/llm_backend.h ui/../harness/llm_provider.h \
- ui/../utils/log_utils.h /root/Workspace/OpenVela/nuttx/include/stdio.h \
+ ui/../utils/log_utils.h ui/../utils/log_mgr.h ui/../utils/time_utils.h \
+ /root/Workspace/OpenVela/nuttx/include/stdio.h \
  /root/Workspace/OpenVela/nuttx/include/time.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/fs.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/ioctl.h \
@@ -4904,7 +4996,7 @@ ui_settings.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoeni
  /root/Workspace/OpenVela/nuttx/include/arch/armv7-a/cp15.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/spinlock_type.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/lib/lib.h \
- /root/Workspace/OpenVela/nuttx/include/stdlib.h ui/../utils/time_utils.h
+ /root/Workspace/OpenVela/nuttx/include/stdlib.h
 ui_stage.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_agent_app.o: \
  ui/ui_stage.c ui/ui_stage.h \
  /root/Workspace/OpenVela/apps/graphics/lvgl/lvgl/lvgl.h \
@@ -5812,6 +5904,8 @@ cartridge_agent.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.ph
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/../harness/llm_backend.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/tool_registry.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/log_utils.h \
+ /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/log_mgr.h \
+ /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/hal/hal_types.h \
  /root/Workspace/OpenVela/nuttx/include/stdio.h \
  /root/Workspace/OpenVela/nuttx/include/time.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/fs.h \
@@ -5852,8 +5946,7 @@ cartridge_agent.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.ph
  /root/Workspace/OpenVela/nuttx/include/arch/armv7-a/cp15.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/spinlock_type.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/lib/lib.h \
- /root/Workspace/OpenVela/nuttx/include/stdlib.h \
- /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/hal/hal_types.h
+ /root/Workspace/OpenVela/nuttx/include/stdlib.h
 cartridge_clock.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_agent_app.o: \
  cartridges/cartridge_clock.c cartridges/cartridge_clock.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/cartridge.h \
@@ -6287,6 +6380,7 @@ cartridge_clock.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.ph
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/tool_registry.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/time_utils.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/log_utils.h \
+ /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/log_mgr.h \
  /root/Workspace/OpenVela/nuttx/include/stdio.h \
  /root/Workspace/OpenVela/nuttx/include/time.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/fs.h \
@@ -6761,6 +6855,7 @@ cartridge_familiar.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/event_bus.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/config.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/log_utils.h \
+ /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/log_mgr.h \
  /root/Workspace/OpenVela/nuttx/include/stdio.h \
  /root/Workspace/OpenVela/nuttx/include/time.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/fs.h \
@@ -7236,6 +7331,7 @@ cartridge_home.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.pho
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/tool_registry.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/time_utils.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/log_utils.h \
+ /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/log_mgr.h \
  /root/Workspace/OpenVela/nuttx/include/stdio.h \
  /root/Workspace/OpenVela/nuttx/include/time.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/fs.h \
@@ -7708,6 +7804,7 @@ cartridge_memo.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.pho
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/cartridge.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/event_bus.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/log_utils.h \
+ /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/log_mgr.h \
  /root/Workspace/OpenVela/nuttx/include/stdio.h \
  /root/Workspace/OpenVela/nuttx/include/time.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/fs.h \
@@ -8182,6 +8279,7 @@ cartridge_zen.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoe
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/tool_registry.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/store.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/log_utils.h \
+ /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/log_mgr.h \
  /root/Workspace/OpenVela/nuttx/include/stdio.h \
  /root/Workspace/OpenVela/nuttx/include/time.h \
  /root/Workspace/OpenVela/nuttx/include/nuttx/fs/fs.h \
@@ -8741,7 +8839,8 @@ test_autodrive.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.pho
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/store.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/tool_registry.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/expression.h \
- /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/log_utils.h
+ /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/log_utils.h \
+ /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/utils/log_mgr.h
 main.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_agent_app.o: \
  main.c /root/Workspace/OpenVela/nuttx/include/nuttx/config.h \
  /root/Workspace/OpenVela/nuttx/include/stdio.h \
@@ -9211,8 +9310,9 @@ main.c.root.Workspace.OpenVela.contest2026_145_huaernayanghong.app.phoenix_agent
  /root/Workspace/OpenVela/nuttx/include/sys/boardctl.h core/app.h \
  core/event_bus.h core/tool_registry.h core/agent_core.h core/event_bus.h \
  core/tool_registry.h core/../harness/llm_provider.h \
- core/../harness/llm_types.h core/../harness/llm_backend.h ui/ui.h \
- ui/eye_anim.h ui/ui_capsule.h ui/ui_stage.h \
+ core/../harness/llm_types.h core/../harness/llm_backend.h \
+ core/web_portal.h core/agent_core.h ui/ui.h ui/eye_anim.h \
+ ui/ui_capsule.h ui/ui_stage.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/cartridge.h \
  ui/ui_settings.h \
  /root/Workspace/OpenVela/contest2026_145_huaernayanghong/app/phoenix_agent_app/core/agent_core.h \

@@ -1,1 +1,9 @@
 app/phoenix_agent_app/test/phoenix_host_test
+*.o
+*.a
+*.elf
+*.hex
+*.map
+.built
+build/
+out/
