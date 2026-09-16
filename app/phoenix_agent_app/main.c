@@ -172,7 +172,7 @@ static void lcd_rounder_cb(lv_event_t *e)
 
 static void lcd_flush_cb(lv_display_t *disp, const lv_area_t *area_p, uint8_t *color_p)
 {
-    phoenix_lcd_dev_t *lcd = disp->driver_data;
+    phoenix_lcd_dev_t *lcd = lv_display_get_driver_data(disp);
     if (!lcd || lcd->fd < 0) {
         lv_display_flush_ready(disp);
         return;
