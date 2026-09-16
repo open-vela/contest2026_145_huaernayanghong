@@ -8,6 +8,11 @@
 #include "network_mgr.h"
 #include "../core/config.h"
 #include "../harness/llm_provider.h"
+#if defined(__has_include) && __has_include("utils/log_utils.h")
+#  include "utils/log_utils.h"
+#else
+#  include "../utils/log_utils.h"
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,7 +37,7 @@
 #  include <netutils/cJSON.h>
 #endif
 
-#define TAG "[BLE_PROV]"
+#define TAG "BLE_PROV"
 
 #define BLE_PROV_INFO_STR "OpenVela Gemini-S1 (Phoenix Agent S1) FW-v1.2.0"
 
@@ -59,7 +64,7 @@ static bt_address_t s_connected_addr;
 static bool s_has_connected_client = false;
 static uint8_t s_cccd_notify_enabled = 0;
 
-static void handle_rx_payload(const uint8_t *payload, uint16_t length);
+static void handle_rx_payload(const uint8_t *payload, uint16_t length) __attribute__((unused));
 
 static uint16_t prov_notify_ccc_changed(void *srv_handle, bt_address_t *addr,
                                         uint16_t attr_handle, const uint8_t *value,
@@ -69,7 +74,7 @@ static uint16_t prov_notify_ccc_changed(void *srv_handle, bt_address_t *addr,
     (void)offset;
     if (length > 0) {
         s_cccd_notify_enabled = value[0];
-        printf("%s CCCD updated: 0x%02x, remote addr valid\n", TAG, s_cccd_notify_enabled);
+        LOG_D(TAG, "CCCD updated: 0x%02x, remote addr valid", s_cccd_notify_enabled);
         if (addr) {
             memcpy(&s_connected_addr, addr, sizeof(bt_address_t));
             s_has_connected_client = true;
@@ -144,7 +149,7 @@ static void prov_connected_cb(gatts_handle_t srv_handle, bt_address_t *addr)
     }
     s_ble_state = BLE_PROV_STATE_CONNECTED;
     pthread_mutex_unlock(&s_lock);
-    printf("%s Web client connected over BLE GATT\n", TAG);
+    LOG_I(TAG, "Web client connected over BLE GATT");
 }
 
 static void prov_disconnected_cb(gatts_handle_t srv_handle, bt_address_t *addr)
@@ -158,7 +163,7 @@ static void prov_disconnected_cb(gatts_handle_t srv_handle, bt_address_t *addr)
         s_ble_state = BLE_PROV_STATE_ADVERTISING;
     }
     pthread_mutex_unlock(&s_lock);
-    printf("%s Web client disconnected from BLE GATT\n", TAG);
+    LOG_I(TAG, "Web client disconnected from BLE GATT");
 }
 
 static gatts_callbacks_t s_gatts_cbs = {
@@ -183,7 +188,7 @@ static int send_raw_notify(const char *json_str)
 /* 模拟桩实现 (HOST_TEST_RUNNER / 桌面环境) */
 static int send_raw_notify(const char *json_str)
 {
-    printf("%s [MOCK NOTIFY -> Web] %s\n", TAG, json_str);
+    LOG_I(TAG, "[MOCK NOTIFY -> Web] %s", json_str);
     return 0;
 }
 #endif
@@ -191,6 +196,7 @@ static int send_raw_notify(const char *json_str)
 /**
  * @brief 解析来自 Web 客户端写入的 JSON 指令
  */
+static void handle_rx_payload(const uint8_t *payload, uint16_t length) __attribute__((unused));
 static void handle_rx_payload(const uint8_t *payload, uint16_t length)
 {
     if (!payload || length == 0) return;
@@ -201,12 +207,12 @@ static void handle_rx_payload(const uint8_t *payload, uint16_t length)
     memcpy(buf, payload, length);
     buf[length] = '\0';
 
-    printf("%s Received Web BLE command: %s\n", TAG, buf);
+    LOG_I(TAG, "Received Web BLE command: %s", buf);
 
     cJSON *root = cJSON_Parse(buf);
     free(buf);
     if (!root) {
-        printf("%s Failed to parse JSON command\n", TAG);
+        LOG_W(TAG, "Failed to parse JSON command");
         return;
     }
 
@@ -296,23 +302,23 @@ int ble_prov_service_init(const char *custom_dev_name)
 
     bt_status_t ret = bt_gatts_register_service(s_bt_ins, &s_gatts_handle, &s_gatts_cbs);
     if (ret != BT_STATUS_SUCCESS) {
-        printf("%s Failed to register GATT service, ret: %d\n", TAG, ret);
+        LOG_E(TAG, "Failed to register GATT service, ret: %d", ret);
         pthread_mutex_unlock(&s_lock);
         return -1;
     }
 
     ret = bt_gatts_add_attr_table(s_gatts_handle, &s_prov_service_db);
     if (ret != BT_STATUS_SUCCESS) {
-        printf("%s Failed to add GATT attribute table, ret: %d\n", TAG, ret);
+        LOG_E(TAG, "Failed to add GATT attribute table, ret: %d", ret);
         bt_gatts_unregister_service(s_gatts_handle);
         s_gatts_handle = NULL;
         pthread_mutex_unlock(&s_lock);
         return -1;
     }
 
-    printf("%s BLE Provisioning GATT service started successfully (Device: %s)\n", TAG, s_dev_name);
+    LOG_I(TAG, "BLE Provisioning GATT service started successfully (Device: %s)", s_dev_name);
 #else
-    printf("%s BLE Provisioning service initialized (Mock / Host Test Mode: %s)\n", TAG, s_dev_name);
+    LOG_I(TAG, "BLE Provisioning service initialized (Mock / Host Test Mode: %s)", s_dev_name);
 #endif
 
     s_ble_state = BLE_PROV_STATE_ADVERTISING;
@@ -336,7 +342,7 @@ void ble_prov_service_deinit(void)
 #endif
     s_ble_state = BLE_PROV_STATE_STOPPED;
     pthread_mutex_unlock(&s_lock);
-    printf("%s BLE Provisioning service stopped\n", TAG);
+    LOG_I(TAG, "BLE Provisioning service stopped");
 }
 
 ble_prov_state_t ble_prov_service_get_state(void)

@@ -15,7 +15,7 @@ extern "C" {
 #include <stdbool.h>
 
 #define UI_SIDEBAR_WIDTH 46
-#define UI_SIDEBAR_MAX_ITEMS 6
+#define UI_SIDEBAR_MAX_ITEMS 8
 
 typedef struct {
     char id[16];

@@ -6,10 +6,17 @@
 
 #include "hal_actuator.h"
 #include "hal_driver.h"
+#if defined(__has_include) && __has_include("utils/log_utils.h")
+#  include "utils/log_utils.h"
+#else
+#  include "../utils/log_utils.h"
+#endif
 #include <stdio.h>
 #include <string.h>
 #include <sys/time.h>
 #include <pthread.h>
+
+#define TAG "HAL:Actuator"
 
 static uint8_t g_current_volume = 80;
 static uint64_t g_last_sound_time_ms = 0;
@@ -66,7 +73,7 @@ int hal_actuator_play_sound(hal_sound_type_t sound_type)
         ret = drv->actuator_ops.play_sound(sound_type);
     } else {
         /* Fallback console log */
-        printf("[HAL:Actuator] Play sound ID %d (Vol: %d%%)\n", (int)sound_type, g_current_volume);
+        LOG_I(TAG, "Play sound ID %d (Vol: %d%%)", (int)sound_type, g_current_volume);
     }
 
     pthread_mutex_unlock(&g_actuator_mutex);
@@ -82,7 +89,7 @@ void hal_actuator_set_volume(uint8_t volume_percent)
     if (drv && drv->actuator_ops.set_volume) {
         drv->actuator_ops.set_volume(g_current_volume);
     } else {
-        printf("[HAL:Actuator] Volume set to %d%%\n", g_current_volume);
+        LOG_I(TAG, "Volume set to %d%%", g_current_volume);
     }
     pthread_mutex_unlock(&g_actuator_mutex);
 }
@@ -95,7 +102,7 @@ int hal_actuator_trigger_haptic(hal_haptic_pattern_t pattern)
     if (drv && drv->actuator_ops.trigger_haptic) {
         ret = drv->actuator_ops.trigger_haptic(pattern);
     } else {
-        printf("[HAL:Actuator] 📳 Haptic motor triggered: Pattern %d\n", (int)pattern);
+        LOG_I(TAG, "📳 Haptic motor triggered: Pattern %d", (int)pattern);
     }
     pthread_mutex_unlock(&g_actuator_mutex);
     return ret;
@@ -109,8 +116,8 @@ int hal_actuator_set_led(hal_led_mode_t mode, uint32_t rgb, uint8_t brightness)
     if (drv && drv->actuator_ops.set_led) {
         ret = drv->actuator_ops.set_led(mode, rgb, brightness);
     } else {
-        printf("[HAL:Actuator] 💡 LED Ring: Mode %d, Color 0x%06X, Brightness %d\n",
-               (int)mode, (unsigned int)rgb, brightness);
+        LOG_I(TAG, "💡 LED Ring: Mode %d, Color 0x%06X, Brightness %d",
+              (int)mode, (unsigned int)rgb, brightness);
     }
     pthread_mutex_unlock(&g_actuator_mutex);
     return ret;

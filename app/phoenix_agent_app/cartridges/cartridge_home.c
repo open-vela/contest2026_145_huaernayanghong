@@ -162,13 +162,22 @@ static void update_todo_display(home_ui_t *u)
         lv_label_set_text(u->lbl_todo_progress, pbuf);
     }
 
-    /* 渲染前 3 项到行组件 */
+    /* 渲染前 3 项到行组件，其中首项突出展示为 Single Focus 核心攻坚 */
     for (int i = 0; i < 3; i++) {
         if (!u->todo_rows[i]) continue;
 
         if ((size_t)i < s_todo_count) {
             lv_obj_clear_flag(u->todo_rows[i], LV_OBJ_FLAG_HIDDEN);
             bool is_done = s_todos[i].done;
+
+            /* 首项若未完成，施加青色聚焦高亮 */
+            if (i == 0 && !is_done) {
+                lv_obj_set_style_border_color(u->todo_rows[i], COLOR_ACCENT_CYAN, 0);
+                lv_obj_set_style_bg_color(u->todo_rows[i], lv_color_hex(0x132236), 0);
+            } else {
+                lv_obj_set_style_border_color(u->todo_rows[i], lv_color_hex(0x1c2b40), 0);
+                lv_obj_set_style_bg_color(u->todo_rows[i], lv_color_hex(0x0e1726), 0);
+            }
 
             if (u->todo_checks[i]) {
                 lv_label_set_text(u->todo_checks[i], is_done ? "[v]" : "[ ]");

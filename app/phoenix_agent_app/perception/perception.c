@@ -9,9 +9,12 @@
 #include "hal/hal_actuator.h"
 #include "core/event_bus.h"
 #include "core/store.h"
+#include "utils/log_utils.h"
 #include <stdio.h>
 #include <string.h>
 #include <sys/time.h>
+
+#define TAG "PhoenixPerception"
 
 static bool g_perception_running = false;
 static phoenix_perception_config_t g_perception_cfg;
@@ -46,8 +49,8 @@ int phoenix_perception_init(const phoenix_perception_config_t *config)
     g_prev_is_low_battery = false;
     g_perception_running = true;
 
-    printf("[PhoenixPerception] 👁️ Embodied Perception Engine started (Poll: %ums, AutoBridge: %d)\n",
-           g_perception_cfg.poll_interval_ms, g_perception_cfg.auto_bridge_to_event_bus);
+    LOG_I(TAG, "👁️ Embodied Perception Engine started (Poll: %ums, AutoBridge: %d)",
+          g_perception_cfg.poll_interval_ms, g_perception_cfg.auto_bridge_to_event_bus);
     return 0;
 }
 
@@ -64,8 +67,8 @@ void phoenix_perception_step(void)
         if (now - g_last_tap_time_ms >= 80) {
             g_last_tap_time_ms = now;
 
-            printf("[PhoenixPerception] 💥 Sensory Event: Physical Tap Detected (Intensity %d)\n",
-                   (int)tap_event.intensity);
+            LOG_I(TAG, "💥 Sensory Event: Physical Tap Detected (Intensity %d)",
+                  (int)tap_event.intensity);
 
             /* Publish Raw Sensor Event to Event Bus */
             if (g_perception_cfg.auto_bridge_to_event_bus) {
@@ -118,7 +121,7 @@ void phoenix_perception_step(void)
 
         /* Detect Transition into Dark Environment */
         if (light_data.is_dark_environment && !g_prev_is_dark) {
-            printf("[PhoenixPerception] 🌙 Sensory Transition: Low Ambient Light (%u Lux)\n", light_data.lux);
+            LOG_I(TAG, "🌙 Sensory Transition: Low Ambient Light (%u Lux)", light_data.lux);
 
             /* Proactive Autonomous Intervention */
             phoenix_event_data_t pro_evt;
@@ -148,8 +151,8 @@ void phoenix_perception_step(void)
 
         /* Detect Transition into Low Battery State */
         if (battery_data.is_low_power && !battery_data.is_charging && !g_prev_is_low_battery) {
-            printf("[PhoenixPerception] 🔋 Sensory Transition: Low Battery Alert (%u%%)\n",
-                   battery_data.percentage);
+            LOG_W(TAG, "🔋 Sensory Transition: Low Battery Alert (%u%%)",
+                  battery_data.percentage);
 
             /* Trigger Warning Sound Actuator */
             hal_actuator_play_sound(HAL_SOUND_ALERT);
@@ -172,7 +175,7 @@ void phoenix_perception_deinit(void)
 {
     if (!g_perception_running) return;
 
-    printf("[PhoenixPerception] 🛑 Perception Engine stopped.\n");
+    LOG_I(TAG, "🛑 Perception Engine stopped.");
     g_perception_running = false;
 }
 

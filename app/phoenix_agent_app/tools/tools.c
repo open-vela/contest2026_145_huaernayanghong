@@ -5,7 +5,14 @@
  */
 
 #include "tools.h"
+#if defined(__has_include) && __has_include("utils/log_utils.h")
+#  include "utils/log_utils.h"
+#else
+#  include "../utils/log_utils.h"
+#endif
 #include <stdio.h>
+
+#define TAG "PhoenixTools"
 
 extern const phoenix_tool_desc_t g_tool_wooden_fish;
 extern const phoenix_tool_desc_t g_tool_pomodoro;
@@ -21,6 +28,6 @@ int phoenix_register_builtin_tools(void)
     phoenix_tool_register(&g_tool_system_health);
     phoenix_tool_register(&g_tool_launch_app);
 
-    printf("[PhoenixTools] %zu built-in embodied tools registered.\n", phoenix_tool_get_count());
+    LOG_I(TAG, "%zu built-in embodied tools registered.", phoenix_tool_get_count());
     return 0;
 }

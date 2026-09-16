@@ -19,8 +19,8 @@
 #  define HAS_OPENVELA_SYSLOG 0
 #endif
 
-/* 默认环形追踪缓冲区大小: 8KB */
-#define PHOENIX_LOG_RECENT_CAPACITY 8192
+/* 默认环形追踪缓冲区大小: 16KB */
+#define PHOENIX_LOG_RECENT_CAPACITY 16384
 /* 单条日志最大排版长度: 512字节 */
 #define PHOENIX_LOG_LINE_MAX 512
 /* 动态限流跟踪槽位数 */
@@ -50,6 +50,7 @@ static uint64_t            s_boot_time_ms = 0;
 static char                s_recent_buf[PHOENIX_LOG_RECENT_CAPACITY];
 static size_t              s_recent_head = 0;
 static size_t              s_recent_len = 0;
+static uint64_t            s_total_written_bytes = 0;
 
 /* 限流状态记录表 */
 static ratelimit_entry_t   s_ratelimit_entries[PHOENIX_LOG_RATELIMIT_SLOTS];
@@ -73,6 +74,7 @@ int phoenix_log_init(void)
     s_current_level = PHOENIX_LOG_INFO;
     s_recent_head = 0;
     s_recent_len = 0;
+    s_total_written_bytes = 0;
     memset(s_recent_buf, 0, sizeof(s_recent_buf));
     memset(s_ratelimit_entries, 0, sizeof(s_ratelimit_entries));
 
@@ -153,6 +155,8 @@ static void append_to_recent_buffer(const char *line, size_t line_len)
 {
     if (!line || line_len == 0) return;
 
+    s_total_written_bytes += (uint64_t)line_len;
+
     if (line_len >= PHOENIX_LOG_RECENT_CAPACITY) {
         line += (line_len - PHOENIX_LOG_RECENT_CAPACITY + 1);
         line_len = PHOENIX_LOG_RECENT_CAPACITY - 1;
@@ -167,27 +171,81 @@ static void append_to_recent_buffer(const char *line, size_t line_len)
     }
 }
 
-size_t phoenix_log_get_recent(char *buffer, size_t max_len)
+uint64_t phoenix_log_get_cursor(void)
+{
+    pthread_mutex_lock(&s_log_lock);
+    uint64_t cur = s_total_written_bytes;
+    pthread_mutex_unlock(&s_log_lock);
+    return cur;
+}
+
+size_t phoenix_log_get_since(uint64_t *inout_cursor, char *buffer, size_t max_len)
 {
     if (!buffer || max_len == 0) return 0;
+    buffer[0] = '\0';
 
     pthread_mutex_lock(&s_log_lock);
-    if (s_recent_len == 0) {
-        buffer[0] = '\0';
+    if (!inout_cursor) {
         pthread_mutex_unlock(&s_log_lock);
         return 0;
     }
 
-    size_t copy_len = (s_recent_len < max_len - 1) ? s_recent_len : (max_len - 1);
-    size_t start_idx = (s_recent_head + PHOENIX_LOG_RECENT_CAPACITY - s_recent_len) % PHOENIX_LOG_RECENT_CAPACITY;
+    uint64_t cur = *inout_cursor;
+    uint64_t total = s_total_written_bytes;
 
-    for (size_t i = 0; i < copy_len; i++) {
+    /* 首次调用或未指定偏移 (cur == 0): 返回当前有效的所有最近日志，并将游标更新为当前最新 */
+    if (cur == 0) {
+        if (s_recent_len == 0) {
+            *inout_cursor = total;
+            pthread_mutex_unlock(&s_log_lock);
+            return 0;
+        }
+        size_t copy_len = (s_recent_len < max_len - 1) ? s_recent_len : (max_len - 1);
+        size_t start_idx = (s_recent_head + PHOENIX_LOG_RECENT_CAPACITY - s_recent_len) % PHOENIX_LOG_RECENT_CAPACITY;
+        for (size_t i = 0; i < copy_len; i++) {
+            buffer[i] = s_recent_buf[(start_idx + i) % PHOENIX_LOG_RECENT_CAPACITY];
+        }
+        buffer[copy_len] = '\0';
+        *inout_cursor = total;
+        pthread_mutex_unlock(&s_log_lock);
+        return copy_len;
+    }
+
+    /* 已经是最新，无新增日志 */
+    if (cur >= total) {
+        *inout_cursor = total;
+        pthread_mutex_unlock(&s_log_lock);
+        return 0;
+    }
+
+    /* 游标落后超过当前环形缓冲容量，快进到最旧可用位置 */
+    uint64_t earliest = (total > (uint64_t)s_recent_len) ? (total - (uint64_t)s_recent_len) : 0;
+    if (cur < earliest) {
+        cur = earliest;
+    }
+
+    size_t need_len = (size_t)(total - cur);
+    if (need_len > max_len - 1) {
+        need_len = max_len - 1;
+    }
+
+    size_t delta_from_end = (size_t)(total - cur);
+    size_t start_idx = (s_recent_head + PHOENIX_LOG_RECENT_CAPACITY - delta_from_end) % PHOENIX_LOG_RECENT_CAPACITY;
+
+    for (size_t i = 0; i < need_len; i++) {
         buffer[i] = s_recent_buf[(start_idx + i) % PHOENIX_LOG_RECENT_CAPACITY];
     }
-    buffer[copy_len] = '\0';
+    buffer[need_len] = '\0';
+    *inout_cursor = cur + need_len;
 
     pthread_mutex_unlock(&s_log_lock);
-    return copy_len;
+    return need_len;
+}
+
+size_t phoenix_log_get_recent(char *buffer, size_t max_len)
+{
+    uint64_t cursor = 0;
+    return phoenix_log_get_since(&cursor, buffer, max_len);
 }
 
 void phoenix_log_clear_recent(void)

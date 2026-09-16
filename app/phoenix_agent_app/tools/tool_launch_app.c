@@ -7,9 +7,16 @@
 #include "core/tool_registry.h"
 #include "core/event_bus.h"
 #include "hal/hal_system.h"
+#if defined(__has_include) && __has_include("utils/log_utils.h")
+#  include "utils/log_utils.h"
+#else
+#  include "../utils/log_utils.h"
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define TAG "PhoenixTool"
 
 #if defined(__has_include)
 #  if __has_include(<netutils/cJSON.h>)
@@ -88,8 +95,8 @@ static int tool_launch_app_exec(const char *args_json, char *result_out, size_t 
     const app_mapping_t *app = find_app(target_app_name);
 
     if (app) {
-        printf("[PhoenixTool] 🚀 Launching OpenVela App: %s (%s)\n",
-               app->display_name, app->package_name);
+        LOG_I(TAG, "🚀 Launching OpenVela App: %s (%s)",
+              app->display_name, app->package_name);
 
         /* Dispatch real app launch via HAL System Service */
         hal_system_launch_app(app->package_name);
@@ -121,7 +128,7 @@ static int tool_launch_app_exec(const char *args_json, char *result_out, size_t 
         phoenix_event_publish(&tool_evt);
         return 0;
     } else {
-        printf("[PhoenixTool] ⚠️ App not found in mapping: \"%s\"\n", target_app_name);
+        LOG_W(TAG, "⚠️ App not found in mapping: \"%s\"", target_app_name);
         if (result_out && max_len > 0) {
             snprintf(result_out, max_len,
                      "{\"success\":false,\"error\":\"未找到应用\",\"query\":\"%s\","

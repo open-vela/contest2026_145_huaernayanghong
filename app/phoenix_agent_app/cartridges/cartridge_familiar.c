@@ -15,6 +15,7 @@
 #  include "core/event_bus.h"
 #  include "core/store.h"
 #  include "core/config.h"
+#  include "core/agent_core.h"
 #  include "utils/time_utils.h"
 #  include "utils/log_utils.h"
 #else
@@ -23,6 +24,7 @@
 #  include "../core/event_bus.h"
 #  include "../core/store.h"
 #  include "../core/config.h"
+#  include "../core/agent_core.h"
 #  include "../utils/time_utils.h"
 #  include "../utils/log_utils.h"
 #endif
@@ -47,6 +49,8 @@ typedef struct {
     lv_obj_t       *lbl_whisper;     /**< 使魔心语/气泡 */
     lv_obj_t       *lbl_affinity;    /**< 亲密度徽章 */
     lv_obj_t       *lbl_merit;       /**< 赛博功德徽章 */
+    lv_obj_t       *btn_voice;       /**< 灵眸具身对话胶囊 */
+    lv_obj_t       *lbl_voice;       /**< 对话胶囊文字 */
     
     pet_mood_t      mood;
     uint32_t        affinity;        /**< 亲密度 (0 ~ 9999) */
@@ -98,6 +102,81 @@ static void update_time_display(familiar_ui_t *u)
     u->colon_blink = !u->colon_blink;
     snprintf(tbuf, sizeof(tbuf), "%02d%c%02d", cur_hour, u->colon_blink ? ':' : ' ', cur_min);
     lv_label_set_text(u->lbl_time, tbuf);
+}
+
+static const char *const s_agent_prompts[] = {
+    "告诉我一则充满禅意的极简人生建议",
+    "今天我该如何保持专注高效？",
+    "给我讲一句幽默的赛博工程师短句",
+    "使魔，汇报一下当前桌面能量"
+};
+static size_t s_prompt_index = 0;
+
+static void familiar_trigger_voice_chat(void)
+{
+    phoenix_agent_ctx_t *agent = phoenix_agent_get_instance();
+    if (!agent) {
+        LOG_W(TAG, "Agent 未初始化");
+        return;
+    }
+
+    const char *prompt = s_agent_prompts[s_prompt_index % 4];
+    s_prompt_index++;
+
+    if (s_ui.eye) {
+        phoenix_eye_set_emotion(s_ui.eye, PHOENIX_EYE_LISTENING);
+    }
+    if (s_ui.lbl_whisper) {
+        lv_label_set_text(s_ui.lbl_whisper, "灵眸正在倾听思考...");
+    }
+    if (s_ui.lbl_voice) {
+        lv_label_set_text(s_ui.lbl_voice, "● 灵眸思考中...");
+    }
+
+    phoenix_event_data_t fly_evt;
+    memset(&fly_evt, 0, sizeof(fly_evt));
+    fly_evt.type = PHOENIX_EVT_FLYING_TEXT;
+    fly_evt.data.flying_text.text = "灵眸唤醒";
+    fly_evt.data.flying_text.color_rgb = 0x00E5FF;
+    phoenix_event_publish(&fly_evt);
+
+    phoenix_agent_chat_async(agent, prompt);
+    LOG_I(TAG, "已触发使魔具身对话: %s", prompt);
+}
+
+static void on_voice_btn_clicked(lv_event_t *e)
+{
+    (void)e;
+    familiar_trigger_voice_chat();
+}
+
+static void on_familiar_agent_event(const phoenix_event_data_t *evt, void *user_data)
+{
+    (void)user_data;
+    if (!evt) return;
+
+    if (evt->type == PHOENIX_EVT_LLM_FINISHED && evt->data.llm_text.text) {
+        if (s_ui.eye) {
+            phoenix_eye_set_emotion(s_ui.eye, PHOENIX_EYE_HAPPY);
+        }
+        if (s_ui.lbl_whisper) {
+            char snippet[64];
+            snprintf(snippet, sizeof(snippet), "%.48s", evt->data.llm_text.text);
+            lv_label_set_text(s_ui.lbl_whisper, snippet);
+        }
+        if (s_ui.lbl_voice) {
+            lv_label_set_text(s_ui.lbl_voice, "● 双敲或轻点唤醒灵眸");
+        }
+    } else if (evt->type == PHOENIX_EVT_TOOL_TRIGGERED && evt->data.tool.tool_name) {
+        if (s_ui.eye) {
+            phoenix_eye_set_emotion(s_ui.eye, PHOENIX_EYE_ALERT);
+        }
+        if (s_ui.lbl_whisper) {
+            char tbuf[48];
+            snprintf(tbuf, sizeof(tbuf), "调用工具: %s", evt->data.tool.tool_name);
+            lv_label_set_text(s_ui.lbl_whisper, tbuf);
+        }
+    }
 }
 
 static void update_mood_display(familiar_ui_t *u)
@@ -174,28 +253,46 @@ static int familiar_on_load(lv_obj_t *stage_parent)
     if (font) lv_obj_set_style_text_font(s_ui.lbl_time, font, 0);
     update_time_display(&s_ui);
 
-    /* 3. 核心具身动态灵眸 (尺寸 94px，位于舞台正中偏上) */
-    s_ui.eye = phoenix_eye_create(s_ui.container, 94);
+    /* 3. 核心具身动态灵眸 (尺寸 88px，位于舞台正中偏上) */
+    s_ui.eye = phoenix_eye_create(s_ui.container, 88);
     if (s_ui.eye && s_ui.eye->container) {
-        lv_obj_align(s_ui.eye->container, LV_ALIGN_CENTER, 0, -16);
+        lv_obj_align(s_ui.eye->container, LV_ALIGN_CENTER, 0, -22);
     }
 
     /* 4. 亲密度与功德双徽章 (并排展示) */
     s_ui.lbl_affinity = lv_label_create(s_ui.container);
-    lv_obj_align(s_ui.lbl_affinity, LV_ALIGN_CENTER, -46, 46);
+    lv_obj_align(s_ui.lbl_affinity, LV_ALIGN_CENTER, -44, 36);
     lv_obj_set_style_text_color(s_ui.lbl_affinity, lv_color_hex(0xFF6EA7), 0);
     if (font) lv_obj_set_style_text_font(s_ui.lbl_affinity, font, 0);
 
     s_ui.lbl_merit = lv_label_create(s_ui.container);
-    lv_obj_align(s_ui.lbl_merit, LV_ALIGN_CENTER, 46, 46);
+    lv_obj_align(s_ui.lbl_merit, LV_ALIGN_CENTER, 44, 36);
     lv_obj_set_style_text_color(s_ui.lbl_merit, lv_color_hex(0xFFD700), 0);
     if (font) lv_obj_set_style_text_font(s_ui.lbl_merit, font, 0);
 
     /* 5. 极简克制的心语 (冷灰微文字) */
     s_ui.lbl_whisper = lv_label_create(s_ui.container);
-    lv_obj_align(s_ui.lbl_whisper, LV_ALIGN_CENTER, 0, 70);
+    lv_obj_align(s_ui.lbl_whisper, LV_ALIGN_CENTER, 0, 58);
     lv_obj_set_style_text_color(s_ui.lbl_whisper, lv_color_hex(0x7E92AD), 0);
     if (font) lv_obj_set_style_text_font(s_ui.lbl_whisper, font, 0);
+
+    /* 6. 灵眸具身对话胶囊 (轻点或双敲桌面唤醒) */
+    s_ui.btn_voice = lv_btn_create(s_ui.container);
+    lv_obj_set_size(s_ui.btn_voice, 150, 24);
+    lv_obj_align(s_ui.btn_voice, LV_ALIGN_BOTTOM_MID, 0, -6);
+    lv_obj_set_style_radius(s_ui.btn_voice, 12, 0);
+    lv_obj_set_style_bg_color(s_ui.btn_voice, lv_color_hex(0x101C2E), 0);
+    lv_obj_set_style_bg_opa(s_ui.btn_voice, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(s_ui.btn_voice, lv_color_hex(0x00E5FF), 0);
+    lv_obj_set_style_border_width(s_ui.btn_voice, 1, 0);
+    lv_obj_set_style_pad_all(s_ui.btn_voice, 0, 0);
+    lv_obj_add_event_cb(s_ui.btn_voice, on_voice_btn_clicked, LV_EVENT_CLICKED, NULL);
+
+    s_ui.lbl_voice = lv_label_create(s_ui.btn_voice);
+    lv_obj_center(s_ui.lbl_voice);
+    lv_obj_set_style_text_color(s_ui.lbl_voice, lv_color_hex(0x80D8FF), 0);
+    if (font) lv_obj_set_style_text_font(s_ui.lbl_voice, font, 0);
+    lv_label_set_text(s_ui.lbl_voice, "● 双敲或轻点唤醒灵眸");
 
     update_mood_display(&s_ui);
     LOG_I(TAG, "灵眸主屏已载入舞台 (亲密度: %u, 功德: %u)", s_ui.affinity, s_ui.total_merit);
@@ -283,6 +380,10 @@ static int familiar_init(cartridge_t *self, void *user_data)
     s_ui.affinity = (uint32_t)phoenix_config_get_int("familiar_affinity", 88);
     s_last_saved_affinity = s_ui.affinity;
     s_ui.mood = PET_MOOD_NORMAL;
+
+    /* 订阅大模型推理与工具触发事件，实现灵眸与心语自动响应 */
+    phoenix_event_subscribe(PHOENIX_EVT_LLM_FINISHED, on_familiar_agent_event, NULL);
+    phoenix_event_subscribe(PHOENIX_EVT_TOOL_TRIGGERED, on_familiar_agent_event, NULL);
     return 0;
 }
 
@@ -309,6 +410,8 @@ static void familiar_destroy(cartridge_t *self)
         phoenix_config_set_int("familiar_affinity", (int)s_ui.affinity);
         s_last_saved_affinity = s_ui.affinity;
     }
+    phoenix_event_unsubscribe(PHOENIX_EVT_LLM_FINISHED, on_familiar_agent_event, NULL);
+    phoenix_event_unsubscribe(PHOENIX_EVT_TOOL_TRIGGERED, on_familiar_agent_event, NULL);
     familiar_on_unload();
 }
 
@@ -322,8 +425,11 @@ static void familiar_tick_1s(cartridge_t *self)
 static void familiar_on_knock(cartridge_t *self, int intensity, int count)
 {
     (void)self;
-    (void)count;
-    familiar_on_tap((uint8_t)intensity);
+    if (count == 2) {
+        familiar_trigger_voice_chat();
+    } else {
+        familiar_on_tap((uint8_t)intensity);
+    }
 }
 
 static int familiar_get_web_status(cartridge_t *self, char *buf, size_t max_len)

@@ -1219,14 +1219,37 @@ static void run_test_utils_time_and_log(void)
     assert(n > 0);
     assert(strstr(web_resp, "\"level_str\":\"INFO\"") != NULL);
     assert(strstr(web_resp, "\"logs\":") != NULL);
+    assert(strstr(web_resp, "\"cursor\":") != NULL);
     printf("  -> Web Portal GET /api/logs PASSED!\n");
 
+    /* 8. Incremental Cursor Streaming Test */
+    uint64_t cur1 = phoenix_log_get_cursor();
+    char cursor_req[128];
+    snprintf(cursor_req, sizeof(cursor_req), "GET /api/logs?cursor=%llu HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n", (unsigned long long)cur1);
+    n = phoenix_web_portal_handle_request(cursor_req, web_resp, sizeof(web_resp));
+    assert(n > 0);
+    assert(strstr(web_resp, "\"bytes\":0") != NULL); /* 无新增日志，字节数为0 */
+
+    LOG_I("StreamTag", "Brand new incremental log line for web live streaming");
+    n = phoenix_web_portal_handle_request(cursor_req, web_resp, sizeof(web_resp));
+    assert(n > 0);
+    assert(strstr(web_resp, "Brand new incremental log line") != NULL);
+    printf("  -> Web Portal GET /api/logs?cursor=X Streaming PASSED!\n");
+
+    /* 9. Dynamic Log Level Update */
     const char *set_level_req = "POST /api/logs/level HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"level\":\"debug\"}";
     n = phoenix_web_portal_handle_request(set_level_req, web_resp, sizeof(web_resp));
     assert(n > 0);
     assert(phoenix_log_get_level() == PHOENIX_LOG_DEBUG);
     assert(strstr(web_resp, "\"level_str\":\"DEBUG\"") != NULL);
     printf("  -> Web Portal POST /api/logs/level Dynamic Update PASSED!\n");
+
+    /* 10. Clear Logs API Verification */
+    const char *clear_logs_req = "POST /api/logs/clear HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+    n = phoenix_web_portal_handle_request(clear_logs_req, web_resp, sizeof(web_resp));
+    assert(n > 0);
+    assert(strstr(web_resp, "\"success\":true") != NULL);
+    printf("  -> Web Portal POST /api/logs/clear PASSED!\n");
 
     /* Restore default level */
     phoenix_log_set_level(PHOENIX_LOG_INFO);

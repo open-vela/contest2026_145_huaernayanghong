@@ -12,22 +12,39 @@
 
 int handle_logs_get(const http_req_t *req, http_resp_t *resp)
 {
-    (void)req;
     int lvl = phoenix_log_get_level();
     const char *lvl_name = phoenix_log_level_to_str(lvl);
 
-    char raw_logs[4096];
-    size_t nread = phoenix_log_get_recent(raw_logs, sizeof(raw_logs));
-    (void)nread;
+    uint64_t cursor = 0;
+    char cursor_str[32] = {0};
+    if (http_req_get_query_param(req, "cursor", cursor_str, sizeof(cursor_str)) ||
+        http_req_get_query_param(req, "offset", cursor_str, sizeof(cursor_str))) {
+        if (cursor_str[0] != '\0') {
+            cursor = (uint64_t)strtoull(cursor_str, NULL, 10);
+        }
+    }
+
+    char raw_logs[8192];
+    size_t nread = phoenix_log_get_since(&cursor, raw_logs, sizeof(raw_logs));
 
     /* 构建 cJSON 响应以安全转义换行与引号 */
     cJSON *root = cJSON_CreateObject();
     cJSON_AddBoolToObject(root, "success", true);
     cJSON_AddNumberToObject(root, "level_num", lvl);
     cJSON_AddStringToObject(root, "level_str", lvl_name);
+    cJSON_AddNumberToObject(root, "cursor", (double)cursor);
+    cJSON_AddNumberToObject(root, "bytes", (double)nread);
     cJSON_AddStringToObject(root, "logs", raw_logs);
 
     http_resp_json_obj(resp, 200, root);
+    return 0;
+}
+
+int handle_logs_clear_post(const http_req_t *req, http_resp_t *resp)
+{
+    (void)req;
+    phoenix_log_clear_recent();
+    http_resp_json(resp, 200, "{\"success\":true,\"message\":\"Logs buffer cleared\"}");
     return 0;
 }
 

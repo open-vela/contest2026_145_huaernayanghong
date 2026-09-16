@@ -6,8 +6,15 @@
 
 #include "hal_system.h"
 #include "hal_driver.h"
+#if defined(__has_include) && __has_include("utils/log_utils.h")
+#  include "utils/log_utils.h"
+#else
+#  include "../utils/log_utils.h"
+#endif
 #include <stdio.h>
 #include <string.h>
+
+#define TAG "HAL:System"
 
 #include <sys/stat.h>
 #include <unistd.h>
@@ -98,7 +105,7 @@ int hal_system_launch_app(const char *app_package_or_alias)
         return drv->system_ops.launch_app(app_package_or_alias);
     }
 
-    printf("[HAL:System] 🚀 Launch native app: %s\n", app_package_or_alias);
+    LOG_I(TAG, "🚀 Launch native app: %s", app_package_or_alias);
     return 0;
 }
 

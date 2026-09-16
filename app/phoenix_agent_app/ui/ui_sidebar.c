@@ -99,24 +99,37 @@ void ui_sidebar_refresh(ui_sidebar_t *sidebar) {
   sidebar->lbl_settings = NULL;
   sidebar->sep_line = NULL;
 
-  /* 精选 4 个核心高频卡带：主页看板、使魔萌宠、灵眸AI、翻页时钟 + 底部控制中心共 5 项 */
-  static const char *s_featured_ids[] = {"home", "familiar", "agent", "clock"};
-  const size_t featured_count = sizeof(s_featured_ids) / sizeof(s_featured_ids[0]);
+  /* 黄金三大超级核心卡带：主页全景 [主]、机械翻页钟 [钟]、使魔灵眸生命体 [宠] */
+  static const char *s_golden_trio[] = {"home", "clock", "familiar"};
+  const size_t golden_count = sizeof(s_golden_trio) / sizeof(s_golden_trio[0]);
 
-  /* 获取当前活跃卡带 ID */
+  /* 获取当前活跃卡带 ID，支持兼容性合体映射 */
   cartridge_t *cur = cartridge_mgr_get_current();
-  if (cur && cur->ops.id[0] != '\0') {
-    strncpy(sidebar->active_id, cur->ops.id, sizeof(sidebar->active_id) - 1);
-  } else if (sidebar->active_id[0] == '\0') {
-    strncpy(sidebar->active_id, "home", sizeof(sidebar->active_id) - 1);
+  const char *cur_id = (cur && cur->ops.id[0] != '\0') ? cur->ops.id : "home";
+  
+  /* 智能映射：agent 与 zen 融入使魔 familiar；memo 融入主页 home */
+  const char *mapped_active_id = cur_id;
+  if (strcmp(cur_id, "agent") == 0 || strcmp(cur_id, "zen") == 0) {
+    mapped_active_id = "familiar";
+  } else if (strcmp(cur_id, "memo") == 0) {
+    mapped_active_id = "home";
   }
+  strncpy(sidebar->active_id, mapped_active_id, sizeof(sidebar->active_id) - 1);
 
-  /* 1. 顶部卡带按钮区域：大按钮 (38x34px, 间距 5px, 居中 X=4) */
-  for (size_t i = 0; i < featured_count; i++) {
-    const char *cid = s_featured_ids[i];
+  /* 黄金三大卡带大磁贴排布 (容器高 216px: 38x36px, 步进 46px, 底部设置 38x44px) */
+  const lv_coord_t btn_h = 36;
+  const lv_coord_t start_y = 8;
+  const lv_coord_t step_y = 46;
+  const lv_coord_t sep_y = 152;
+  const lv_coord_t set_y = 160;
+  const lv_coord_t set_h = 44;
+
+  /* 1. 顶部卡带大按钮区域 (3 项) */
+  for (size_t i = 0; i < golden_count; i++) {
+    const char *cid = s_golden_trio[i];
     cartridge_t *c = cartridge_mgr_get_by_id(cid);
-    if (!c) {
-      /* 如果未找到，尝试按索引兜底 */
+    if (!c || c->ops.id[0] == '\0') {
+      /* 兜底以防特定环境顺序 */
       c = cartridge_mgr_get_by_index(i);
     }
     if (!c || c->ops.id[0] == '\0')
@@ -124,27 +137,27 @@ void ui_sidebar_refresh(ui_sidebar_t *sidebar) {
 
     ui_sidebar_item_t *it = &sidebar->items[sidebar->item_count];
     memset(it, 0, sizeof(ui_sidebar_item_t));
-    strncpy(it->id, c->ops.id, sizeof(it->id) - 1);
-    strncpy(it->icon, get_cartridge_icon(c->ops.id), sizeof(it->icon) - 1);
+    strncpy(it->id, cid, sizeof(it->id) - 1);
+    strncpy(it->icon, get_cartridge_icon(cid), sizeof(it->icon) - 1);
 
     /* 若设置处于激活态，则卡带按钮不高亮 */
     bool is_active = (!sidebar->is_settings_active &&
                       strcmp(it->id, sidebar->active_id) == 0);
 
     it->btn = lv_btn_create(sidebar->container);
-    lv_obj_set_size(it->btn, 38, 34);
-    lv_obj_set_pos(it->btn, 4, (lv_coord_t)(i * 39 + 6));
+    lv_obj_set_size(it->btn, 38, btn_h);
+    lv_obj_set_pos(it->btn, 4, (lv_coord_t)(start_y + i * step_y));
     lv_obj_set_style_radius(it->btn, 8, 0);
     lv_obj_set_style_pad_all(it->btn, 0, 0);
     lv_obj_set_ext_click_area(it->btn, 6);
 
     if (is_active) {
-      lv_obj_set_style_bg_color(it->btn, lv_color_hex(0x132B47), 0);
+      lv_obj_set_style_bg_color(it->btn, lv_color_hex(0x153152), 0);
       lv_obj_set_style_border_color(it->btn, lv_color_hex(0x00E5FF), 0);
       lv_obj_set_style_border_width(it->btn, 2, 0);
       lv_obj_set_style_shadow_color(it->btn, lv_color_hex(0x00E5FF), 0);
-      lv_obj_set_style_shadow_width(it->btn, 8, 0);
-      lv_obj_set_style_shadow_opa(it->btn, LV_OPA_40, 0);
+      lv_obj_set_style_shadow_width(it->btn, 10, 0);
+      lv_obj_set_style_shadow_opa(it->btn, LV_OPA_50, 0);
     } else {
       lv_obj_set_style_bg_color(it->btn, lv_color_hex(0x0B1220), 0);
       lv_obj_set_style_border_color(it->btn, lv_color_hex(0x1C2B42), 0);
@@ -165,18 +178,18 @@ void ui_sidebar_refresh(ui_sidebar_t *sidebar) {
     sidebar->item_count++;
   }
 
-  /* 2. 科技感分隔线 (y=163, h=1, w=32, x=7) */
+  /* 2. 科技感分隔线 */
   sidebar->sep_line = lv_obj_create(sidebar->container);
   lv_obj_set_size(sidebar->sep_line, 32, 1);
-  lv_obj_set_pos(sidebar->sep_line, 7, 163);
+  lv_obj_set_pos(sidebar->sep_line, 7, sep_y);
   lv_obj_set_style_bg_color(sidebar->sep_line, lv_color_hex(0x1B2C47), 0);
   lv_obj_set_style_border_width(sidebar->sep_line, 0, 0);
   lv_obj_clear_flag(sidebar->sep_line, LV_OBJ_FLAG_SCROLLABLE);
 
-  /* 3. 底部控制中心大号专属按钮 [设] (y=169, w=38, h=40, x=4) */
+  /* 3. 底部控制中心大号专属按钮 [设] */
   sidebar->btn_settings = lv_btn_create(sidebar->container);
-  lv_obj_set_size(sidebar->btn_settings, 38, 40);
-  lv_obj_set_pos(sidebar->btn_settings, 4, 169);
+  lv_obj_set_size(sidebar->btn_settings, 38, set_h);
+  lv_obj_set_pos(sidebar->btn_settings, 4, set_y);
   lv_obj_set_style_radius(sidebar->btn_settings, 8, 0);
   lv_obj_set_style_pad_all(sidebar->btn_settings, 0, 0);
   lv_obj_set_ext_click_area(sidebar->btn_settings, 6);

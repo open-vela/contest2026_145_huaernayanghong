@@ -55,6 +55,7 @@ int handle_config_post(const http_req_t *req, http_resp_t *resp);
  * ========================================================================= */
 int handle_logs_get(const http_req_t *req, http_resp_t *resp);
 int handle_logs_level_post(const http_req_t *req, http_resp_t *resp);
+int handle_logs_clear_post(const http_req_t *req, http_resp_t *resp);
 
 /* =========================================================================
  * 模块 6: 外置 TF 卡读写与文件系统管理 (api_sdcard.c)

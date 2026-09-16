@@ -98,6 +98,21 @@ void phoenix_log_write_ratelimited(int level, const char *tag, uint32_t interval
 size_t phoenix_log_get_recent(char *buffer, size_t max_len);
 
 /**
+ * @brief 增量获取自指定游标之后的新增日志内容 (供 Web 伴侣实时流式日志使用)
+ * @param inout_cursor 输入/输出游标 (输入上次游标值，返回时更新为最新游标)
+ * @param buffer 输出缓冲区
+ * @param max_len 缓冲区最大字节数
+ * @return 实际拷贝出的新增字符串字节数
+ */
+size_t phoenix_log_get_since(uint64_t *inout_cursor, char *buffer, size_t max_len);
+
+/**
+ * @brief 获取当前日志流的最新全局游标值
+ * @return 最新游标 (累计写入字节计数)
+ */
+uint64_t phoenix_log_get_cursor(void);
+
+/**
  * @brief 清空当前环形内存日志
  */
 void phoenix_log_clear_recent(void);

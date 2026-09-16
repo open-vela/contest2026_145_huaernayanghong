@@ -304,6 +304,7 @@ static const http_route_t g_web_api_routes[] = {
     { HTTP_METHOD_GET,  "/api/logs",                     false, handle_logs_get },
     { HTTP_METHOD_POST, "/api/logs/level",               false, handle_logs_level_post },
     { HTTP_METHOD_POST, "/api/logs",                     false, handle_logs_level_post },
+    { HTTP_METHOD_POST, "/api/logs/clear",               false, handle_logs_clear_post },
 
     /* 6. TF 卡存储管理 */
     { HTTP_METHOD_GET,  "/api/sdcard/status",            false, handle_sdcard_status },

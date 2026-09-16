@@ -56,25 +56,25 @@ int phoenix_app_init(const phoenix_app_config_t *config)
     hal_cfg.sound_data_root = sounds_dir;
     int ret = hal_init(&hal_cfg);
     if (ret != 0) {
-        printf("[PhoenixApp] ⚠️ Warning: HAL init returned %d, continuing with defaults.\n", ret);
+        LOG_W(TAG, "⚠️ Warning: HAL init returned %d, continuing with defaults.", ret);
     }
 
     /* 1. Configuration Subsystem */
     ret = phoenix_config_init(store_dir);
     if (ret != 0) {
-        printf("[PhoenixApp] ⚠️ Warning: Config init returned %d.\n", ret);
+        LOG_W(TAG, "⚠️ Warning: Config init returned %d.", ret);
     }
 
     /* 2. Persistent Storage Engine */
     ret = phoenix_store_init(store_dir);
     if (ret != 0) {
-        printf("[PhoenixApp] ⚠️ Warning: Store init returned %d, continuing in volatile mode.\n", ret);
+        LOG_W(TAG, "⚠️ Warning: Store init returned %d, continuing in volatile mode.", ret);
     }
 
     /* 3. Core Event Bus */
     ret = phoenix_event_bus_init();
     if (ret != 0) {
-        printf("[PhoenixApp] ❌ Error: Event bus init failed (%d)!\n", ret);
+        LOG_E(TAG, "❌ Error: Event bus init failed (%d)!", ret);
         phoenix_store_deinit();
         phoenix_config_deinit();
         hal_deinit();
@@ -87,7 +87,7 @@ int phoenix_app_init(const phoenix_app_config_t *config)
     /* 5. Embodied Perception Engine */
     ret = phoenix_perception_init(NULL);
     if (ret != 0) {
-        printf("[PhoenixApp] ⚠️ Warning: Perception engine init returned %d.\n", ret);
+        LOG_W(TAG, "⚠️ Warning: Perception engine init returned %d.", ret);
     }
 
     /* 6. Voice Pipeline Engine */
@@ -97,7 +97,7 @@ int phoenix_app_init(const phoenix_app_config_t *config)
     /* 7. Tool Registry */
     ret = phoenix_tool_registry_init();
     if (ret != 0) {
-        printf("[PhoenixApp] ❌ Error: Tool registry init failed (%d)!\n", ret);
+        LOG_E(TAG, "❌ Error: Tool registry init failed (%d)!", ret);
         phoenix_voice_pipeline_deinit();
         phoenix_perception_deinit();
         phoenix_expression_deinit();
@@ -139,7 +139,7 @@ int phoenix_app_init(const phoenix_app_config_t *config)
     cartridge_mgr_switch_to("familiar");
 
     g_app_initialized = true;
-    printf("[PhoenixApp] ✅ All Phoenix subsystems initialized successfully (6 Cartridges active).\n");
+    LOG_I(TAG, "✅ All Phoenix subsystems initialized successfully (6 Cartridges active).");
     return 0;
 }
 

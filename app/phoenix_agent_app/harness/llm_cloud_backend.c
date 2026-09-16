@@ -5,6 +5,11 @@
  */
 
 #include "llm_cloud_backend.h"
+#if defined(__has_include) && __has_include("utils/log_utils.h")
+#  include "utils/log_utils.h"
+#else
+#  include "../utils/log_utils.h"
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,6 +19,8 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <sys/time.h>
+
+#define TAG "PhoenixCloud"
 
 #if defined(__has_include)
 #  if __has_include(<netutils/cJSON.h>)
@@ -71,17 +78,17 @@ static int cloud_backend_init(phoenix_llm_backend_t *self, const phoenix_llm_con
     g_cloud_ctx.velaclaw_client = velaclaw_client_open("phoenix_agent");
     if (g_cloud_ctx.velaclaw_client) {
         g_cloud_ctx.agent_connected = true;
-        printf("[PhoenixCloud] Connected to system-level VelaClaw Agent bus!\n");
+        LOG_I(TAG, "Connected to system-level VelaClaw Agent bus!");
     } else {
         g_cloud_ctx.agent_connected = false;
-        printf("[PhoenixCloud] VelaClaw Agent unavailable, cloud direct mode ready.\n");
+        LOG_I(TAG, "VelaClaw Agent unavailable, cloud direct mode ready.");
     }
 #else
     g_cloud_ctx.agent_connected = false;
 #endif
 
-    printf("[PhoenixCloud] Backend initialized. Model: %s, Endpoint: %s\n",
-           g_cloud_ctx.config.model_name, g_cloud_ctx.config.base_url);
+    LOG_I(TAG, "Backend initialized. Model: %s, Endpoint: %s",
+          g_cloud_ctx.config.model_name, g_cloud_ctx.config.base_url);
     return 0;
 }
 
@@ -170,7 +177,7 @@ static int cloud_backend_chat(phoenix_llm_backend_t *self,
         return -1;
     }
 
-    printf("[PhoenixCloud] 📤 Cloud Request Serialized (%zu bytes)\n", strlen(req_body));
+    LOG_D(TAG, "📤 Cloud Request Serialized (%zu bytes)", strlen(req_body));
 
     /* 判断是否具备真实 API Key */
     const char *api_key = g_cloud_ctx.config.api_key;

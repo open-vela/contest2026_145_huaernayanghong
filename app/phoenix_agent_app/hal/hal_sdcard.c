@@ -5,6 +5,11 @@
  */
 
 #include "hal_sdcard.h"
+#if defined(__has_include) && __has_include("utils/log_utils.h")
+#  include "utils/log_utils.h"
+#else
+#  include "../utils/log_utils.h"
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,7 +36,7 @@ int hal_sdcard_init(void)
 {
     struct stat st;
 
-    /* 1. 优先探测全志 R528 / OpenVela / Linux 原生挂载点 /mnt/sdcard */
+    /* 1. 首选 Linux/OpenVela 规范挂载点 /mnt/sdcard */
     if (stat("/mnt/sdcard", &st) == 0 && S_ISDIR(st.st_mode)) {
         strncpy(s_mount_point, "/mnt/sdcard", sizeof(s_mount_point) - 1);
         s_is_mounted = true;
@@ -50,8 +55,8 @@ int hal_sdcard_init(void)
 
     hal_sdcard_ensure_dirs();
 
-    printf("[%s] 💾 TF Card Initialized. Mount point: [%s] (Mounted: %d)\n",
-           TAG, s_mount_point, s_is_mounted);
+    LOG_I(TAG, "💾 TF Card Initialized. Mount point: [%s] (Mounted: %d)",
+          s_mount_point, s_is_mounted);
     return 0;
 }
 

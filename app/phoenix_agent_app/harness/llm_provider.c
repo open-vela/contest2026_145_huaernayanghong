@@ -7,9 +7,16 @@
 #include "llm_provider.h"
 #include "llm_mock_backend.h"
 #include "llm_cloud_backend.h"
+#if defined(__has_include) && __has_include("utils/log_utils.h")
+#  include "utils/log_utils.h"
+#else
+#  include "../utils/log_utils.h"
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define TAG "PhoenixHarness"
 
 static phoenix_llm_config_t g_config;
 static bool g_provider_initialized = false;
@@ -36,8 +43,8 @@ int phoenix_llm_provider_set_backend(phoenix_llm_backend_t *backend)
     if (g_active_backend->init) {
         g_active_backend->init(g_active_backend, &g_config);
     }
-    printf("[PhoenixHarness] 🔀 Switched active LLM backend to: [%s]\n",
-           g_active_backend->name ? g_active_backend->name : "CustomBackend");
+    LOG_I(TAG, "🔀 Switched active LLM backend to: [%s]",
+          g_active_backend->name ? g_active_backend->name : "CustomBackend");
     return 0;
 }
 
@@ -69,8 +76,8 @@ int phoenix_llm_provider_init(const phoenix_llm_config_t *config)
     }
 
     g_provider_initialized = true;
-    printf("[PhoenixHarness] ✅ Harness Facade initialized. Active backend: [%s]\n",
-           g_active_backend ? g_active_backend->name : "None");
+    LOG_I(TAG, "✅ Harness Facade initialized. Active backend: [%s]",
+          g_active_backend ? g_active_backend->name : "None");
     return 0;
 }
 
@@ -98,7 +105,7 @@ void phoenix_llm_set_api_key(const char *api_key)
 {
     if (!api_key) return;
     snprintf(g_config.api_key, sizeof(g_config.api_key), "%s", api_key);
-    printf("[PhoenixHarness] API Key updated (%zu bytes)\n", strlen(api_key));
+    LOG_I(TAG, "API Key updated (%zu bytes)", strlen(api_key));
 
     /* 若从无 Key 切换为有 Key，自动平滑升级为 Cloud 驱动 */
     if (strlen(api_key) > 0 && g_active_backend &&
@@ -122,5 +129,5 @@ void phoenix_llm_provider_deinit(void)
     }
     g_active_backend = NULL;
     g_provider_initialized = false;
-    printf("[PhoenixHarness] 🔄 Harness Facade de-initialized.\n");
+    LOG_I(TAG, "🔄 Harness Facade de-initialized.");
 }

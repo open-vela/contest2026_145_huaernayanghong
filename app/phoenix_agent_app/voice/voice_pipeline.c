@@ -7,9 +7,12 @@
 #include "voice_pipeline.h"
 #include "../hal/hal_audio_in.h"
 #include "../core/event_bus.h"
+#include "../utils/log_utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define TAG "PhoenixVoice"
 
 static phoenix_voice_state_t g_voice_state = VOICE_STATE_IDLE;
 static phoenix_voice_text_cb_t g_text_cb = NULL;
@@ -28,7 +31,7 @@ int phoenix_voice_pipeline_init(phoenix_voice_text_cb_t on_text_cb, void *user_d
     g_silence_frames_count = 0;
 
     hal_audio_in_init(16000, 1);
-    printf("[PhoenixVoice] 🎙️ Voice Pipeline initialized (16kHz 16-bit Mono).\n");
+    LOG_I(TAG, "🎙️ Voice Pipeline initialized (16kHz 16-bit Mono).");
     return 0;
 }
 
@@ -37,7 +40,7 @@ int phoenix_voice_pipeline_start(void)
     g_pipeline_active = true;
     hal_audio_in_start();
     g_voice_state = VOICE_STATE_IDLE;
-    printf("[PhoenixVoice] 🎙️ Voice Pipeline streaming started.\n");
+    LOG_I(TAG, "🎙️ Voice Pipeline streaming started.");
     return 0;
 }
 
@@ -56,7 +59,7 @@ int phoenix_voice_pipeline_feed(const int16_t *pcm_samples, size_t sample_count,
 
         if (g_voice_state == VOICE_STATE_IDLE) {
             g_voice_state = VOICE_STATE_WAKENED;
-            printf("[PhoenixVoice] 🔊 Wake word / Speech energy detected! State -> WAKENED\n");
+            LOG_I(TAG, "🔊 Wake word / Speech energy detected! State -> WAKENED");
             g_voice_state = VOICE_STATE_LISTENING;
         }
     } else {
@@ -65,7 +68,7 @@ int phoenix_voice_pipeline_feed(const int16_t *pcm_samples, size_t sample_count,
             /* After 3 consecutive silence frames, end of utterance reached */
             if (g_silence_frames_count >= 3) {
                 g_voice_state = VOICE_STATE_RECOGNIZING;
-                printf("[PhoenixVoice] 🔇 Utterance end detected. State -> RECOGNIZING\n");
+                LOG_I(TAG, "🔇 Utterance end detected. State -> RECOGNIZING");
 
                 /* Synthesize recognized utterance */
                 const char *simulated_text = "灵眸敲木鱼";

@@ -6,8 +6,15 @@
 
 #include "hal_manager.h"
 #include "ble_prov_service.h"
+#if defined(__has_include) && __has_include("utils/log_utils.h")
+#  include "utils/log_utils.h"
+#else
+#  include "../utils/log_utils.h"
+#endif
 #include <stdio.h>
 #include <string.h>
+
+#define TAG "HAL:Manager"
 
 /* Forward declare platform default drivers */
 extern const hal_driver_t g_hal_driver_mock;
@@ -20,7 +27,7 @@ int hal_register_driver(const hal_driver_t *driver)
 {
     if (!driver) return -1;
     g_active_driver = driver;
-    printf("[HAL:Manager] Registered active driver: [%s]\n", driver->driver_name ? driver->driver_name : "Unknown");
+    LOG_I(TAG, "Registered active driver: [%s]", driver->driver_name ? driver->driver_name : "Unknown");
     return 0;
 }
 
@@ -32,11 +39,11 @@ const hal_driver_t* hal_get_active_driver(void)
 int hal_init(const hal_config_t *config)
 {
     if (g_hal_initialized) {
-        printf("[HAL:Manager] Notice: HAL already initialized.\n");
+        LOG_I(TAG, "Notice: HAL already initialized.");
         return 0;
     }
 
-    printf("[HAL:Manager] ⚡ Initializing Hardware Abstraction Layer (HAL)...\n");
+    LOG_I(TAG, "⚡ Initializing Hardware Abstraction Layer (HAL)...");
 
     /* 1. Determine driver */
     if (config && config->custom_driver) {
@@ -59,7 +66,7 @@ int hal_init(const hal_config_t *config)
     ble_prov_service_init(NULL);
 
     g_hal_initialized = true;
-    printf("[HAL:Manager] ✅ HAL Subsystems Initialized Successfully.\n");
+    LOG_I(TAG, "✅ HAL Subsystems Initialized Successfully.");
     return 0;
 }
 
@@ -67,7 +74,7 @@ void hal_deinit(void)
 {
     if (!g_hal_initialized) return;
 
-    printf("[HAL:Manager] 🔄 De-initializing HAL Subsystems...\n");
+    LOG_I(TAG, "🔄 De-initializing HAL Subsystems...");
     ble_prov_service_deinit();
     hal_sensor_deinit();
     hal_actuator_deinit();
@@ -75,7 +82,7 @@ void hal_deinit(void)
     hal_system_deinit();
 
     g_hal_initialized = false;
-    printf("[HAL:Manager] 🏁 HAL Subsystems Teardown Complete.\n");
+    LOG_I(TAG, "🏁 HAL Subsystems Teardown Complete.");
 }
 
 bool hal_is_initialized(void)
