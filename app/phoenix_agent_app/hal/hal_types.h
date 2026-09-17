@@ -86,10 +86,12 @@ typedef struct {
     char os_version[32];          /**< 操作系统与内核版本 (如 OpenVela v1.0.0) */
     float cpu_temperature_c;      /**< 核心温度摄氏度 */
     uint32_t cpu_freq_mhz;        /**< CPU 主频 (MHz) */
+    uint32_t cpu_load_pct;        /**< CPU 负载百分比 (0-100) */
     uint32_t mem_total_kb;        /**< 总物理内存 (KB) */
     uint32_t mem_free_kb;         /**< 空闲物理内存 (KB) */
     uint32_t mem_used_pct;        /**< 内存使用百分比 (0-100) */
     uint64_t uptime_seconds;      /**< 系统开机运行时间 (秒) */
+    uint32_t fps;                 /**< UI 实际刷新帧率 (Frames Per Second) */
 } hal_system_telemetry_t;
 /* ========================================================================= */
 /* 4. 音频输入采集与语音类型 (Audio In & Voice Streaming)                   */

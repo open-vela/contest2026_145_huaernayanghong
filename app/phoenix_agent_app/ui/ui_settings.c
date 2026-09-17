@@ -9,6 +9,7 @@
 #include "../hal/ble_prov_service.h"
 #include "../hal/hal_manager.h"
 #include "../hal/hal_system.h"
+#include "../hal/hal_sdcard.h"
 #include "../core/config.h"
 #include "../utils/log_utils.h"
 #include <stdio.h>
@@ -964,7 +965,7 @@ void ui_settings_refresh_data(ui_settings_t *settings)
         }
     }
 
-    /* 3. 刷新系统遥测与大模型页面 */
+    /* 3. 刷新系统遥测与硬件状态页面 */
     hal_system_telemetry_t sys;
     memset(&sys, 0, sizeof(sys));
     if (hal_system_get_telemetry(&sys) == 0) {
@@ -979,9 +980,16 @@ void ui_settings_refresh_data(ui_settings_t *settings)
         }
         if (settings->lbl_system_cpu) {
             char cbuf[64];
-            snprintf(cbuf, sizeof(cbuf), "CPU: %uMHz | 负载: %u%%",
-                     (unsigned int)sys.cpu_freq_mhz,
-                     (unsigned int)sys.mem_used_pct);
+            if (sys.cpu_temperature_c > 0) {
+                snprintf(cbuf, sizeof(cbuf), "CPU: %uMHz (%u%%) | %d°C",
+                         (unsigned int)sys.cpu_freq_mhz,
+                         (unsigned int)sys.cpu_load_pct,
+                         (int)sys.cpu_temperature_c);
+            } else {
+                snprintf(cbuf, sizeof(cbuf), "CPU: %uMHz | 负载: %u%%",
+                         (unsigned int)sys.cpu_freq_mhz,
+                         (unsigned int)sys.cpu_load_pct);
+            }
             lv_label_set_text(settings->lbl_system_cpu, cbuf);
         }
         if (settings->lbl_system_ram) {
@@ -991,9 +999,50 @@ void ui_settings_refresh_data(ui_settings_t *settings)
             snprintf(rbuf, sizeof(rbuf), "RAM 内存: %.1fMB / %.1fMB", used_mb, total_mb);
             lv_label_set_text(settings->lbl_system_ram, rbuf);
         }
+        if (settings->lbl_system_fps) {
+            char fbuf[64];
+            snprintf(fbuf, sizeof(fbuf), "LVGL: %u FPS | 调度就绪", (unsigned int)sys.fps);
+            lv_label_set_text(settings->lbl_system_fps, fbuf);
+        }
+        if (settings->lbl_system_ver && sys.os_version[0]) {
+            char vbuf[64];
+            snprintf(vbuf, sizeof(vbuf), "OS: %s", sys.os_version);
+            lv_label_set_text(settings->lbl_system_ver, vbuf);
+        }
     }
 
-    /* 4. 同步刷新主菜单列表卡片的右侧状态摘要 (Glanceable Summary) */
+    /* 4. 刷新外置 TF 卡与持久化存储页面 */
+    hal_sdcard_info_t sd;
+    memset(&sd, 0, sizeof(sd));
+    hal_sdcard_get_info(&sd);
+
+    if (settings->lbl_storage_sd_st) {
+        char sdbuf[64];
+        if (sd.is_mounted) {
+            snprintf(sdbuf, sizeof(sdbuf), "TF 卡: 已就绪 (%s)", sd.mount_point[0] ? sd.mount_point : "/mnt/sdcard");
+            lv_obj_set_style_text_color(settings->lbl_storage_sd_st, lv_color_hex(0x00FF88), 0);
+        } else {
+            snprintf(sdbuf, sizeof(sdbuf), "TF 卡: 未检测到外置卡");
+            lv_obj_set_style_text_color(settings->lbl_storage_sd_st, lv_color_hex(0xFFB700), 0);
+        }
+        lv_label_set_text(settings->lbl_storage_sd_st, sdbuf);
+    }
+
+    if (settings->lbl_storage_cap) {
+        char capbuf[64];
+        if (sd.total_mb >= 1024) {
+            float total_gb = (float)sd.total_mb / 1024.0f;
+            float free_gb = (float)sd.free_mb / 1024.0f;
+            snprintf(capbuf, sizeof(capbuf), "可用容量: %.1f GB / %.1f GB", free_gb, total_gb);
+        } else if (sd.total_mb > 0) {
+            snprintf(capbuf, sizeof(capbuf), "可用容量: %u MB / %u MB", (unsigned int)sd.free_mb, (unsigned int)sd.total_mb);
+        } else {
+            snprintf(capbuf, sizeof(capbuf), "容量: 物理存储未挂载");
+        }
+        lv_label_set_text(settings->lbl_storage_cap, capbuf);
+    }
+
+    /* 5. 同步刷新主菜单列表卡片的右侧状态摘要 (Glanceable Summary) */
     if (settings->lbl_menu_net_sub) {
         if (mode == NET_MODE_STA_CONNECTED) {
             char nbuf[32];
@@ -1018,13 +1067,28 @@ void ui_settings_refresh_data(ui_settings_t *settings)
     }
 
     if (settings->lbl_menu_system_sub) {
-        lv_label_set_text(settings->lbl_menu_system_sub, "60FPS / 正常 >");
+        char sbuf[32];
+        if (sys.fps > 0) {
+            snprintf(sbuf, sizeof(sbuf), "%uFPS/%u%% >", (unsigned int)sys.fps, (unsigned int)sys.cpu_load_pct);
+        } else {
+            snprintf(sbuf, sizeof(sbuf), "%u%% 负载 >", (unsigned int)sys.cpu_load_pct);
+        }
+        lv_label_set_text(settings->lbl_menu_system_sub, sbuf);
         lv_obj_set_style_text_color(settings->lbl_menu_system_sub, lv_color_hex(0x00FF88), 0);
     }
 
     if (settings->lbl_menu_storage_sub) {
-        lv_label_set_text(settings->lbl_menu_storage_sub, "28.6GB >");
-        lv_obj_set_style_text_color(settings->lbl_menu_storage_sub, lv_color_hex(0x00E5FF), 0);
+        char stbuf[32];
+        if (sd.total_mb >= 1024) {
+            float free_gb = (float)sd.free_mb / 1024.0f;
+            snprintf(stbuf, sizeof(stbuf), "%.1fGB >", free_gb);
+        } else if (sd.total_mb > 0) {
+            snprintf(stbuf, sizeof(stbuf), "%uMB >", (unsigned int)sd.free_mb);
+        } else {
+            snprintf(stbuf, sizeof(stbuf), "未挂载 >");
+        }
+        lv_label_set_text(settings->lbl_menu_storage_sub, stbuf);
+        lv_obj_set_style_text_color(settings->lbl_menu_storage_sub, sd.is_mounted ? lv_color_hex(0x00E5FF) : lv_color_hex(0x7E92AD), 0);
     }
 
     if (settings->lbl_menu_about_sub) {

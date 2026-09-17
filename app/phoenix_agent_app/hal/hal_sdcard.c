@@ -46,7 +46,12 @@ int hal_sdcard_init(void)
         strncpy(s_mount_point, "/sdcard", sizeof(s_mount_point) - 1);
         s_is_mounted = true;
     } 
-    /* 3. 宿主机模拟/测试环境回退路径 /tmp/phoenix_sdcard */
+    /* 3. 板载持久化存储 /data */
+    else if (stat("/data", &st) == 0 && S_ISDIR(st.st_mode)) {
+        strncpy(s_mount_point, "/data", sizeof(s_mount_point) - 1);
+        s_is_mounted = true;
+    }
+    /* 4. 宿主机模拟/测试环境回退路径 /tmp/phoenix_sdcard */
     else {
         strncpy(s_mount_point, "/tmp/phoenix_sdcard", sizeof(s_mount_point) - 1);
         ensure_dir(s_mount_point);

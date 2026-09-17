@@ -18,6 +18,8 @@
 
 #include <sys/stat.h>
 #include <unistd.h>
+#include <time.h>
+#include <sys/time.h>
 
 int hal_system_mkdir_p(const char *path, mode_t mode)
 {
@@ -74,26 +76,62 @@ int hal_system_deinit(void)
     return 0;
 }
 
+static uint32_t s_frame_counter = 0;
+static uint32_t s_last_fps = 60;
+static uint64_t s_last_fps_calc_time_ms = 0;
+
+static uint64_t system_get_monotonic_ms(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
+}
+
+void hal_system_record_frame(void)
+{
+    s_frame_counter++;
+    uint64_t now = system_get_monotonic_ms();
+    if (s_last_fps_calc_time_ms == 0) {
+        s_last_fps_calc_time_ms = now;
+        return;
+    }
+    uint64_t diff = now - s_last_fps_calc_time_ms;
+    if (diff >= 1000) {
+        s_last_fps = (uint32_t)((s_frame_counter * 1000) / diff);
+        s_frame_counter = 0;
+        s_last_fps_calc_time_ms = now;
+    }
+}
+
+uint32_t hal_system_get_fps(void)
+{
+    return (s_last_fps > 0 && s_last_fps <= 120) ? s_last_fps : 60;
+}
+
 int hal_system_get_telemetry(hal_system_telemetry_t *out_telem)
 {
     if (!out_telem) return -1;
     memset(out_telem, 0, sizeof(*out_telem));
 
+    int ret = 0;
     const hal_driver_t *drv = hal_get_active_driver();
     if (drv && drv->system_ops.get_telemetry) {
-        return drv->system_ops.get_telemetry(out_telem);
+        ret = drv->system_ops.get_telemetry(out_telem);
+    } else {
+        /* Fallback default telemetry */
+        strncpy(out_telem->board_model, "OpenVela Gemini-S1 (Generic HAL)", sizeof(out_telem->board_model) - 1);
+        strncpy(out_telem->os_version, "OpenVela OS v1.0", sizeof(out_telem->os_version) - 1);
+        out_telem->cpu_temperature_c = 42.0f;
+        out_telem->cpu_freq_mhz = 1200;
+        out_telem->cpu_load_pct = 15;
+        out_telem->mem_total_kb = 128 * 1024;
+        out_telem->mem_free_kb = 64 * 1024;
+        out_telem->mem_used_pct = 50;
+        out_telem->uptime_seconds = 3600;
     }
 
-    /* Fallback default telemetry */
-    strncpy(out_telem->board_model, "OpenVela Gemini-S1 (Generic HAL)", sizeof(out_telem->board_model) - 1);
-    strncpy(out_telem->os_version, "OpenVela OS v1.0", sizeof(out_telem->os_version) - 1);
-    out_telem->cpu_temperature_c = 42.0f;
-    out_telem->cpu_freq_mhz = 1200;
-    out_telem->mem_total_kb = 128 * 1024;
-    out_telem->mem_free_kb = 64 * 1024;
-    out_telem->mem_used_pct = 50;
-    out_telem->uptime_seconds = 3600;
-    return 0;
+    out_telem->fps = hal_system_get_fps();
+    return ret;
 }
 
 int hal_system_launch_app(const char *app_package_or_alias)

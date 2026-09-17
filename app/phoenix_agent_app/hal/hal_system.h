@@ -26,6 +26,12 @@ int hal_system_deinit(void);
 /** 采集系统底层软硬件健康遥测数据 (CPU负载、主频、真实内存使用、核心温度、Uptime) */
 int hal_system_get_telemetry(hal_system_telemetry_t *out_telem);
 
+/** 记录一次 UI 渲染帧 (供测量实时 FPS) */
+void hal_system_record_frame(void);
+
+/** 获取当前实时渲染刷新帧率 (FPS) */
+uint32_t hal_system_get_fps(void);
+
 /**
  * @brief 在底层操作系统调度拉起原生应用
  * @param app_package_or_alias 应用包名或别名 (如 com.application.x4b.calendar 或 "日历")

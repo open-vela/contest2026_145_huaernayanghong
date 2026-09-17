@@ -163,10 +163,12 @@ static int mock_system_get_telemetry(hal_system_telemetry_t *out_telem)
     strncpy(out_telem->os_version, "Host POSIX Mock (HAL v1.0)", sizeof(out_telem->os_version) - 1);
     out_telem->cpu_temperature_c = g_mock_temperature;
     out_telem->cpu_freq_mhz = 2400;
+    out_telem->cpu_load_pct = 15;
     out_telem->mem_total_kb = 128 * 1024;
     out_telem->mem_free_kb = 68 * 1024;
     out_telem->mem_used_pct = 46;
     out_telem->uptime_seconds = (uint64_t)(mock_get_time_ms() / 1000);
+    out_telem->fps = 60;
     return 0;
 }
 

@@ -421,6 +421,7 @@ int main(int argc, FAR char *argv[])
 #else
     while (1) {
         uint32_t idle = lv_timer_handler();
+        hal_system_record_frame();
         phoenix_app_tick();
         usleep(idle ? idle * 1000 : 5000);
     }
