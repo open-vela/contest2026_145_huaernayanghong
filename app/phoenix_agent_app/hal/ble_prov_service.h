@@ -81,6 +81,34 @@ int ble_prov_service_notify_net_status(const char *state, const char *ssid, cons
  */
 int ble_prov_service_notify_wifi_scan(void);
 
+/**
+ * @brief 触发向已连接的客户端回传当前已保存的完整配置信息 (Wi-Fi/API Key掩码/Model/Prompt)
+ * @return 0 成功, 负数失败
+ */
+int ble_prov_service_notify_config(void);
+
+/**
+ * @brief 触发向已连接客户端回传设备硬件与系统遥测信息 (固件/架构/TF卡/内存)
+ * @return 0 成功, 负数失败
+ */
+int ble_prov_service_notify_system_info(void);
+
+/**
+ * @brief 向客户端发送通用操作回执 ACK
+ * @param event_name 事件名称 (如 "config_saved")
+ * @param success 是否成功
+ * @param msg 说明文本
+ * @return 0 成功, 负数失败
+ */
+int ble_prov_service_notify_ack(const char *event_name, bool success, const char *msg);
+
+/**
+ * @brief 独立处理传入的 JSON 指令字符串 (支持命令管道与测试注入)
+ * @param cmd_json_str 待解析的 JSON 指令
+ * @return 0 成功, 负数失败
+ */
+int ble_prov_service_handle_command(const char *cmd_json_str);
+
 #ifdef __cplusplus
 }
 #endif

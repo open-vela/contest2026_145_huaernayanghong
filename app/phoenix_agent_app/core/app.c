@@ -48,7 +48,12 @@ int phoenix_app_init(const phoenix_app_config_t *config)
     const char *api_key = (config && config->api_key) ? config->api_key : NULL;
     bool reg_tools = config ? config->register_tools : true;
 
-    LOG_I(TAG, "🚀 Initializing Phoenix HoloDesk-S1 Subsystems (Unified Logging Enabled)...");
+    /* 挂载 Flash 滚动黑匣子持久化日志 (64KB 自动轮转覆盖，供 adb pull 提取分析) */
+    char log_file_path[256];
+    snprintf(log_file_path, sizeof(log_file_path), "%s/logs/phoenix.log", store_dir);
+    phoenix_log_enable_file(log_file_path, 64 * 1024);
+
+    LOG_I(TAG, "🚀 Initializing Phoenix HoloDesk-S1 Subsystems (Unified Logging & Flash Blackbox Enabled)...");
 
     /* 0. Hardware Abstraction Layer (HAL) */
     hal_config_t hal_cfg;
@@ -161,6 +166,7 @@ void phoenix_app_tick(void)
     phoenix_event_bus_drain();
     phoenix_voice_pipeline_tick();
     phoenix_store_flush();
+    phoenix_log_flush();
     phoenix_web_portal_drain_commands();
 
     /* 20Hz (50ms) 具身环境与微敲击感知主循环驱动 */

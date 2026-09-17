@@ -1465,6 +1465,35 @@ static void run_test_network_mgr(void)
     assert(resp_len > 0);
     /* In SoftAP mode, GET / should return setup page */
     assert(strstr(resp_buf, "Gemini-S1 硬件热点配网") != NULL);
+
+    /* 2.1 iOS / macOS Captive Probe: /hotspot-detect.html -> 200 Setup Page */
+    const char *req_ios_probe = "GET /hotspot-detect.html HTTP/1.1\r\nHost: captive.apple.com\r\n\r\n";
+    resp_len = phoenix_web_portal_handle_request(req_ios_probe, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "200 OK") != NULL);
+    assert(strstr(resp_buf, "Gemini-S1 硬件热点配网") != NULL);
+
+    /* 2.2 Android Captive Probe: /generate_204 -> 302 Found redirect */
+    const char *req_android_probe = "GET /generate_204 HTTP/1.1\r\nHost: connectivitycheck.gstatic.com\r\n\r\n";
+    resp_len = phoenix_web_portal_handle_request(req_android_probe, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "302 Found") != NULL);
+    assert(strstr(resp_buf, "Location: http://192.168.4.1/") != NULL);
+
+    /* 2.3 Windows Captive Probe: /connecttest.txt -> 302 Found redirect */
+    const char *req_win_probe = "GET /connecttest.txt HTTP/1.1\r\nHost: www.msftconnecttest.com\r\n\r\n";
+    resp_len = phoenix_web_portal_handle_request(req_win_probe, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "302 Found") != NULL);
+    assert(strstr(resp_buf, "Location: http://192.168.4.1/") != NULL);
+
+    /* 2.4 SoftAP Unrecognized non-/api/ path -> 302 Found redirect */
+    const char *req_unknown = "GET /some/random/domain/probe HTTP/1.1\r\nHost: example.com\r\n\r\n";
+    resp_len = phoenix_web_portal_handle_request(req_unknown, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "302 Found") != NULL);
+    assert(strstr(resp_buf, "Location: http://192.168.4.1/") != NULL);
+
     printf("  -> Captive Portal & SoftAP Web Redirect PASSED!\n");
 
     /* 2.1 Test Wi-Fi scanning API & REST endpoint */
@@ -1812,6 +1841,9 @@ static void run_test_ble_prov_service(void)
 {
     printf("\n[TEST 27] Testing Web Bluetooth BLE Provisioning Service & Endpoints...\n");
 
+    /* 0. Initialize configuration subsystem for BLE provisioning test */
+    phoenix_config_init("/tmp/phoenix_test_ble_cfg");
+
     /* 1. Initialize BLE provisioning service */
     assert(ble_prov_service_init("Phoenix-Test-Setup") == 0);
     assert(ble_prov_service_get_state() == BLE_PROV_STATE_ADVERTISING);
@@ -1828,6 +1860,36 @@ static void run_test_ble_prov_service(void)
     assert(ble_prov_service_get_state() == BLE_PROV_STATE_PROVISIONED);
     printf("  -> BLE Net Status Notification & IP Broadcast PASSED\n");
 
+    /* 3.1 Test Bidirectional Protocol: notify_config and notify_system_info */
+    assert(ble_prov_service_notify_config() == 0);
+    assert(ble_prov_service_notify_system_info() == 0);
+    assert(ble_prov_service_notify_ack("test_ack", true, "ACK OK") == 0);
+    printf("  -> BLE Bidirectional Uplink Event Notifications PASSED\n");
+
+    /* 3.2 Test Bidirectional Protocol: Incoming Command Handlers (get_config, set_config, get_system_info) */
+    assert(ble_prov_service_handle_command("{\"cmd\":\"get_config\"}") == 0);
+    assert(ble_prov_service_handle_command("{\"cmd\":\"get_system_info\"}") == 0);
+
+    /* Test set_config updating agent model & prompt without reconnecting Wi-Fi */
+    const char *test_set_cmd = "{\"cmd\":\"set_config\",\"agent\":{\"api_key\":\"sk-test12345678\",\"model\":\"deepseek-reasoner\",\"prompt\":\"你是极客桌面使魔\"}}";
+    assert(ble_prov_service_handle_command(test_set_cmd) == 0);
+
+    char verify_model[64] = {0};
+    phoenix_config_get_str(PHOENIX_CFG_MODEL, "", verify_model, sizeof(verify_model));
+    assert(strcmp(verify_model, "deepseek-reasoner") == 0);
+    char verify_key[64] = {0};
+    phoenix_config_get_str(PHOENIX_CFG_API_KEY, "", verify_key, sizeof(verify_key));
+    assert(strcmp(verify_key, "sk-test12345678") == 0);
+    printf("  -> BLE Bidirectional Downlink Command Processing & Param Persistence PASSED\n");
+
+    /* 3.3 Test Standalone ble_prov CLI Builtin Entry */
+    extern int ble_prov_main(int argc, char *argv[]);
+    char *cli_status[] = {"ble_prov", "status", NULL};
+    assert(ble_prov_main(2, cli_status) == 0);
+    char *cli_get[] = {"ble_prov", "get_config", NULL};
+    assert(ble_prov_main(2, cli_get) == 0);
+    printf("  -> Standalone ble_prov CLI Builtin Tool PASSED\n");
+
     /* 4. Test Web Bluetooth HTML Routes (/ble_setup and /ble_setup.html) */
     char resp_buf[32768];
     const char *req_ble_setup = "GET /ble_setup HTTP/1.1\r\nHost: 192.168.4.1\r\n\r\n";
@@ -1841,7 +1903,77 @@ static void run_test_ble_prov_service(void)
     /* 5. De-initialize BLE service */
     ble_prov_service_deinit();
     assert(ble_prov_service_get_state() == BLE_PROV_STATE_STOPPED);
+    phoenix_config_deinit();
     printf("  -> BLE Prov Service Teardown PASSED\n");
+}
+
+/* ---- 28. Persistent Flash FileLog & Multi-channel Pipeline Test ---- */
+static void run_test_log_mgr_persistence_and_multichannel(void)
+{
+    printf("\n[TEST 28] Testing Multi-channel Persistent FileLog & Flash Blackbox...\n");
+
+    /* 1. Init logging system */
+    assert(phoenix_log_init() == 0);
+
+    /* 2. Configure persistent file log with small rotation limit (1024 bytes) for test */
+    const char *test_log_file = "/tmp/phoenix_test_logs/phoenix.log";
+    unlink("/tmp/phoenix_test_logs/phoenix.log");
+    unlink("/tmp/phoenix_test_logs/phoenix.log.old");
+
+    assert(phoenix_log_enable_file(test_log_file, 1024) == 0);
+    assert(phoenix_log_get_file_path() != NULL);
+    assert(strcmp(phoenix_log_get_file_path(), test_log_file) == 0);
+
+    /* 3. Write various level logs and verify recent ring buffer */
+    phoenix_log_set_level(PHOENIX_LOG_VERBOSE);
+    LOG_I("TestLog", "First test info message");
+    LOG_W("TestLog", "Warning message with code: %d", 42);
+    LOG_E("TestLog", "Critical error message: %s", "Disk I/O failure");
+    LOG_D("TestLog", "Debug packet trace");
+    LOG_V("TestLog", "Verbose byte stream");
+
+    phoenix_log_flush();
+
+    /* 4. Verify file was created on filesystem */
+    FILE *fp = fopen(test_log_file, "r");
+    assert(fp != NULL);
+    char buf[1024] = {0};
+    size_t r = fread(buf, 1, sizeof(buf) - 1, fp);
+    fclose(fp);
+    assert(r > 0);
+    assert(strstr(buf, "[TestLog:I] First test info message") != NULL);
+    assert(strstr(buf, "[TestLog:W] Warning message with code: 42") != NULL);
+    assert(strstr(buf, "[TestLog:E] Critical error message: Disk I/O failure") != NULL);
+    printf("  -> Flash Log File Creation & Content Verification PASSED (Read %zu bytes)\n", r);
+
+    /* 5. Fill log past 1024 bytes to trigger automatic rotation */
+    for (int i = 0; i < 25; i++) {
+        LOG_I("RollTest", "Rolling test message line #%02d padding string for size overflow", i);
+    }
+    phoenix_log_flush();
+
+    /* Verify that old log backup was produced */
+    FILE *fp_old = fopen("/tmp/phoenix_test_logs/phoenix.log.old", "r");
+    assert(fp_old != NULL);
+    fclose(fp_old);
+    printf("  -> Automatic Log Rotation & Blackbox Backup (.old) PASSED\n");
+
+    /* 6. Console silencing test */
+    phoenix_log_enable_console(false);
+    LOG_I("SilentTest", "This line should not appear on console output");
+    phoenix_log_enable_console(true);
+
+    /* 7. Clean up */
+    phoenix_log_clear_recent();
+    phoenix_log_enable_file(NULL, 0);
+    assert(phoenix_log_get_file_path() == NULL);
+
+    unlink("/tmp/phoenix_test_logs/phoenix.log");
+    unlink("/tmp/phoenix_test_logs/phoenix.log.old");
+    rmdir("/tmp/phoenix_test_logs");
+
+    phoenix_log_deinit();
+    printf("  -> Multi-channel Persistent FileLog & Flash Blackbox PASSED!\n");
 }
 
 int main(int argc, char *argv[])
@@ -1884,8 +2016,9 @@ int main(int argc, char *argv[])
     run_test_sdcard_storage_and_web_mgmt();
     run_test_familiar_and_gestures();
     run_test_ble_prov_service();
+    run_test_log_mgr_persistence_and_multichannel();
 
-    printf("\n🎉 ALL 27 UNIT TESTS PASSED SUCCESSFULLY!\n");
+    printf("\n🎉 ALL 28 UNIT TESTS PASSED SUCCESSFULLY!\n");
 
     /* If --repl or -i passed, enter interactive mode */
     if (argc > 1 && (strcmp(argv[1], "-i") == 0 || strcmp(argv[1], "--repl") == 0)) {

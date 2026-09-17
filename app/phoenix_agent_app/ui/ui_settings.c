@@ -777,7 +777,7 @@ void ui_settings_update_net_progress(ui_settings_t *settings, int mode, const ch
 {
     if (!settings) return;
 
-    if (mode == 1 /* NET_MODE_STA_CONNECTING */) {
+    if (mode == NET_MODE_STA_CONNECTING) {
         /* 立即切换显示步进状态机面板 */
         if (settings->box_hotspot_idle) lv_obj_add_flag(settings->box_hotspot_idle, LV_OBJ_FLAG_HIDDEN);
         if (settings->box_hotspot_progress) lv_obj_clear_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN);
@@ -834,7 +834,7 @@ void ui_settings_update_net_progress(ui_settings_t *settings, int mode, const ch
             lv_label_set_text(settings->lbl_prog_done, "[.. 连网进行中...]");
             lv_obj_set_style_text_color(settings->lbl_prog_done, lv_color_hex(0xFFB700), 0);
         }
-    } else if (mode == 2 /* NET_MODE_STA_CONNECTED */) {
+    } else if (mode == NET_MODE_STA_CONNECTED) {
         if (settings->box_hotspot_idle) lv_obj_add_flag(settings->box_hotspot_idle, LV_OBJ_FLAG_HIDDEN);
         if (settings->box_hotspot_progress) lv_obj_clear_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN);
 
@@ -869,7 +869,7 @@ void ui_settings_update_net_progress(ui_settings_t *settings, int mode, const ch
             lv_label_set_text(settings->lbl_prog_done, "[✓ 完成并返回主页]");
             lv_obj_set_style_text_color(settings->lbl_prog_done, lv_color_hex(0x00FF88), 0);
         }
-    } else if (mode == 0 /* DISCONNECTED / 失败 */) {
+    } else if (mode == NET_MODE_DISCONNECTED) {
         if (settings->box_hotspot_progress && !lv_obj_has_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN)) {
             if (settings->lbl_prog_title) {
                 lv_label_set_text(settings->lbl_prog_title, "[!] 连网超时或密码错误");
@@ -903,9 +903,9 @@ void ui_settings_refresh_data(ui_settings_t *settings)
 
     /* 1. 刷新热点页面 */
     if (mode == NET_MODE_STA_CONNECTING) {
-        ui_settings_update_net_progress(settings, 1, ssid_buf, ip_buf, NULL);
+        ui_settings_update_net_progress(settings, NET_MODE_STA_CONNECTING, ssid_buf, ip_buf, NULL);
     } else if (mode == NET_MODE_STA_CONNECTED) {
-        ui_settings_update_net_progress(settings, 2, ssid_buf, ip_buf, NULL);
+        ui_settings_update_net_progress(settings, NET_MODE_STA_CONNECTED, ssid_buf, ip_buf, NULL);
         /* 仅在非配网进度展示阶段，才呈现常规待配网/热点广播卡片 */
         if (!settings->box_hotspot_progress || lv_obj_has_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN)) {
             if (settings->box_hotspot_idle) lv_obj_clear_flag(settings->box_hotspot_idle, LV_OBJ_FLAG_HIDDEN);
@@ -914,8 +914,22 @@ void ui_settings_refresh_data(ui_settings_t *settings)
 
         if (settings->lbl_hotspot_ssid) {
             char buf[64];
-            snprintf(buf, sizeof(buf), "热点: %s", (mode == NET_MODE_SOFTAP_CONFIG) ? ssid_buf : "Gemini-Agent-Setup");
+            snprintf(buf, sizeof(buf), "热点: %s", ssid_buf[0] ? ssid_buf : "Gemini-Agent-Setup");
             lv_label_set_text(settings->lbl_hotspot_ssid, buf);
+        }
+    } else if (mode == NET_MODE_SOFTAP_CONFIG) {
+        /* SoftAP 广播就绪后，按钮立即自动恢复为 [● 重启热点广播]，消除卡死 */
+        if (settings->box_hotspot_idle) lv_obj_clear_flag(settings->box_hotspot_idle, LV_OBJ_FLAG_HIDDEN);
+        if (settings->box_hotspot_progress) lv_obj_add_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN);
+
+        if (settings->lbl_hotspot_ssid) {
+            char buf[64];
+            snprintf(buf, sizeof(buf), "热点: %s", ssid_buf[0] ? ssid_buf : "Gemini-Agent-Setup");
+            lv_label_set_text(settings->lbl_hotspot_ssid, buf);
+        }
+        if (settings->lbl_hotspot_action) {
+            lv_label_set_text(settings->lbl_hotspot_action, "[● 重启热点广播]");
+            lv_obj_set_style_text_color(settings->lbl_hotspot_action, lv_color_hex(0x00E5FF), 0);
         }
     }
 

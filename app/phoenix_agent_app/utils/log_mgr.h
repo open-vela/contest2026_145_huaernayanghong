@@ -117,6 +117,31 @@ uint64_t phoenix_log_get_cursor(void);
  */
 void phoenix_log_clear_recent(void);
 
+/**
+ * @brief 启用或更新持久化文件日志 (支持 Flash 自动滚动轮转)
+ * @param file_path 日志文件路径 (如 "/data/phoenix/logs/phoenix.log"，传入 NULL 则关闭)
+ * @param max_bytes 单文件最大字节数 (超出后自动重命名为 .old 循环轮转，默认推荐 64KB)
+ * @return 0 成功，负数表示错误
+ */
+int phoenix_log_enable_file(const char *file_path, size_t max_bytes);
+
+/**
+ * @brief 获取当前已配置的持久化日志文件路径
+ * @return 文件路径字符串指针，未启用时返回 NULL
+ */
+const char *phoenix_log_get_file_path(void);
+
+/**
+ * @brief 显式使能或静音控制台标准输出 (stdout/stderr)
+ * @param enable true 开启终端打印，false 关闭 (仅走 syslog/file)
+ */
+void phoenix_log_enable_console(bool enable);
+
+/**
+ * @brief 强制将所有待写日志刷新到文件与系统终端
+ */
+void phoenix_log_flush(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -178,10 +178,21 @@ static const char* find_content_length_header(const char *haystack, const char *
 
 static void handle_single_client(int client_fd, char *req_buf, char *resp_buf)
 {
-    /* 设置 500ms 接收超时，防止空预连接导致阻塞 */
+    /* 增加 poll 1000ms 超时判定，杜绝空预连接挂起 */
+    struct pollfd pfd;
+    pfd.fd = client_fd;
+    pfd.events = POLLIN;
+    pfd.revents = 0;
+    int pret = poll(&pfd, 1, 1000);
+    if (pret <= 0 || !(pfd.revents & POLLIN)) {
+        close(client_fd);
+        return;
+    }
+
+    /* 设置 1000ms 接收超时，防止后续数据传输阻塞 */
     struct timeval tv_client;
-    tv_client.tv_sec = 0;
-    tv_client.tv_usec = 500000;
+    tv_client.tv_sec = 1;
+    tv_client.tv_usec = 0;
     setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv_client, sizeof(tv_client));
 
     size_t total_read = 0;
@@ -338,8 +349,14 @@ int phoenix_web_portal_start(uint16_t port, phoenix_agent_ctx_t *agent_ctx)
     }
 
     g_server_running = true;
-    if (pthread_create(&g_server_thread, NULL, server_thread_worker, NULL) != 0) {
-        printf("[PhoenixWeb] Error: failed to create server worker thread\n");
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setstacksize(&attr, 16384);
+
+    int ret = pthread_create(&g_server_thread, &attr, server_thread_worker, NULL);
+    pthread_attr_destroy(&attr);
+    if (ret != 0) {
+        printf("[PhoenixWeb] Error: failed to create server worker thread (16KB stack)\n");
         g_server_running = false;
         if (g_server_fd >= 0) { close(g_server_fd); g_server_fd = -1; }
         if (g_server_fd_alt >= 0) { close(g_server_fd_alt); g_server_fd_alt = -1; }

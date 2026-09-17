@@ -66,6 +66,13 @@ int handle_system_captive_probe(const http_req_t *req, http_resp_t *resp)
     return 0;
 }
 
+int handle_system_captive_probe_android(const http_req_t *req, http_resp_t *resp)
+{
+    (void)req;
+    http_resp_redirect(resp, 302, "http://192.168.4.1/");
+    return 0;
+}
+
 int handle_system_status(const http_req_t *req, http_resp_t *resp)
 {
     (void)req;

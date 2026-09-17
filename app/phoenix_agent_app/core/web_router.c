@@ -5,6 +5,7 @@
  */
 
 #include "web_router.h"
+#include "../hal/network_mgr.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -219,6 +220,21 @@ void http_resp_file_stream(http_resp_t *resp, int status_code, const char *conte
     resp->written_len = (size_t)hlen + copy_body;
 }
 
+void http_resp_redirect(http_resp_t *resp, int status_code, const char *location)
+{
+    if (!resp || !resp->buf || resp->max_len == 0 || !location) return;
+
+    int written = snprintf(resp->buf, resp->max_len,
+                           "HTTP/1.1 %s\r\n"
+                           "Location: %s\r\n"
+                           "Content-Length: 0\r\n"
+                           "Access-Control-Allow-Origin: *\r\n"
+                           "Connection: close\r\n\r\n",
+                           status_code_to_str(status_code), location);
+    resp->status_code = status_code;
+    resp->written_len = (written > 0) ? (size_t)written : 0;
+}
+
 static http_method_t parse_http_method(const char *req)
 {
     if (strncmp(req, "GET ", 4) == 0) return HTTP_METHOD_GET;
@@ -317,9 +333,13 @@ int web_router_dispatch(const char *raw_http, char *resp_out, size_t max_len)
         }
     }
 
-    /* 5. 未匹配路由 Fallback 404 */
+    /* 5. 未匹配路由 Fallback (SoftAP 模式下非 API 路径统一 302 重定向到 http://192.168.4.1/) */
     if (!handled) {
-        http_resp_error(&resp, 404, "Not Found");
+        if (net_mgr_get_mode() == NET_MODE_SOFTAP_CONFIG && strncmp(req.path, "/api/", 5) != 0) {
+            http_resp_redirect(&resp, 302, "http://192.168.4.1/");
+        } else {
+            http_resp_error(&resp, 404, "Not Found");
+        }
     }
 
     /* 6. 释放自动解析的 JSON */

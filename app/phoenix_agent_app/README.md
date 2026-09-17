@@ -145,3 +145,10 @@ python3 app/phoenix_agent_app/test/run_auto_test.py --mode gui --screen 320x240
 - 各场景高清屏幕快照：`screenshots/01_clock.png` ~ `06_agent_dialog.png`；
 - 科技感可视化交互式测试报告：`report.html`。
 
+---
+
+## 📱 七、ADB 运行与全功能调试测试实战
+
+关于开发板在运行期间如何通过 ADB 命令行调试各个子功能（实时日志流转、Flash 滚动黑匣子持久化、Wi-Fi 配网、BLE 蓝牙双向调测、音频播放拾音、传感器微敲击、LVGL 屏幕 64 字节对齐诊断、业务卡带调度等），请详细参阅：  
+👉 **[《Phoenix HoloDesk-S1 运行期间 ADB 全功能调试与测试实战指南](../../Doc/ADB_DEBUGGING_GUIDE.md)**
+

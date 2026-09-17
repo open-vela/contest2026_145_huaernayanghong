@@ -26,6 +26,11 @@
 | AI 硬件产品创新       | [AI 硬件赛道教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_hardware/ai_hardware_guide_index.md)              |
 | 新硬件适配            | [新硬件适配赛道教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/hardware_porting/hardware_porting_guide_index.md) |
 
+**参赛作品 Phoenix HoloDesk-S1 核心指南：**
+- 📱 **[运行期间 ADB 全功能调试与测试实战指南](Doc/ADB_DEBUGGING_GUIDE.md)**（全通道日志、BLE/Wi-Fi配网、音频、传感器、屏幕触控与大模型工具测试命令集）
+- 🌟 **[Phoenix HoloDesk-S1 产品设计方案与系统规格](Doc/产品设计.md)**
+- 🧠 **[Phoenix Agent 源码架构与宿主机自测指南](app/phoenix_agent_app/README.md)**
+
 ---
 
 ## 二、第一步：拉取完整工程

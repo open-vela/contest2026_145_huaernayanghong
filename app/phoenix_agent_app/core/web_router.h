@@ -93,6 +93,9 @@ void http_resp_html(http_resp_t *resp, int status_code, const char *html_str, si
 void http_resp_file_stream(http_resp_t *resp, int status_code, const char *content_type,
                            const char *filename, const void *data, size_t len);
 
+/** 输出 HTTP 302/301 重定向响应 (含 Location 头) */
+void http_resp_redirect(http_resp_t *resp, int status_code, const char *location);
+
 /* =========================================================================
  * 请求参数辅助工具
  * ========================================================================= */

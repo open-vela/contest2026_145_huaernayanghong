@@ -11,6 +11,7 @@
 #include <time.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #if !defined(HOST_TEST_RUNNER) && (defined(__NuttX__) || defined(__openvela__))
 #  include <syslog.h>
@@ -55,6 +56,13 @@ static uint64_t            s_total_written_bytes = 0;
 /* 限流状态记录表 */
 static ratelimit_entry_t   s_ratelimit_entries[PHOENIX_LOG_RATELIMIT_SLOTS];
 
+/* 持久化 Flash 文件日志与控制台分流状态 */
+static bool                s_console_enabled = true;
+static FILE               *s_file_fp = NULL;
+static char                s_file_path[256] = {0};
+static size_t              s_file_max_bytes = 65536; /* 默认 64KB */
+static size_t              s_file_current_bytes = 0;
+
 static uint64_t get_system_ms(void)
 {
     struct timespec ts;
@@ -72,6 +80,7 @@ int phoenix_log_init(void)
 
     s_boot_time_ms = get_system_ms();
     s_current_level = PHOENIX_LOG_INFO;
+    s_console_enabled = true;
     s_recent_head = 0;
     s_recent_len = 0;
     s_total_written_bytes = 0;
@@ -92,6 +101,13 @@ int phoenix_log_init(void)
 void phoenix_log_deinit(void)
 {
     pthread_mutex_lock(&s_log_lock);
+    if (s_file_fp) {
+        fflush(s_file_fp);
+        fclose(s_file_fp);
+        s_file_fp = NULL;
+    }
+    s_file_path[0] = '\0';
+    s_file_current_bytes = 0;
     s_initialized = false;
     pthread_mutex_unlock(&s_log_lock);
 }
@@ -257,6 +273,51 @@ void phoenix_log_clear_recent(void)
     pthread_mutex_unlock(&s_log_lock);
 }
 
+static void ensure_parent_dir(const char *path)
+{
+    if (!path) return;
+    char tmp[256];
+    strncpy(tmp, path, sizeof(tmp) - 1);
+    tmp[sizeof(tmp) - 1] = '\0';
+    char *p = strrchr(tmp, '/');
+    if (p && p != tmp) {
+        *p = '\0';
+        for (char *c = tmp + 1; *c; c++) {
+            if (*c == '/') {
+                *c = '\0';
+                mkdir(tmp, 0755);
+                *c = '/';
+            }
+        }
+        mkdir(tmp, 0755);
+    }
+}
+
+static void write_to_file_locked(const char *line, size_t len)
+{
+    if (!s_file_fp || !line || len == 0) return;
+
+    /* 检查并执行自动轮转 (Rotation): 达到上限则重命名为 .old 并新建 */
+    if (s_file_current_bytes + len > s_file_max_bytes) {
+        fflush(s_file_fp);
+        fclose(s_file_fp);
+        s_file_fp = NULL;
+
+        char old_path[280];
+        snprintf(old_path, sizeof(old_path), "%s.old", s_file_path);
+        unlink(old_path);
+        rename(s_file_path, old_path);
+
+        s_file_fp = fopen(s_file_path, "w+");
+        s_file_current_bytes = 0;
+        if (!s_file_fp) return;
+    }
+
+    size_t written = fwrite(line, 1, len, s_file_fp);
+    s_file_current_bytes += written;
+    fflush(s_file_fp);
+}
+
 void phoenix_log_vwrite(int level, const char *tag, const char *fmt, va_list args)
 {
     if (level <= PHOENIX_LOG_NONE || level > s_current_level) {
@@ -315,9 +376,10 @@ void phoenix_log_vwrite(int level, const char *tag, const char *fmt, va_list arg
         append_to_recent_buffer(full_line, (size_t)line_len);
     }
 
-    /* 2. 多通道输出分发 */
+    /* 2. 多通道并发分流 */
+
 #if HAS_OPENVELA_SYSLOG
-    /* 嵌入式 OpenVela 平台: 经 POSIX syslog 分流至 Serial / Ramlog / File */
+    /* 2.1 嵌入式 OpenVela 平台系统日志: 经 POSIX syslog 分流至 Serial / Ramlog */
     int syslog_prio = LOG_INFO;
     switch (level) {
         case PHOENIX_LOG_ERROR:   syslog_prio = LOG_ERR; break;
@@ -328,16 +390,82 @@ void phoenix_log_vwrite(int level, const char *tag, const char *fmt, va_list arg
         default:                  syslog_prio = LOG_INFO; break;
     }
     syslog(syslog_prio, "[%s:%s] %s\n", tag, lvl_char, msg_buf);
-#else
-    /* 宿主机仿真模式: 单次原子推送终端，附带 ANSI 色彩高亮 */
-    char ansi_line[PHOENIX_LOG_LINE_MAX + 128];
-    snprintf(ansi_line, sizeof(ansi_line),
-             COLOR_GRAY "[%5u.%03u]" COLOR_RESET " %s[%s:%s]%s %s\n",
-             sec, msec, color_code, tag, lvl_char, COLOR_RESET, msg_buf);
-    fputs(ansi_line, stdout);
-    fflush(stdout);
 #endif
 
+    /* 2.2 控制台/终端标准输出 (确保 adb shell 前台运行或 host 运行均有彩色高亮实时日志) */
+    if (s_console_enabled) {
+        char ansi_line[PHOENIX_LOG_LINE_MAX + 128];
+        snprintf(ansi_line, sizeof(ansi_line),
+                 COLOR_GRAY "[%5u.%03u]" COLOR_RESET " %s[%s:%s]%s %s\n",
+                 sec, msec, color_code, tag, lvl_char, COLOR_RESET, msg_buf);
+        fputs(ansi_line, stdout);
+        fflush(stdout);
+    }
+
+    /* 2.3 Flash 持久化滚动黑匣子文件 (供设备断电或异常崩溃后通过 adb pull 调阅排障) */
+    if (s_file_fp && line_len > 0) {
+        write_to_file_locked(full_line, (size_t)line_len);
+    }
+
+    pthread_mutex_unlock(&s_log_lock);
+}
+
+int phoenix_log_enable_file(const char *file_path, size_t max_bytes)
+{
+    pthread_mutex_lock(&s_log_lock);
+
+    if (s_file_fp) {
+        fflush(s_file_fp);
+        fclose(s_file_fp);
+        s_file_fp = NULL;
+    }
+
+    if (!file_path || strlen(file_path) == 0) {
+        s_file_path[0] = '\0';
+        s_file_current_bytes = 0;
+        pthread_mutex_unlock(&s_log_lock);
+        return 0;
+    }
+
+    strncpy(s_file_path, file_path, sizeof(s_file_path) - 1);
+    s_file_path[sizeof(s_file_path) - 1] = '\0';
+    s_file_max_bytes = (max_bytes >= 256) ? max_bytes : 65536;
+
+    ensure_parent_dir(s_file_path);
+
+    s_file_fp = fopen(s_file_path, "a+");
+    if (!s_file_fp) {
+        pthread_mutex_unlock(&s_log_lock);
+        return -1;
+    }
+
+    fseek(s_file_fp, 0, SEEK_END);
+    long sz = ftell(s_file_fp);
+    s_file_current_bytes = (sz > 0) ? (size_t)sz : 0;
+
+    pthread_mutex_unlock(&s_log_lock);
+    return 0;
+}
+
+const char *phoenix_log_get_file_path(void)
+{
+    return (s_file_fp && s_file_path[0]) ? s_file_path : NULL;
+}
+
+void phoenix_log_enable_console(bool enable)
+{
+    pthread_mutex_lock(&s_log_lock);
+    s_console_enabled = enable;
+    pthread_mutex_unlock(&s_log_lock);
+}
+
+void phoenix_log_flush(void)
+{
+    pthread_mutex_lock(&s_log_lock);
+    if (s_file_fp) {
+        fflush(s_file_fp);
+    }
+    fflush(stdout);
     pthread_mutex_unlock(&s_log_lock);
 }
 

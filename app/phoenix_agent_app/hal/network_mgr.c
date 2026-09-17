@@ -46,6 +46,7 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
+#include <poll.h>
 
 #if !defined(HOST_TEST_RUNNER)
 #  if defined(__has_include) && __has_include(<wireless/wapi.h>)
@@ -462,15 +463,90 @@ typedef struct {
 static pthread_t      s_dhcp_tid = 0;
 static volatile bool  s_dhcp_running = false;
 static int            s_dhcp_sock = -1;
+static int            s_dns_sock = -1;
+
+static void handle_dns_packet(void)
+{
+    if (s_dns_sock < 0) return;
+
+    uint8_t dns_buf[512];
+    struct sockaddr_in caddr;
+    socklen_t clen = sizeof(caddr);
+    ssize_t dn = recvfrom(s_dns_sock, dns_buf, sizeof(dns_buf), 0, (struct sockaddr *)&caddr, &clen);
+    if (dn < 12) return;
+
+    uint16_t flags = ntohs(*(uint16_t *)&dns_buf[2]);
+    uint16_t qdcount = ntohs(*(uint16_t *)&dns_buf[4]);
+
+    /* 仅处理标准查询 (Opcode=0) */
+    if (qdcount < 1 || ((flags >> 11) & 0x0F) != 0) return;
+
+    /* 跳过 QNAME */
+    int pos = 12;
+    while (pos < dn && dns_buf[pos] != 0) {
+        pos += (int)dns_buf[pos] + 1;
+    }
+    pos++; /* 跳过 0 字节结尾 */
+    if (pos + 4 > dn) return;
+
+    uint16_t qtype = ntohs(*(uint16_t *)&dns_buf[pos]);
+    pos += 4;
+
+    uint8_t resp_dns[512];
+    memcpy(resp_dns, dns_buf, pos); /* 复制 Header 与 Question */
+
+    uint16_t *r_flags = (uint16_t *)&resp_dns[2];
+    uint16_t *r_ancount = (uint16_t *)&resp_dns[6];
+    uint16_t *r_nscount = (uint16_t *)&resp_dns[8];
+    uint16_t *r_arcount = (uint16_t *)&resp_dns[10];
+    *r_nscount = 0;
+    *r_arcount = 0;
+
+    if (qtype == 28 /* AAAA (IPv6) */) {
+        /* 对 IPv6 AAAA 查询返回 NOERROR 空记录，促使手机立即走 IPv4 访问 */
+        *r_flags = htons(0x8180);
+        *r_ancount = htons(0);
+        sendto(s_dns_sock, resp_dns, pos, 0, (struct sockaddr *)&caddr, clen);
+    } else if (qtype == 1 /* A (IPv4) */ || qtype == 255 /* ANY */) {
+        /* 劫持全域名解析返回 192.168.4.1 */
+        *r_flags = htons(0x8180);
+        *r_ancount = htons(1);
+
+        int rpos = pos;
+        /* Answer: Name Pointer 0xC00C (指向 Question 中的 QNAME) */
+        resp_dns[rpos++] = 0xc0;
+        resp_dns[rpos++] = 0x0c;
+        /* Type: A (1) */
+        resp_dns[rpos++] = 0x00;
+        resp_dns[rpos++] = 0x01;
+        /* Class: IN (1) */
+        resp_dns[rpos++] = 0x00;
+        resp_dns[rpos++] = 0x01;
+        /* TTL: 60s */
+        resp_dns[rpos++] = 0x00;
+        resp_dns[rpos++] = 0x00;
+        resp_dns[rpos++] = 0x00;
+        resp_dns[rpos++] = 0x3c;
+        /* RDLENGTH: 4 */
+        resp_dns[rpos++] = 0x00;
+        resp_dns[rpos++] = 0x04;
+        /* RDATA: 192.168.4.1 */
+        uint32_t ip4 = inet_addr("192.168.4.1");
+        memcpy(&resp_dns[rpos], &ip4, 4);
+        rpos += 4;
+
+        sendto(s_dns_sock, resp_dns, rpos, 0, (struct sockaddr *)&caddr, clen);
+    }
+}
 
 static void* mini_dhcpd_thread(void *arg)
 {
     (void)arg;
-    LOG_I(TAG, "🐣 [MiniDHCP] 轻量级 DHCP 服务启动 (监听 0.0.0.0:67)...");
+    LOG_I(TAG, "🐣 [MiniDHCP+DNS] 轻量级 DHCP & Captive DNS 服务启动 (监听 UDP 67 & 53)...");
 
     s_dhcp_sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (s_dhcp_sock < 0) {
-        LOG_W(TAG, "⚠️ [MiniDHCP] 无法创建 UDP 套接字");
+        LOG_W(TAG, "⚠️ [MiniDHCP] 无法创建 DHCP UDP 套接字");
         s_dhcp_running = false;
         return NULL;
     }
@@ -482,15 +558,9 @@ static void* mini_dhcpd_thread(void *arg)
 #if defined(SO_BINDTODEVICE)
     struct ifreq ifr;
     memset(&ifr, 0, sizeof(ifr));
-    strncpy(ifr.ifr_name, "wlan1", IFNAMSIZ - 1);
+    strncpy(ifr.ifr_name, "wlan0", IFNAMSIZ - 1);
     setsockopt(s_dhcp_sock, SOL_SOCKET, SO_BINDTODEVICE, (char *)&ifr, sizeof(ifr));
 #endif
-
-    /* 设置 1 秒超时以便响应退出信号 */
-    struct timeval tv;
-    tv.tv_sec = 1;
-    tv.tv_usec = 0;
-    setsockopt(s_dhcp_sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
     struct sockaddr_in saddr;
     memset(&saddr, 0, sizeof(saddr));
@@ -506,121 +576,187 @@ static void* mini_dhcpd_thread(void *arg)
         return NULL;
     }
 
+    /* 初始化 Captive DNS (UDP 53) */
+    s_dns_sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (s_dns_sock >= 0) {
+        setsockopt(s_dns_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+#if defined(SO_BINDTODEVICE)
+        setsockopt(s_dns_sock, SOL_SOCKET, SO_BINDTODEVICE, (char *)&ifr, sizeof(ifr));
+#endif
+        struct sockaddr_in dns_saddr;
+        memset(&dns_saddr, 0, sizeof(dns_saddr));
+        dns_saddr.sin_family = AF_INET;
+        dns_saddr.sin_port = htons(53);
+        dns_saddr.sin_addr.s_addr = htonl(INADDR_ANY);
+        if (bind(s_dns_sock, (struct sockaddr *)&dns_saddr, sizeof(dns_saddr)) < 0) {
+            LOG_W(TAG, "⚠️ [CaptiveDNS] 绑定 53 端口失败 (可能权限受限)");
+            close(s_dns_sock);
+            s_dns_sock = -1;
+        } else {
+            LOG_I(TAG, "🎯 [CaptiveDNS] UDP 53 就绪，全域名劫持指向 192.168.4.1 (锁定 Wi-Fi)");
+        }
+    }
+
     uint8_t buf[576];
     while (s_dhcp_running) {
-        struct sockaddr_in client_addr;
-        socklen_t addr_len = sizeof(client_addr);
-        ssize_t n = recvfrom(s_dhcp_sock, buf, sizeof(buf), 0, (struct sockaddr *)&client_addr, &addr_len);
-        if (n < (ssize_t)(sizeof(mini_dhcp_msg_t) - 308)) {
-            continue; /* 超时或非标准报文 */
+        struct pollfd pfds[2];
+        int pfd_cnt = 0;
+        int idx_dhcp = -1, idx_dns = -1;
+
+        if (s_dhcp_sock >= 0) {
+            pfds[pfd_cnt].fd = s_dhcp_sock;
+            pfds[pfd_cnt].events = POLLIN;
+            pfds[pfd_cnt].revents = 0;
+            idx_dhcp = pfd_cnt++;
+        }
+        if (s_dns_sock >= 0) {
+            pfds[pfd_cnt].fd = s_dns_sock;
+            pfds[pfd_cnt].events = POLLIN;
+            pfds[pfd_cnt].revents = 0;
+            idx_dns = pfd_cnt++;
         }
 
-        mini_dhcp_msg_t *req = (mini_dhcp_msg_t *)buf;
-        if (req->op != 1) continue; /* 仅处理 BOOTREQUEST */
-        if (req->magic[0] != 99 || req->magic[1] != 130 || req->magic[2] != 83 || req->magic[3] != 99) {
-            continue;
+        if (pfd_cnt == 0) break;
+
+        int poll_ret = poll(pfds, pfd_cnt, 1000);
+        if (poll_ret <= 0) continue;
+
+        /* 1. 处理 DNS 请求 */
+        if (idx_dns >= 0 && (pfds[idx_dns].revents & POLLIN)) {
+            handle_dns_packet();
         }
 
-        /* 解析 Option 53 (Message Type) */
-        uint8_t msg_type = 0;
-        int opt_idx = 0;
-        int max_opt = n - (int)(sizeof(mini_dhcp_msg_t) - 308);
-        if (max_opt > 308) max_opt = 308;
-
-        while (opt_idx < max_opt) {
-            uint8_t code = req->options[opt_idx++];
-            if (code == 0) continue; /* PAD */
-            if (code == 255) break;  /* END */
-            if (opt_idx >= max_opt) break;
-            uint8_t len = req->options[opt_idx++];
-            if (opt_idx + len > max_opt) break;
-            if (code == 53 && len >= 1) {
-                msg_type = req->options[opt_idx];
+        /* 2. 处理 DHCP 请求 */
+        if (idx_dhcp >= 0 && (pfds[idx_dhcp].revents & POLLIN)) {
+            struct sockaddr_in client_addr;
+            socklen_t addr_len = sizeof(client_addr);
+            ssize_t n = recvfrom(s_dhcp_sock, buf, sizeof(buf), 0, (struct sockaddr *)&client_addr, &addr_len);
+            if (n < (ssize_t)(sizeof(mini_dhcp_msg_t) - 308)) {
+                continue;
             }
-            opt_idx += len;
+
+            mini_dhcp_msg_t *req = (mini_dhcp_msg_t *)buf;
+            if (req->op != 1) continue; /* 仅处理 BOOTREQUEST */
+            if (req->magic[0] != 99 || req->magic[1] != 130 || req->magic[2] != 83 || req->magic[3] != 99) {
+                continue;
+            }
+
+            /* 解析 Option 53 (Message Type) */
+            uint8_t msg_type = 0;
+            int opt_idx = 0;
+            int max_opt = n - (int)(sizeof(mini_dhcp_msg_t) - 308);
+            if (max_opt > 308) max_opt = 308;
+
+            while (opt_idx < max_opt) {
+                uint8_t code = req->options[opt_idx++];
+                if (code == 0) continue; /* PAD */
+                if (code == 255) break;  /* END */
+                if (opt_idx >= max_opt) break;
+                uint8_t len = req->options[opt_idx++];
+                if (opt_idx + len > max_opt) break;
+                if (code == 53 && len >= 1) {
+                    msg_type = req->options[opt_idx];
+                }
+                opt_idx += len;
+            }
+
+            /* 仅对 DISCOVER (1) 和 REQUEST (3) 响应 */
+            if (msg_type != 1 && msg_type != 3) {
+                continue;
+            }
+
+            /* 构造回复报文 (DHCPOFFER 或 DHCPACK) */
+            mini_dhcp_msg_t resp;
+            memset(&resp, 0, sizeof(resp));
+            resp.op = 2; /* BOOTREPLY */
+            resp.htype = req->htype;
+            resp.hlen = req->hlen;
+            resp.xid = req->xid;
+            resp.flags = htons(0x8000); /* 规范化强制广播标志位 */
+            resp.yiaddr = inet_addr("192.168.4.100"); /* 固定向连入设备下发 192.168.4.100 */
+            resp.siaddr = inet_addr("192.168.4.1");
+            memcpy(resp.chaddr, req->chaddr, 16);
+            resp.magic[0] = 99; resp.magic[1] = 130; resp.magic[2] = 83; resp.magic[3] = 99;
+
+            int o = 0;
+            /* Option 53: Message Type */
+            resp.options[o++] = 53;
+            resp.options[o++] = 1;
+            resp.options[o++] = (msg_type == 1) ? 2 /* OFFER */ : 5 /* ACK */;
+
+            /* Option 54: Server Identifier (192.168.4.1) */
+            resp.options[o++] = 54;
+            resp.options[o++] = 4;
+            uint32_t server_ip = inet_addr("192.168.4.1");
+            memcpy(&resp.options[o], &server_ip, 4);
+            o += 4;
+
+            /* Option 51: Lease Time (86400 秒) */
+            resp.options[o++] = 51;
+            resp.options[o++] = 4;
+            uint32_t lease = htonl(86400);
+            memcpy(&resp.options[o], &lease, 4);
+            o += 4;
+
+            /* Option 1: Subnet Mask (255.255.255.0) */
+            resp.options[o++] = 1;
+            resp.options[o++] = 4;
+            uint32_t mask = inet_addr("255.255.255.0");
+            memcpy(&resp.options[o], &mask, 4);
+            o += 4;
+
+            /* Option 3: Router / Gateway (192.168.4.1) */
+            resp.options[o++] = 3;
+            resp.options[o++] = 4;
+            memcpy(&resp.options[o], &server_ip, 4);
+            o += 4;
+
+            /* Option 6: DNS Server (192.168.4.1) */
+            resp.options[o++] = 6;
+            resp.options[o++] = 4;
+            memcpy(&resp.options[o], &server_ip, 4);
+            o += 4;
+
+            /* Option 255: End */
+            resp.options[o++] = 255;
+
+            size_t resp_len = (sizeof(mini_dhcp_msg_t) - 308) + o;
+            /* 遵循 RFC 1542 规范填充至至少 300 字节 */
+            if (resp_len < 300) {
+                resp_len = 300;
+            }
+
+            /* MiniDHCP 双重广播投递：同时向 255.255.255.255:68 与子网定向 192.168.4.255:68 投递 */
+            struct sockaddr_in bcast_addr;
+            memset(&bcast_addr, 0, sizeof(bcast_addr));
+            bcast_addr.sin_family = AF_INET;
+            bcast_addr.sin_port = htons(68);
+            bcast_addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+            sendto(s_dhcp_sock, &resp, resp_len, 0, (struct sockaddr *)&bcast_addr, sizeof(bcast_addr));
+
+            struct sockaddr_in subnet_bcast;
+            memset(&subnet_bcast, 0, sizeof(subnet_bcast));
+            subnet_bcast.sin_family = AF_INET;
+            subnet_bcast.sin_port = htons(68);
+            subnet_bcast.sin_addr.s_addr = inet_addr("192.168.4.255");
+            sendto(s_dhcp_sock, &resp, resp_len, 0, (struct sockaddr *)&subnet_bcast, sizeof(subnet_bcast));
+
+            LOG_I(TAG, "📡 [MiniDHCP] 已双重广播响应 %s 给客户端 MAC [%02X:%02X:%02X:%02X:%02X:%02X]，分配 IP: 192.168.4.100",
+                  (msg_type == 1) ? "DHCPOFFER" : "DHCPACK",
+                  req->chaddr[0], req->chaddr[1], req->chaddr[2],
+                  req->chaddr[3], req->chaddr[4], req->chaddr[5]);
         }
-
-        /* 仅对 DISCOVER (1) 和 REQUEST (3) 响应 */
-        if (msg_type != 1 && msg_type != 3) {
-            continue;
-        }
-
-        /* 构造回复报文 (DHCPOFFER 或 DHCPACK) */
-        mini_dhcp_msg_t resp;
-        memset(&resp, 0, sizeof(resp));
-        resp.op = 2; /* BOOTREPLY */
-        resp.htype = req->htype;
-        resp.hlen = req->hlen;
-        resp.xid = req->xid;
-        resp.flags = req->flags;
-        resp.yiaddr = inet_addr("192.168.4.100"); /* 固定向连入设备下发 192.168.4.100 */
-        resp.siaddr = inet_addr("192.168.4.1");
-        memcpy(resp.chaddr, req->chaddr, 16);
-        resp.magic[0] = 99; resp.magic[1] = 130; resp.magic[2] = 83; resp.magic[3] = 99;
-
-        int o = 0;
-        /* Option 53: Message Type */
-        resp.options[o++] = 53;
-        resp.options[o++] = 1;
-        resp.options[o++] = (msg_type == 1) ? 2 /* OFFER */ : 5 /* ACK */;
-
-        /* Option 54: Server Identifier (192.168.4.1) */
-        resp.options[o++] = 54;
-        resp.options[o++] = 4;
-        uint32_t server_ip = inet_addr("192.168.4.1");
-        memcpy(&resp.options[o], &server_ip, 4);
-        o += 4;
-
-        /* Option 51: Lease Time (86400 秒) */
-        resp.options[o++] = 51;
-        resp.options[o++] = 4;
-        uint32_t lease = htonl(86400);
-        memcpy(&resp.options[o], &lease, 4);
-        o += 4;
-
-        /* Option 1: Subnet Mask (255.255.255.0) */
-        resp.options[o++] = 1;
-        resp.options[o++] = 4;
-        uint32_t mask = inet_addr("255.255.255.0");
-        memcpy(&resp.options[o], &mask, 4);
-        o += 4;
-
-        /* Option 3: Router / Gateway (192.168.4.1) */
-        resp.options[o++] = 3;
-        resp.options[o++] = 4;
-        memcpy(&resp.options[o], &server_ip, 4);
-        o += 4;
-
-        /* Option 6: DNS Server (192.168.4.1) */
-        resp.options[o++] = 6;
-        resp.options[o++] = 4;
-        memcpy(&resp.options[o], &server_ip, 4);
-        o += 4;
-
-        /* Option 255: End */
-        resp.options[o++] = 255;
-
-        size_t resp_len = (sizeof(mini_dhcp_msg_t) - 308) + o;
-
-        /* 广播发送回给客户端端口 68 */
-        struct sockaddr_in bcast_addr;
-        memset(&bcast_addr, 0, sizeof(bcast_addr));
-        bcast_addr.sin_family = AF_INET;
-        bcast_addr.sin_port = htons(68);
-        bcast_addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
-
-        sendto(s_dhcp_sock, &resp, resp_len, 0, (struct sockaddr *)&bcast_addr, sizeof(bcast_addr));
-        LOG_I(TAG, "📡 [MiniDHCP] 已响应 %s 给客户端 MAC [%02X:%02X:%02X:%02X:%02X:%02X]，分配 IP: 192.168.4.100",
-              (msg_type == 1) ? "DHCPOFFER" : "DHCPACK",
-              req->chaddr[0], req->chaddr[1], req->chaddr[2],
-              req->chaddr[3], req->chaddr[4], req->chaddr[5]);
     }
 
     if (s_dhcp_sock >= 0) {
         close(s_dhcp_sock);
         s_dhcp_sock = -1;
     }
-    LOG_I(TAG, "💤 [MiniDHCP] 轻量级 DHCP 服务已正常退出");
+    if (s_dns_sock >= 0) {
+        close(s_dns_sock);
+        s_dns_sock = -1;
+    }
+    LOG_I(TAG, "💤 [MiniDHCP+DNS] 服务已正常退出");
     return NULL;
 }
 
@@ -629,7 +765,6 @@ static void mini_dhcpd_start(void)
     if (s_dhcp_running) return;
     s_dhcp_running = true;
     pthread_create(&s_dhcp_tid, NULL, mini_dhcpd_thread, NULL);
-    pthread_detach(s_dhcp_tid);
 }
 
 static void mini_dhcpd_stop(void)
@@ -639,6 +774,14 @@ static void mini_dhcpd_stop(void)
     if (s_dhcp_sock >= 0) {
         close(s_dhcp_sock);
         s_dhcp_sock = -1;
+    }
+    if (s_dns_sock >= 0) {
+        close(s_dns_sock);
+        s_dns_sock = -1;
+    }
+    if (s_dhcp_tid != 0) {
+        pthread_join(s_dhcp_tid, NULL);
+        s_dhcp_tid = 0;
     }
 }
 #endif
@@ -651,12 +794,12 @@ int net_mgr_stop_softap(void)
 
     int sock = wapi_make_socket();
     if (sock >= 0) {
-        wapi_set_essid(sock, "wlan1", "", WAPI_ESSID_OFF);
-        wapi_set_ifdown(sock, "wlan1");
+        wapi_set_essid(sock, "wlan0", "", WAPI_ESSID_OFF);
+        wapi_set_ifdown(sock, "wlan0");
         close(sock);
     } else {
-        system("wapi essid wlan1 \"\" 0 > /dev/null 2>&1");
-        system("ifconfig wlan1 down > /dev/null 2>&1");
+        system("wapi essid wlan0 \"\" 0 > /dev/null 2>&1");
+        system("ifconfig wlan0 down > /dev/null 2>&1");
     }
 #endif
     return 0;
@@ -681,50 +824,52 @@ static void* softap_worker_thread(void *arg)
     net_mgr_stop_softap();
     usleep(100000);
 
-    /* 2. 原生 WAPI C API 配置 wlan1 Master 与固定 2.4GHz 信道 6 (2437MHz) */
+    /* 2. 原生 WAPI C API 配置 wlan0 Master 与固定 2.4GHz 信道 6 (2437MHz) */
     int sock = wapi_make_socket();
     if (sock >= 0) {
         /* 设置 Master 模式 (AP) */
-        wapi_set_mode(sock, "wlan1", WAPI_MODE_MASTER);
+        wapi_set_mode(sock, "wlan0", WAPI_MODE_MASTER);
         usleep(50000);
 
         /* 核心关键点 1: 显式锁定 2.4GHz 黄金信道 Channel 6 (2437MHz)，杜绝信道非法为 0 */
-        wapi_set_freq(sock, "wlan1", 2437, 1);
+        wapi_set_freq(sock, "wlan0", 2437, 1);
         usleep(50000);
 
         /* 配置物理网卡 IP 192.168.4.1 与掩码 255.255.255.0 并激活接口 */
         struct in_addr ip, mask;
         inet_aton("192.168.4.1", &ip);
         inet_aton("255.255.255.0", &mask);
-        wapi_set_ip(sock, "wlan1", &ip);
-        wapi_set_netmask(sock, "wlan1", &mask);
-        wapi_set_ifup(sock, "wlan1");
+        wapi_set_ip(sock, "wlan0", &ip);
+        wapi_set_netmask(sock, "wlan0", &mask);
+        wapi_set_ifup(sock, "wlan0");
         usleep(50000);
 
-        /* 核心关键点 2: 彻底清除 wlan1 历史残留加密算法与密钥，确立纯净 OPEN 无密码模式 */
-        wpa_driver_wext_set_auth_param(sock, "wlan1", 0, 0);
-        wpa_driver_wext_set_key_ext(sock, "wlan1", 0, NULL, 0);
+        /* 核心关键点 2: 彻底清除 wlan0 历史残留加密算法，确立纯净 OPEN 无密码模式 */
+        wpa_driver_wext_set_auth_param(sock, "wlan0", 0, 0);
 
         /* 设置广播 SSID 并启动射频发射 */
-        wapi_set_essid(sock, "wlan1", ssid, WAPI_ESSID_ON);
+        wapi_set_essid(sock, "wlan0", ssid, WAPI_ESSID_ON);
         close(sock);
         LOG_I(TAG, "⚡ [Native WAPI] SoftAP (SSID: %s, Ch: 6, IP: 192.168.4.1, Mode: OPEN) 射频已就绪", ssid);
     }
 
-    /* 3. 补充标准命令行确保全志底层 Realtek 驱动属性生效 */
-    system("ifconfig wlan1 192.168.4.1 netmask 255.255.255.0 up > /dev/null 2>&1");
-    system("wapi mode wlan1 3 > /dev/null 2>&1");
-    system("wapi freq wlan1 2437 1 > /dev/null 2>&1");
-    system("wapi psk wlan1 \"\" 0 0 > /dev/null 2>&1");
-    system("wapi private wlan1 adaptivity 0 > /dev/null 2>&1");
-    system("wapi power_save wlan1 off > /dev/null 2>&1");
+    /* 3. 补充标准命令行确保全志底层 Realtek 驱动属性与路由生效 */
+    system("ifconfig wlan0 192.168.4.1 netmask 255.255.255.0 up > /dev/null 2>&1");
+    system("wapi mode wlan0 3 > /dev/null 2>&1");
+    system("wapi freq wlan0 2437 1 > /dev/null 2>&1");
+    system("wapi psk wlan0 \"\" 0 0 > /dev/null 2>&1");
+    system("wapi private wlan0 adaptivity 0 > /dev/null 2>&1");
+    system("wapi power_save wlan0 off > /dev/null 2>&1");
     char cmd[256];
-    snprintf(cmd, sizeof(cmd), "wapi essid wlan1 \"%s\" 1 > /dev/null 2>&1", ssid);
+    snprintf(cmd, sizeof(cmd), "wapi essid wlan0 \"%s\" 1 > /dev/null 2>&1", ssid);
     system(cmd);
 
-    mini_dhcpd_start();
+    /* 4. 完成 wlan0 192.168.4.1 配置后立即热重载 Web 服务，确保监听套接字新鲜有效 */
+    phoenix_web_portal_stop();
     phoenix_web_portal_start(80, NULL);
-    LOG_I(TAG, "📡 [SoftAP:Worker] 热点广播与内嵌 MiniDHCP 服务已就绪");
+    mini_dhcpd_start();
+
+    LOG_I(TAG, "📡 [SoftAP:Worker] 热点广播、内嵌 MiniDHCP+DNS 与 Web 服务热重载已就绪");
     return NULL;
 }
 #endif

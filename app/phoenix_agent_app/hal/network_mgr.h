@@ -27,9 +27,9 @@ extern "C" {
  */
 typedef enum {
     NET_MODE_DISCONNECTED = 0,   /**< 未连接网络 */
-    NET_MODE_SOFTAP_CONFIG,      /**< SoftAP 独立热点配网模式 (广播热点，IP: 192.168.4.1) */
-    NET_MODE_STA_CONNECTING,     /**< 正在握手连接家庭/办公 Wi-Fi */
-    NET_MODE_STA_CONNECTED       /**< 已连入局域网 (获取到路由器分配 IP) */
+    NET_MODE_STA_CONNECTING = 1, /**< 正在握手连接家庭/办公 Wi-Fi */
+    NET_MODE_STA_CONNECTED = 2,  /**< 已连入局域网 (获取到路由器分配 IP) */
+    NET_MODE_SOFTAP_CONFIG = 3   /**< SoftAP 独立热点配网模式 (广播热点，IP: 192.168.4.1) */
 } net_mode_t;
 
 /**

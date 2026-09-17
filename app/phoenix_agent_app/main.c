@@ -19,7 +19,11 @@
 #include "core/event_bus.h"
 #include "core/tool_registry.h"
 #include "core/agent_core.h"
+#include "core/cartridge_mgr.h"
 #include "core/web_portal.h"
+#include "hal/network_mgr.h"
+#include "hal/hal_sensor.h"
+#include "utils/log_mgr.h"
 #include "ui/ui.h"
 #include "test/test_autodrive.h"
 
@@ -88,8 +92,26 @@ static void on_cli_event_logger(const phoenix_event_data_t *event, void *user_da
 static int run_cli_mode(int argc, char *argv[])
 {
     printf("====================================================\n");
-    printf(" 🤖 Phoenix Agent CLI Test Console\n");
+    printf(" 🤖 Phoenix Agent ADB / CLI Diagnostics Console\n");
     printf("====================================================\n");
+
+    const char *cmd = argv[1];
+
+    /* 帮助文档，不初始化庞大子系统直接极速返回 */
+    if (strcmp(cmd, "help") == 0 || strcmp(cmd, "--help") == 0 || strcmp(cmd, "-h") == 0) {
+        printf("Usage: phoenix_agent_app <command> [args...]\n\n");
+        printf("Available Commands (ADB Debug & Test Suites):\n");
+        printf("  log [level <val>] / [dump] / [clear]   : 动态查询/设置日志级别或转储黑匣子\n");
+        printf("  wifi [status] / [scan]                 : 查询当前 Wi-Fi 工作模式或扫描热点\n");
+        printf("  sensor [status] / [knock]              : 查询传感器数据或模拟敲击事件\n");
+        printf("  cartridge [list] / [switch <name>]     : 巡检全部业务卡带或动态切换\n");
+        printf("  tools                                  : 列出已注册具身外设工具及 Schema\n");
+        printf("  tool <name> [json_args]                : 独立执行指定的具身技能插件\n");
+        printf("  ask <prompt>                           : 向大模型发送意图并触发交互\n");
+        printf("  --autotest-cli                         : 运行全量自动化无头回归测试\n");
+        printf("====================================================\n");
+        return 0;
+    }
 
     /* 1. Initialize all core subsystems via Unified Application Facade */
     if (phoenix_app_init(NULL) != 0) {
@@ -106,21 +128,95 @@ static int run_cli_mode(int argc, char *argv[])
 
     phoenix_agent_ctx_t *agent = phoenix_agent_core_init();
 
-    if (strcmp(argv[1], "tools") == 0) {
+    if (strcmp(cmd, "log") == 0) {
+        if (argc >= 4 && strcmp(argv[2], "level") == 0) {
+            int lvl = phoenix_log_level_from_str(argv[3]);
+            phoenix_log_set_level(lvl);
+            printf("[CLI:Log] ✅ 日志过滤级别已切换为: %s (%d)\n", phoenix_log_level_to_str(lvl), lvl);
+        } else if (argc >= 3 && strcmp(argv[2], "dump") == 0) {
+            printf("[CLI:Log] 持久化日志文件: %s\n", phoenix_log_get_file_path() ? phoenix_log_get_file_path() : "未启用文件");
+            printf("--- 环形内存近期日志截取 ---\n");
+            char recent[2048] = {0};
+            phoenix_log_get_recent(recent, sizeof(recent));
+            printf("%s\n", recent);
+        } else if (argc >= 3 && strcmp(argv[2], "clear") == 0) {
+            phoenix_log_clear_recent();
+            printf("[CLI:Log] ✅ 环形内存日志已清空。\n");
+        } else {
+            printf("[CLI:Log] 当前级别: %s, 磁盘文件: %s\n",
+                   phoenix_log_level_to_str(phoenix_log_get_level()),
+                   phoenix_log_get_file_path() ? phoenix_log_get_file_path() : "None");
+        }
+    } else if (strcmp(cmd, "wifi") == 0) {
+        if (argc >= 3 && strcmp(argv[2], "scan") == 0) {
+            printf("[CLI:WiFi] 正在扫描周边 Wi-Fi 热点...\n");
+            net_wifi_ap_info_t aps[16];
+            int n = net_mgr_scan_wifi(aps, 16);
+            printf("[CLI:WiFi] 扫描完成，发现 %d 个可用热点:\n", n);
+            for (int i = 0; i < n; i++) {
+                printf("  [%2d] %-24s (RSSI: %3d dBm, Auth: %s)\n", i + 1, aps[i].ssid, aps[i].rssi, aps[i].auth);
+            }
+        } else {
+            char ip[32] = {0};
+            char ssid[32] = {0};
+            net_mode_t mode = net_mgr_get_mode();
+            net_mgr_get_ip(ip, sizeof(ip));
+            net_mgr_get_ssid(ssid, sizeof(ssid));
+            const char *mode_str = "未连接 (Disconnected)";
+            if (mode == NET_MODE_STA_CONNECTED) mode_str = "STA 已连网";
+            else if (mode == NET_MODE_STA_CONNECTING) mode_str = "STA 正在握手连接...";
+            else if (mode == NET_MODE_SOFTAP_CONFIG) mode_str = "SoftAP 独立配网热点";
+            printf("[CLI:WiFi] 工作模式: %s, SSID: %s, 本机 IP: %s\n", mode_str, ssid, ip[0] ? ip : "0.0.0.0");
+        }
+    } else if (strcmp(cmd, "sensor") == 0) {
+        if (argc >= 3 && strcmp(argv[2], "knock") == 0) {
+            printf("[CLI:Sensor] 模拟桌面敲击震动 (强度: 50, 单敲)...\n");
+            cartridge_mgr_dispatch_knock(50, 1);
+            phoenix_app_tick();
+            printf("[CLI:Sensor] ✅ 敲击事件已派发，活跃卡带与木鱼功德已更新。\n");
+        } else {
+            hal_light_data_t ld;
+            hal_battery_data_t bd;
+            hal_sensor_read_light(&ld);
+            hal_sensor_read_battery(&bd);
+            printf("[CLI:Sensor] 环境光 ALS: %u Lux (暗光: %s), 电池电量: %u%% (电压: %umV, 充电: %s)\n",
+                   (unsigned int)ld.lux, ld.is_dark_environment ? "是" : "否",
+                   bd.percentage, bd.voltage_mv, bd.is_charging ? "是" : "否");
+        }
+    } else if (strcmp(cmd, "cartridge") == 0) {
+        if (argc >= 4 && strcmp(argv[2], "switch") == 0) {
+            const char *target = argv[3];
+            int r = cartridge_mgr_switch_to(target);
+            printf("[CLI:Cartridge] 切换卡带至 [%s] -> %s (返回码 %d)\n", target, (r == 0) ? "成功" : "失败", r);
+        } else {
+            cartridge_t *cur = cartridge_mgr_get_current();
+            printf("[CLI:Cartridge] 当前活跃卡带: [%s] (%s)\n",
+                   cur ? cur->ops.id : "None", cur ? cur->ops.name : "");
+            size_t count = cartridge_mgr_get_count();
+            printf("--- 已挂载业务卡带清单 (%zu 个) ---\n", count);
+            for (size_t i = 0; i < count; i++) {
+                cartridge_t *c = cartridge_mgr_get_by_index(i);
+                if (c) {
+                    printf("  [%zu] %-10s : %s %s %s\n", i, c->ops.id, c->ops.icon, c->ops.name,
+                           (c == cur) ? "(当前活跃)" : "");
+                }
+            }
+        }
+    } else if (strcmp(cmd, "tools") == 0) {
         printf("--- 已注册的具身工具列表 (%zu个) ---\n", phoenix_tool_get_count());
         char *schema = phoenix_tool_build_schema_json();
         if (schema) {
             printf("%s\n", schema);
             free(schema);
         }
-    } else if (strcmp(argv[1], "tool") == 0 && argc >= 3) {
+    } else if (strcmp(cmd, "tool") == 0 && argc >= 3) {
         const char *tool_name = argv[2];
         const char *tool_args = (argc >= 4) ? argv[3] : "{}";
         char result_buf[512] = {0};
         printf("[CLI] 执行工具: %s, 参数: %s\n", tool_name, tool_args);
         phoenix_tool_execute(tool_name, tool_args, result_buf, sizeof(result_buf));
         printf("[CLI] 输出结果: %s\n", result_buf);
-    } else if (strcmp(argv[1], "ask") == 0 && argc >= 3) {
+    } else if (strcmp(cmd, "ask") == 0 && argc >= 3) {
         printf("[CLI] 发送提问: \"%s\"\n", argv[2]);
         phoenix_agent_chat(agent, argv[2]);
     } else {
@@ -398,12 +494,16 @@ int main(int argc, FAR char *argv[])
         return -1;
     }
 
+    /* 3.1 显式启动网络管理器，完成开机网络自检与自动拉起（SoftAP 或 STA 回连） */
+    net_mgr_init();
+
     /* 4. 创建智能体核心协调器与多层 UI 交互体系 */
     phoenix_agent_ctx_t *agent_core = phoenix_agent_core_init();
     phoenix_ui_t *ui = phoenix_ui_create(lv_screen_active(), agent_core);
     if (!ui) {
         printf("[PhoenixApp] ❌ ERROR: Failed to create Phoenix Agent UI!\n");
         phoenix_agent_core_destroy(agent_core);
+        net_mgr_deinit();
         phoenix_app_deinit();
         lv_nuttx_deinit(&result);
         lv_deinit();
@@ -436,6 +536,7 @@ int main(int argc, FAR char *argv[])
     lv_deinit();
 
     /* 7. 统一业务子系统下电 */
+    net_mgr_deinit();
     phoenix_app_deinit();
 
     printf("Phoenix HoloDesk-S1 Agent Exited Cleanly.\n");

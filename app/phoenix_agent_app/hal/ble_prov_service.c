@@ -193,38 +193,37 @@ static int send_raw_notify(const char *json_str)
 }
 #endif
 
-/**
- * @brief 解析来自 Web 客户端写入的 JSON 指令
- */
-static void handle_rx_payload(const uint8_t *payload, uint16_t length) __attribute__((unused));
-static void handle_rx_payload(const uint8_t *payload, uint16_t length)
+int ble_prov_service_handle_command(const char *cmd_json_str)
 {
-    if (!payload || length == 0) return;
+    if (!cmd_json_str || strlen(cmd_json_str) == 0) return -1;
 
-    /* 保证 null-terminate */
-    char *buf = (char *)malloc(length + 1);
-    if (!buf) return;
-    memcpy(buf, payload, length);
-    buf[length] = '\0';
+    LOG_I(TAG, "Received BLE Provisioning command: %s", cmd_json_str);
 
-    LOG_I(TAG, "Received Web BLE command: %s", buf);
-
-    cJSON *root = cJSON_Parse(buf);
-    free(buf);
+    cJSON *root = cJSON_Parse(cmd_json_str);
     if (!root) {
         LOG_W(TAG, "Failed to parse JSON command");
-        return;
+        ble_prov_service_notify_ack("error", false, "Invalid JSON format");
+        return -1;
     }
 
     cJSON *cmd_item = cJSON_GetObjectItem(root, "cmd");
     const char *cmd = cmd_item ? cmd_item->valuestring : "";
 
-    if (strcmp(cmd, "scan") == 0) {
-        /* Web 触发扫描周围 Wi-Fi */
+    if (strcmp(cmd, "get_config") == 0) {
+        /* 双向回读：获取当前全部配置 */
+        ble_prov_service_notify_config();
+    }
+    else if (strcmp(cmd, "get_system_info") == 0) {
+        /* 双向回读：获取系统硬件与遥测信息 */
+        ble_prov_service_notify_system_info();
+    }
+    else if (strcmp(cmd, "scan") == 0) {
+        /* 触发 Wi-Fi 扫描 */
         ble_prov_service_notify_wifi_scan();
     }
-    else if (strcmp(cmd, "config") == 0) {
-        /* 配网与参数下发 */
+    else if (strcmp(cmd, "set_config") == 0 || strcmp(cmd, "config") == 0) {
+        /* 配置更新与修改 */
+        bool config_updated = false;
         char ssid[NET_MAX_SSID_LEN] = {0};
         char psk[NET_MAX_PSK_LEN] = {0};
 
@@ -245,20 +244,49 @@ static void handle_rx_payload(const uint8_t *payload, uint16_t length)
             if (k && k->valuestring && strlen(k->valuestring) > 0) {
                 phoenix_llm_set_api_key(k->valuestring);
                 phoenix_config_set_str(PHOENIX_CFG_API_KEY, k->valuestring);
+                config_updated = true;
             }
             if (pr && pr->valuestring && strlen(pr->valuestring) > 0) {
                 phoenix_config_set_str("agent_prompt", pr->valuestring);
+                config_updated = true;
             }
             if (m && m->valuestring && strlen(m->valuestring) > 0) {
                 phoenix_config_set_str(PHOENIX_CFG_MODEL, m->valuestring);
+                config_updated = true;
             }
-            phoenix_config_save();
+            if (config_updated) {
+                phoenix_config_save();
+            }
         }
 
+        /* 若带有 Wi-Fi SSID 则发起连网流程 */
         if (strlen(ssid) > 0) {
             s_ble_state = BLE_PROV_STATE_PROVISIONING;
             ble_prov_service_notify_net_status("connecting", ssid, "", "正在连接 Wi-Fi 路由...");
             net_mgr_connect_sta(ssid, psk);
+        } else if (config_updated) {
+            /* 仅更新智能体参数，无需重连 Wi-Fi，立即回传成功 ACK 并回传最新配置 */
+            ble_prov_service_notify_ack("config_saved", true, "智能体参数已成功保存并持久化");
+            ble_prov_service_notify_config();
+        }
+    }
+    else if (strcmp(cmd, "connect") == 0) {
+        /* 仅连接指定 Wi-Fi */
+        char ssid[NET_MAX_SSID_LEN] = {0};
+        char psk[NET_MAX_PSK_LEN] = {0};
+        cJSON *wifi = cJSON_GetObjectItem(root, "wifi");
+        if (wifi) {
+            cJSON *s = cJSON_GetObjectItem(wifi, "ssid");
+            cJSON *p = cJSON_GetObjectItem(wifi, "psk");
+            if (s && s->valuestring) strncpy(ssid, s->valuestring, sizeof(ssid) - 1);
+            if (p && p->valuestring) strncpy(psk, p->valuestring, sizeof(psk) - 1);
+        }
+        if (strlen(ssid) > 0) {
+            s_ble_state = BLE_PROV_STATE_PROVISIONING;
+            ble_prov_service_notify_net_status("connecting", ssid, "", "正在连接 Wi-Fi 路由...");
+            net_mgr_connect_sta(ssid, psk);
+        } else {
+            ble_prov_service_notify_ack("error", false, "Missing SSID in connect command");
         }
     }
     else if (strcmp(cmd, "status") == 0) {
@@ -274,10 +302,28 @@ static void handle_rx_payload(const uint8_t *payload, uint16_t length)
     }
     else if (strcmp(cmd, "reset") == 0) {
         net_mgr_reset_to_softap();
-        ble_prov_service_notify_net_status("disconnected", "", "", "已重置网络");
+        ble_prov_service_notify_net_status("disconnected", "", "", "已重置网络并恢复出厂热点");
+    }
+    else {
+        LOG_W(TAG, "Unknown command: %s", cmd);
+        ble_prov_service_notify_ack("error", false, "Unknown command");
     }
 
     cJSON_Delete(root);
+    return 0;
+}
+
+static void handle_rx_payload(const uint8_t *payload, uint16_t length)
+{
+    if (!payload || length == 0) return;
+
+    char *buf = (char *)malloc(length + 1);
+    if (!buf) return;
+    memcpy(buf, payload, length);
+    buf[length] = '\0';
+
+    ble_prov_service_handle_command(buf);
+    free(buf);
 }
 
 #if (defined(CONFIG_BLUETOOTH_SERVER) || defined(CONFIG_BLUETOOTH)) && !defined(HOST_TEST_RUNNER)
@@ -419,6 +465,116 @@ int ble_prov_service_notify_wifi_scan(void)
         cJSON_AddItemToArray(arr, item);
     }
     cJSON_AddItemToObject(root, "aps", arr);
+
+    char *out = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!out) return -1;
+
+    int ret = send_raw_notify(out);
+    free(out);
+    return ret;
+}
+
+int ble_prov_service_notify_ack(const char *event_name, bool success, const char *msg)
+{
+    cJSON *root = cJSON_CreateObject();
+    if (!root) return -1;
+
+    cJSON_AddStringToObject(root, "event", event_name ? event_name : "ack");
+    cJSON_AddBoolToObject(root, "success", success);
+    cJSON_AddStringToObject(root, "msg", msg ? msg : "");
+
+    char *out = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!out) return -1;
+
+    int ret = send_raw_notify(out);
+    free(out);
+    return ret;
+}
+
+int ble_prov_service_notify_config(void)
+{
+    cJSON *root = cJSON_CreateObject();
+    if (!root) return -1;
+
+    cJSON_AddStringToObject(root, "event", "config_data");
+    cJSON_AddStringToObject(root, "status", "ok");
+
+    /* Wi-Fi 状态 */
+    cJSON *wifi = cJSON_CreateObject();
+    char ssid[NET_MAX_SSID_LEN] = {0};
+    char ip[NET_MAX_IP_LEN] = {0};
+    net_mgr_get_ssid(ssid, sizeof(ssid));
+    net_mgr_get_ip(ip, sizeof(ip));
+    net_mode_t mode = net_mgr_get_mode();
+    cJSON_AddStringToObject(wifi, "ssid", ssid);
+    cJSON_AddStringToObject(wifi, "ip", ip);
+    cJSON_AddBoolToObject(wifi, "connected", (mode == NET_MODE_STA_CONNECTED));
+    cJSON_AddNumberToObject(wifi, "mode", (double)mode);
+    cJSON_AddItemToObject(root, "wifi", wifi);
+
+    /* 智能体与大模型配置 */
+    cJSON *agent = cJSON_CreateObject();
+    char api_key[128] = {0};
+    char model[64] = {0};
+    char prompt[512] = {0};
+    phoenix_config_get_str(PHOENIX_CFG_API_KEY, "", api_key, sizeof(api_key));
+    phoenix_config_get_str(PHOENIX_CFG_MODEL, "deepseek-chat", model, sizeof(model));
+    phoenix_config_get_str("agent_prompt", "", prompt, sizeof(prompt));
+
+    cJSON_AddStringToObject(agent, "model", model);
+    cJSON_AddStringToObject(agent, "prompt", prompt);
+    bool key_set = (strlen(api_key) > 0);
+    cJSON_AddBoolToObject(agent, "api_key_set", key_set);
+    if (key_set) {
+        /* 生成安全掩码: 如 sk-****1234 */
+        char masked[32] = {0};
+        size_t klen = strlen(api_key);
+        if (klen > 8) {
+            snprintf(masked, sizeof(masked), "sk-****%s", api_key + (klen - 4));
+        } else {
+            snprintf(masked, sizeof(masked), "sk-****");
+        }
+        cJSON_AddStringToObject(agent, "api_key_masked", masked);
+    } else {
+        cJSON_AddStringToObject(agent, "api_key_masked", "");
+    }
+    cJSON_AddItemToObject(root, "agent", agent);
+
+    /* 设备元数据 */
+    cJSON *dev = cJSON_CreateObject();
+    char dname[64] = {0};
+    ble_prov_service_get_dev_name(dname, sizeof(dname));
+    cJSON_AddStringToObject(dev, "name", dname);
+    cJSON_AddStringToObject(dev, "version", "v1.2.0");
+    cJSON_AddStringToObject(dev, "platform", "OpenVela Gemini-S1");
+    cJSON_AddItemToObject(root, "device", dev);
+
+    char *out = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!out) return -1;
+
+    int ret = send_raw_notify(out);
+    free(out);
+    return ret;
+}
+
+int ble_prov_service_notify_system_info(void)
+{
+    cJSON *root = cJSON_CreateObject();
+    if (!root) return -1;
+
+    cJSON_AddStringToObject(root, "event", "system_info");
+    cJSON_AddStringToObject(root, "status", "ok");
+    cJSON_AddStringToObject(root, "soc", "Allwinner R528-S3 (Dual Cortex-A7)");
+    cJSON_AddStringToObject(root, "os", "OpenVela / NuttX RTOS");
+    cJSON_AddStringToObject(root, "fw_ver", "v1.2.0");
+    cJSON_AddStringToObject(root, "bt_profile", "BLE 5.4 GATT Provisioning");
+
+    char ip[NET_MAX_IP_LEN] = {0};
+    net_mgr_get_ip(ip, sizeof(ip));
+    cJSON_AddStringToObject(root, "ip", ip);
 
     char *out = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
