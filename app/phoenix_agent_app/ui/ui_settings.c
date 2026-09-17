@@ -787,6 +787,12 @@ void ui_settings_update_net_progress(ui_settings_t *settings, int mode, const ch
         if (settings->lbl_prog_title) lv_label_set_text(settings->lbl_prog_title, tbuf);
 
         bool is_dhcp_stage = (msg && (strstr(msg, "DHCP") || strstr(msg, "租约") || strstr(msg, "申请")));
+        if (!msg && settings->lbl_prog_step2) {
+            const char *cur_s2 = lv_label_get_text(settings->lbl_prog_step2);
+            if (cur_s2 && (strstr(cur_s2, "✓") || strstr(cur_s2, "完成"))) {
+                is_dhcp_stage = true;
+            }
+        }
 
         if (settings->lbl_prog_step1) {
             lv_label_set_text(settings->lbl_prog_step1, "[✓] 1. 收到配网指令，关闭热点");
@@ -900,9 +906,11 @@ void ui_settings_refresh_data(ui_settings_t *settings)
         ui_settings_update_net_progress(settings, 1, ssid_buf, ip_buf, NULL);
     } else if (mode == NET_MODE_STA_CONNECTED) {
         ui_settings_update_net_progress(settings, 2, ssid_buf, ip_buf, NULL);
-    } else {
-        if (settings->box_hotspot_idle) lv_obj_clear_flag(settings->box_hotspot_idle, LV_OBJ_FLAG_HIDDEN);
-        if (settings->box_hotspot_progress) lv_obj_add_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN);
+        /* 仅在非配网进度展示阶段，才呈现常规待配网/热点广播卡片 */
+        if (!settings->box_hotspot_progress || lv_obj_has_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN)) {
+            if (settings->box_hotspot_idle) lv_obj_clear_flag(settings->box_hotspot_idle, LV_OBJ_FLAG_HIDDEN);
+            if (settings->box_hotspot_progress) lv_obj_add_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN);
+        }
 
         if (settings->lbl_hotspot_ssid) {
             char buf[64];

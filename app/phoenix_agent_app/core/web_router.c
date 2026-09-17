@@ -265,6 +265,19 @@ int web_router_dispatch(const char *raw_http, char *resp_out, size_t max_len)
     }
     http_urldecode(req.path, raw_uri, sizeof(req.path));
 
+    /* 1.5 CORS OPTIONS 预检全局快速放行 */
+    if (req.method == HTTP_METHOD_OPTIONS) {
+        int written = snprintf(resp_out, max_len,
+                               "HTTP/1.1 204 No Content\r\n"
+                               "Access-Control-Allow-Origin: *\r\n"
+                               "Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n"
+                               "Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With\r\n"
+                               "Access-Control-Max-Age: 86400\r\n"
+                               "Content-Length: 0\r\n"
+                               "Connection: close\r\n\r\n");
+        return (written > 0) ? written : 0;
+    }
+
     /* 2. 定位 Body 与 JSON 自动解析 */
     const char *body_marker = strstr(raw_http, "\r\n\r\n");
     if (body_marker) {

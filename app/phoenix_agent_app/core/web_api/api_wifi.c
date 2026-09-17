@@ -10,6 +10,8 @@
 #include "../../harness/llm_provider.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <ctype.h>
 
 int handle_wifi_scan(const http_req_t *req, http_resp_t *resp)
 {
@@ -65,12 +67,25 @@ int handle_wifi_connect(const http_req_t *req, http_resp_t *resp)
     char ssid[32] = {0};
     char psk[64] = {0};
 
-    if (req->json) {
-        cJSON *s = cJSON_GetObjectItem(req->json, "ssid");
-        cJSON *p = cJSON_GetObjectItem(req->json, "psk");
-        cJSON *k = cJSON_GetObjectItem(req->json, "api_key");
-        cJSON *pr = cJSON_GetObjectItem(req->json, "prompt");
-        cJSON *m = cJSON_GetObjectItem(req->json, "model");
+    cJSON *json_obj = req ? req->json : NULL;
+    cJSON *local_parsed = NULL;
+
+    /* 1. 若上层未能自动解析 JSON，尝试使用 req->body 兜底解析 */
+    if (!json_obj && req && req->body && req->body[0] != '\0') {
+        const char *bp = req->body;
+        while (*bp && isspace((unsigned char)*bp)) bp++;
+        if (*bp == '{') {
+            local_parsed = cJSON_Parse(bp);
+            json_obj = local_parsed;
+        }
+    }
+
+    if (json_obj) {
+        cJSON *s = cJSON_GetObjectItem(json_obj, "ssid");
+        cJSON *p = cJSON_GetObjectItem(json_obj, "psk");
+        cJSON *k = cJSON_GetObjectItem(json_obj, "api_key");
+        cJSON *pr = cJSON_GetObjectItem(json_obj, "prompt");
+        cJSON *m = cJSON_GetObjectItem(json_obj, "model");
         if (s && s->valuestring) strncpy(ssid, s->valuestring, sizeof(ssid) - 1);
         if (p && p->valuestring) strncpy(psk, p->valuestring, sizeof(psk) - 1);
         if (k && k->valuestring && strlen(k->valuestring) > 0) {
@@ -86,11 +101,25 @@ int handle_wifi_connect(const http_req_t *req, http_resp_t *resp)
         phoenix_config_save();
     }
 
-    if (ssid[0] != '\0') {
-        net_mgr_connect_sta(ssid, psk);
+    if (local_parsed) {
+        cJSON_Delete(local_parsed);
     }
 
-    http_resp_json(resp, 200, "{\"success\":true,\"message\":\"connecting to wifi\"}");
+    /* 2. 严格校验 SSID 不能为空 */
+    if (ssid[0] == '\0') {
+        http_resp_error(resp, 400, "SSID cannot be empty");
+        return -1;
+    }
+
+    /* 3. 触发系统底层连接状态机 */
+    printf("[WebApi] 🌐 接收到前端下发 Wi-Fi 凭证: SSID=[%s], PSK=[%s]\n",
+           ssid, (psk[0] != '\0') ? "******" : "(NONE)");
+    net_mgr_connect_sta(ssid, psk);
+
+    char resp_buf[128];
+    snprintf(resp_buf, sizeof(resp_buf),
+             "{\"success\":true,\"message\":\"connecting to wifi\",\"ssid\":\"%s\"}", ssid);
+    http_resp_json(resp, 200, resp_buf);
     return 0;
 }
 

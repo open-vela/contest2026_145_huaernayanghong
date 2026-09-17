@@ -1480,7 +1480,22 @@ static void run_test_network_mgr(void)
     assert(strstr(resp_buf, "Office-5G") != NULL);
     printf("  -> Wi-Fi Scan & REST API PASSED! (Found %d APs)\n", scanned);
 
-    /* 3. Simulate client posting Wi-Fi credentials */
+    /* 3.1 Test OPTIONS preflight request for CORS */
+    const char *req_options = "OPTIONS /api/wifi/connect HTTP/1.1\r\nHost: 192.168.4.1\r\nAccess-Control-Request-Method: POST\r\n\r\n";
+    resp_len = phoenix_web_portal_handle_request(req_options, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "204 No Content") != NULL);
+    assert(strstr(resp_buf, "Access-Control-Allow-Origin: *") != NULL);
+    printf("  -> CORS OPTIONS Preflight PASSED!\n");
+
+    /* 3.2 Test empty SSID failure response */
+    const char *req_empty = "POST /api/wifi/connect HTTP/1.1\r\nHost: 192.168.4.1\r\nContent-Length: 13\r\n\r\n{\"ssid\":\"\"}";
+    resp_len = phoenix_web_portal_handle_request(req_empty, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "400 Bad Request") != NULL);
+    printf("  -> Empty SSID Rejection (400) PASSED!\n");
+
+    /* 3.3 Simulate client posting Wi-Fi credentials */
     const char *req_connect = "POST /api/wifi/connect HTTP/1.1\r\nHost: 192.168.4.1\r\nContent-Length: 55\r\n\r\n{\"ssid\":\"Office-5G\",\"psk\":\"pass123456\",\"api_key\":\"sk-net\"}";
     resp_len = phoenix_web_portal_handle_request(req_connect, resp_buf, sizeof(resp_buf));
     assert(resp_len > 0);

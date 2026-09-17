@@ -116,14 +116,14 @@ ui_capsule_t* ui_capsule_create(lv_obj_t *parent, const lv_font_t *font)
     lv_obj_set_style_text_color(capsule->lbl_status, COLOR_ACCENT_CYAN, LV_PART_MAIN);
     lv_label_set_text(capsule->lbl_status, "● 待命");
 
-    /* 4. 右侧：网络状态与电池电量 (如 "Wi-Fi 85%") */
+    /* 4. 右侧：网络状态与电池电量 (如 "WiFi 85%", "AP 85%") */
     capsule->lbl_telemetry = lv_label_create(capsule->container);
-    lv_obj_set_width(capsule->lbl_telemetry, 80);
+    lv_obj_set_width(capsule->lbl_telemetry, LV_SIZE_CONTENT);
     lv_obj_set_style_text_align(capsule->lbl_telemetry, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
-    lv_obj_align(capsule->lbl_telemetry, LV_ALIGN_RIGHT_MID, -4, 0);
+    lv_obj_align(capsule->lbl_telemetry, LV_ALIGN_RIGHT_MID, -6, 0);
     if (font) lv_obj_set_style_text_font(capsule->lbl_telemetry, font, LV_PART_MAIN);
     lv_obj_set_style_text_color(capsule->lbl_telemetry, COLOR_HEALTH_GREEN, LV_PART_MAIN);
-    lv_label_set_text(capsule->lbl_telemetry, "Wi-Fi 85%");
+    lv_label_set_text(capsule->lbl_telemetry, "WiFi 85%");
 
     capsule->dim_timer = NULL;
     capsule->is_dimmed = false;
@@ -248,16 +248,26 @@ void ui_capsule_update_net_battery(ui_capsule_t *capsule, const char *net_status
     if (battery_pct > 100) battery_pct = 100;
     capsule->current_battery = battery_pct;
     if (net_status && net_status[0]) {
-        strncpy(capsule->current_net_str, net_status, sizeof(capsule->current_net_str) - 1);
+        /* 过滤异常端口号，保持现有网络标签 */
+        if (strcmp(net_status, "8080") == 0 || strcmp(net_status, "80") == 0) {
+            /* 忽略端口号 */
+        } else if (strstr(net_status, "192.168.4.") != NULL || strcasecmp(net_status, "SoftAP") == 0 || strstr(net_status, "AP") != NULL) {
+            strncpy(capsule->current_net_str, "AP", sizeof(capsule->current_net_str) - 1);
+        } else if (strstr(net_status, "连") != NULL || strcasecmp(net_status, "connecting") == 0) {
+            strncpy(capsule->current_net_str, "连网", sizeof(capsule->current_net_str) - 1);
+        } else if (strstr(net_status, "未") != NULL || strstr(net_status, "断") != NULL || strcasecmp(net_status, "disconnected") == 0) {
+            strncpy(capsule->current_net_str, "--", sizeof(capsule->current_net_str) - 1);
+        } else if (strchr(net_status, '.') != NULL || strcasestr(net_status, "wifi") != NULL || strcasecmp(net_status, "connected") == 0) {
+            strncpy(capsule->current_net_str, "WiFi", sizeof(capsule->current_net_str) - 1);
+        } else {
+            snprintf(capsule->current_net_str, sizeof(capsule->current_net_str), "%.6s", net_status);
+        }
     }
 
-    /* 状态与呼吸微光逻辑：若为 SoftAP 配网或未连接，启动呼吸微光与高亮色 */
-    bool is_connecting = (strstr(capsule->current_net_str, "SoftAP") != NULL ||
-                          strstr(capsule->current_net_str, "AP") != NULL ||
-                          strstr(capsule->current_net_str, "扫") != NULL ||
-                          strstr(capsule->current_net_str, "连网中") != NULL);
-    bool is_disconnected = (strstr(capsule->current_net_str, "未") != NULL ||
-                            strstr(capsule->current_net_str, "断") != NULL);
+    /* 状态与呼吸微光逻辑：若为 SoftAP 配网或正在连网，启动呼吸微光与高亮琥珀色 */
+    bool is_connecting = (strcmp(capsule->current_net_str, "AP") == 0 ||
+                          strcmp(capsule->current_net_str, "连网") == 0);
+    bool is_disconnected = (strcmp(capsule->current_net_str, "--") == 0);
 
     if (is_connecting) {
         lv_obj_set_style_text_color(capsule->lbl_telemetry, lv_color_hex(0xFFB700), LV_PART_MAIN);

@@ -331,7 +331,7 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
             ui->battery_pct = (uint8_t)event->data.battery.percentage;
             refresh_status_capsule(ui);
             if (ui->capsule) {
-                ui_capsule_update_telemetry(ui->capsule, "8080", ui->battery_pct);
+                ui_capsule_update_telemetry(ui->capsule, NULL, ui->battery_pct);
             }
             break;
 
@@ -389,18 +389,27 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
                             ui_sidebar_set_settings_active(ui->sidebar, true);
                         }
                     }
+                    /* 切换并直接展开进入配网二级详情页 */
                     ui_settings_switch_tab(ui->settings, UI_SETTINGS_TAB_HOTSPOT);
+                    ui_settings_update_net_progress(ui->settings, mode, ssid, ip, msg);
+                } else if (mode == 2 /* NET_MODE_STA_CONNECTED */) {
+                    ui_settings_update_net_progress(ui->settings, mode, ssid, ip, msg);
+                    ui_settings_refresh_data(ui->settings);
+                } else if (mode == 3 /* NET_MODE_SOFTAP_CONFIG */) {
+                    ui_settings_refresh_data(ui->settings);
+                } else {
+                    ui_settings_update_net_progress(ui->settings, mode, ssid, ip, msg);
+                    ui_settings_refresh_data(ui->settings);
                 }
-                ui_settings_update_net_progress(ui->settings, mode, ssid, ip, msg);
-                ui_settings_refresh_data(ui->settings);
             }
 
             if (mode == 1 /* NET_MODE_STA_CONNECTING */) {
                 phoenix_ui_show_flying_text(ui, "正在连入 Wi-Fi...", lv_color_hex(0xFFB700));
-                snprintf(bbuf, sizeof(bbuf), "正在连接 Wi-Fi: [%s]...", ssid);
+                snprintf(bbuf, sizeof(bbuf), "正在连接 Wi-Fi: [%s]...", ssid && ssid[0] ? ssid : "目标路由");
                 phoenix_ui_show_bubble(ui, bbuf, 6000);
                 if (ui->capsule) {
                     ui_capsule_set_status(ui->capsule, "● 联网中", lv_color_hex(0xFFB700), true);
+                    ui_capsule_update_telemetry(ui->capsule, "连网", ui->battery_pct);
                 }
             } else if (mode == 2 /* NET_MODE_STA_CONNECTED */) {
                 phoenix_ui_show_flying_text(ui, "Wi-Fi 已连入!", lv_color_hex(0x00E676));
@@ -408,18 +417,18 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
                 phoenix_ui_show_bubble(ui, bbuf, 6000);
                 if (ui->capsule) {
                     ui_capsule_set_status(ui->capsule, "● 已联网", lv_color_hex(0x00E676), false);
-                    ui_capsule_update_telemetry(ui->capsule, ip[0] ? ip : "Wi-Fi", ui->battery_pct);
+                    ui_capsule_update_telemetry(ui->capsule, "WiFi", ui->battery_pct);
                 }
                 if (ui->settings) {
                     ui_settings_refresh_data(ui->settings);
                 }
             } else if (mode == 3 /* NET_MODE_SOFTAP_CONFIG */) {
                 phoenix_ui_show_flying_text(ui, "独立热点已就绪", lv_color_hex(0xFFB300));
-                snprintf(bbuf, sizeof(bbuf), "[热点广播] %s (192.168.4.1)", ssid);
+                snprintf(bbuf, sizeof(bbuf), "[热点广播] %s (192.168.4.1)", ssid && ssid[0] ? ssid : "Gemini-Setup");
                 phoenix_ui_show_bubble(ui, bbuf, 6000);
                 if (ui->capsule) {
                     ui_capsule_set_status(ui->capsule, "● AP配网", lv_color_hex(0xFFB300), false);
-                    ui_capsule_update_telemetry(ui->capsule, "192.168.4.1", ui->battery_pct);
+                    ui_capsule_update_telemetry(ui->capsule, "AP", ui->battery_pct);
                 }
                 if (ui->settings) {
                     ui_settings_refresh_data(ui->settings);
@@ -429,6 +438,7 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
                 phoenix_ui_show_bubble(ui, "Wi-Fi 连接失败，已恢复独立热点", 4000);
                 if (ui->capsule) {
                     ui_capsule_set_status(ui->capsule, "● 未连接", lv_color_hex(0x9E9E9E), false);
+                    ui_capsule_update_telemetry(ui->capsule, "--", ui->battery_pct);
                 }
                 if (ui->settings) {
                     ui_settings_refresh_data(ui->settings);

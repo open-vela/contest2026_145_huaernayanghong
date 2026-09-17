@@ -151,17 +151,78 @@ static int bind_and_listen_socket(uint16_t port)
     return fd;
 }
 
+static const char* find_content_length_header(const char *haystack, const char *end)
+{
+    const char *p = haystack;
+    const char *key = "content-length:";
+    size_t key_len = 15;
+
+    while (p + key_len <= end) {
+        bool match = true;
+        for (size_t i = 0; i < key_len; i++) {
+            char c1 = p[i];
+            char c2 = key[i];
+            if (c1 >= 'A' && c1 <= 'Z') c1 += ('a' - 'A');
+            if (c1 != c2) {
+                match = false;
+                break;
+            }
+        }
+        if (match) {
+            return p + key_len;
+        }
+        p++;
+    }
+    return NULL;
+}
+
 static void handle_single_client(int client_fd, char *req_buf, char *resp_buf)
 {
-    /* 设置 300ms 接收超时，防止空预连接导致死锁 */
+    /* 设置 500ms 接收超时，防止空预连接导致阻塞 */
     struct timeval tv_client;
     tv_client.tv_sec = 0;
-    tv_client.tv_usec = 300000;
+    tv_client.tv_usec = 500000;
     setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv_client, sizeof(tv_client));
 
-    ssize_t n = recv(client_fd, req_buf, 16384 - 1, 0);
-    if (n > 0) {
-        req_buf[n] = '\0';
+    size_t total_read = 0;
+    const size_t max_req = 16384 - 1;
+    char *header_end = NULL;
+    int content_length = -1;
+
+    while (total_read < max_req) {
+        ssize_t n = recv(client_fd, req_buf + total_read, max_req - total_read, 0);
+        if (n <= 0) {
+            break;
+        }
+        total_read += (size_t)n;
+        req_buf[total_read] = '\0';
+
+        /* 1. 若尚未找到头部结束标记，尝试寻找 \r\n\r\n */
+        if (!header_end) {
+            header_end = strstr(req_buf, "\r\n\r\n");
+            if (header_end) {
+                /* 解析 Content-Length */
+                const char *cl_pos = find_content_length_header(req_buf, header_end);
+                if (cl_pos) {
+                    content_length = atoi(cl_pos);
+                } else {
+                    content_length = 0;
+                }
+            }
+        }
+
+        /* 2. 若头部已就绪，校验 Body 是否已完全读取 */
+        if (header_end) {
+            size_t body_start_offset = (size_t)(header_end + 4 - req_buf);
+            size_t current_body_len = total_read >= body_start_offset ? (total_read - body_start_offset) : 0;
+            if (content_length <= 0 || current_body_len >= (size_t)content_length) {
+                break; /* 请求已完整就绪 */
+            }
+        }
+    }
+
+    if (total_read > 0) {
+        req_buf[total_read] = '\0';
         char req_summary[64] = {0};
         char *crlf = strstr(req_buf, "\r\n");
         if (crlf) {
@@ -171,7 +232,8 @@ static void handle_single_client(int client_fd, char *req_buf, char *resp_buf)
         } else {
             strncpy(req_summary, req_buf, sizeof(req_summary) - 1);
         }
-        printf("[PhoenixWeb] 📥 Client connected: %s\n", req_summary);
+        printf("[PhoenixWeb] 📥 Client connected: %s (Total: %zu bytes, Body: %d bytes)\n",
+               req_summary, total_read, content_length > 0 ? content_length : 0);
 
         int resp_len = phoenix_web_portal_handle_request(req_buf, resp_buf, 32768);
         if (resp_len > 0) {
