@@ -83,6 +83,7 @@ int handle_wifi_connect(const http_req_t *req, http_resp_t *resp)
         if (m && m->valuestring && strlen(m->valuestring) > 0) {
             phoenix_config_set_str(PHOENIX_CFG_MODEL, m->valuestring);
         }
+        phoenix_config_save();
     }
 
     if (ssid[0] != '\0') {

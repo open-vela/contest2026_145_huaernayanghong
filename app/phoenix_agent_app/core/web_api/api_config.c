@@ -55,6 +55,7 @@ int handle_config_post(const http_req_t *req, http_resp_t *resp)
         if (m && m->valuestring && strlen(m->valuestring) > 0) {
             phoenix_config_set_str(PHOENIX_CFG_MODEL, m->valuestring);
         }
+        phoenix_config_save();
     }
 
     http_resp_json(resp, 200, "{\"success\":true,\"message\":\"config updated\"}");

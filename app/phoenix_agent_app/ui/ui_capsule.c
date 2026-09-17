@@ -251,17 +251,29 @@ void ui_capsule_update_net_battery(ui_capsule_t *capsule, const char *net_status
         strncpy(capsule->current_net_str, net_status, sizeof(capsule->current_net_str) - 1);
     }
 
-    /* 呼吸微光逻辑：若为 SoftAP 配网或未连接，启动呼吸微光 */
+    /* 状态与呼吸微光逻辑：若为 SoftAP 配网或未连接，启动呼吸微光与高亮色 */
     bool is_connecting = (strstr(capsule->current_net_str, "SoftAP") != NULL ||
+                          strstr(capsule->current_net_str, "AP") != NULL ||
                           strstr(capsule->current_net_str, "扫") != NULL ||
-                          strstr(capsule->current_net_str, "未") != NULL);
+                          strstr(capsule->current_net_str, "连网中") != NULL);
+    bool is_disconnected = (strstr(capsule->current_net_str, "未") != NULL ||
+                            strstr(capsule->current_net_str, "断") != NULL);
+
     if (is_connecting) {
+        lv_obj_set_style_text_color(capsule->lbl_telemetry, lv_color_hex(0xFFB700), LV_PART_MAIN);
         if (!capsule->breath_timer) {
             capsule->breath_timer = lv_timer_create(breath_timer_cb, 60, capsule);
         } else {
             lv_timer_resume(capsule->breath_timer);
         }
+    } else if (is_disconnected) {
+        lv_obj_set_style_text_color(capsule->lbl_telemetry, lv_color_hex(0x7E92AD), LV_PART_MAIN);
+        if (capsule->breath_timer) {
+            lv_timer_pause(capsule->breath_timer);
+        }
+        lv_obj_set_style_text_opa(capsule->lbl_telemetry, LV_OPA_COVER, LV_PART_MAIN);
     } else {
+        lv_obj_set_style_text_color(capsule->lbl_telemetry, COLOR_HEALTH_GREEN, LV_PART_MAIN);
         if (capsule->breath_timer) {
             lv_timer_pause(capsule->breath_timer);
         }
@@ -275,6 +287,5 @@ void ui_capsule_update_net_battery(ui_capsule_t *capsule, const char *net_status
 
 void ui_capsule_update_telemetry(ui_capsule_t *capsule, const char *net_ip, uint8_t battery_pct)
 {
-    (void)net_ip;
-    ui_capsule_update_net_battery(capsule, NULL, battery_pct);
+    ui_capsule_update_net_battery(capsule, net_ip, battery_pct);
 }

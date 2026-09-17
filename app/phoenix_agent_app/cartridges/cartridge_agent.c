@@ -101,9 +101,12 @@ static void update_ui_state(voice_ui_state_t state)
 
     if (state == VOICE_UI_IDLE) {
         bool cloud_on = is_cloud_agent_active();
+        net_mode_t cur_net = net_mgr_get_mode();
         if (s_ui.lbl_status) {
-            lv_label_set_text(s_ui.lbl_status, cloud_on ? "● 云端AI" : "● 本地规则");
-            lv_obj_set_style_text_color(s_ui.lbl_status, cloud_on ? lv_color_hex(0x00FF88) : lv_color_hex(0x00E5FF), 0);
+            const char *st_text = cloud_on ? "● DeepSeek" : (cur_net == NET_MODE_STA_CONNECTED ? "● 待配Key" : "● 离线模式");
+            lv_color_t st_color = cloud_on ? lv_color_hex(0x00FF88) : (cur_net == NET_MODE_STA_CONNECTED ? lv_color_hex(0xFFB700) : lv_color_hex(0x7E92AD));
+            lv_label_set_text(s_ui.lbl_status, st_text);
+            lv_obj_set_style_text_color(s_ui.lbl_status, st_color, 0);
         }
         if (s_ui.btn_mic) {
             lv_obj_set_style_bg_color(s_ui.btn_mic, lv_color_hex(0x122438), 0);
@@ -115,10 +118,13 @@ static void update_ui_state(voice_ui_state_t state)
         }
         if (s_ui.lbl_hint) {
             if (cloud_on) {
-                lv_label_set_text(s_ui.lbl_hint, "⚡ 云端大模型已连接 | 支持全功能 ReAct 具身工具");
+                lv_label_set_text(s_ui.lbl_hint, "⚡ DeepSeek 云端大脑已接入 | 支持 ReAct 具身工具");
+                lv_obj_set_style_text_color(s_ui.lbl_hint, lv_color_hex(0x00FF88), 0);
+            } else if (cur_net == NET_MODE_STA_CONNECTED) {
+                lv_label_set_text(s_ui.lbl_hint, "💡 网络已连通 | 请访问 Web 伴侣后台录入 API Key");
                 lv_obj_set_style_text_color(s_ui.lbl_hint, lv_color_hex(0x00E5FF), 0);
             } else {
-                lv_label_set_text(s_ui.lbl_hint, "⚡ 本地规则引擎就绪 (专注/木鱼/体检) | 设置可配Key");
+                lv_label_set_text(s_ui.lbl_hint, "⚡ 本地离线规则引擎就绪 | 请进入设置配置 Wi-Fi");
                 lv_obj_set_style_text_color(s_ui.lbl_hint, lv_color_hex(0x7E92AD), 0);
             }
         }
@@ -175,6 +181,25 @@ void cartridge_agent_trigger_voice_chat(const char *prompt_override)
     }
     if (s_ui.lbl_agent_msg) {
         lv_label_set_text(s_ui.lbl_agent_msg, "正在规划执行链并思考...");
+    }
+
+    /* 友好前置感知提示：未连网或未配置 Key 时告知当前交互通道 */
+    net_mode_t cur_net = net_mgr_get_mode();
+    bool cloud_on = is_cloud_agent_active();
+    if (!cloud_on && cur_net != NET_MODE_STA_CONNECTED) {
+        phoenix_event_data_t fly;
+        memset(&fly, 0, sizeof(fly));
+        fly.type = PHOENIX_EVT_FLYING_TEXT;
+        fly.data.flying_text.text = "💡 离线规则响应";
+        fly.data.flying_text.color_rgb = 0x00E5FF;
+        phoenix_event_publish(&fly);
+    } else if (!cloud_on && cur_net == NET_MODE_STA_CONNECTED) {
+        phoenix_event_data_t fly;
+        memset(&fly, 0, sizeof(fly));
+        fly.type = PHOENIX_EVT_FLYING_TEXT;
+        fly.data.flying_text.text = "💡 待配置API Key";
+        fly.data.flying_text.color_rgb = 0xFFB700;
+        phoenix_event_publish(&fly);
     }
 
     /* 2. 异步调用 Agent 核心进行 ReAct 推理 (后台线程执行，主界面保持 60fps) */

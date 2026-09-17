@@ -1042,7 +1042,44 @@ void ui_settings_refresh_data(ui_settings_t *settings)
         lv_label_set_text(settings->lbl_storage_cap, capbuf);
     }
 
-    /* 5. 同步刷新主菜单列表卡片的右侧状态摘要 (Glanceable Summary) */
+    /* 5. 刷新大模型配置面板与一键访问路径 */
+    char cur_api_key[128] = {0};
+    phoenix_config_get_str(PHOENIX_CFG_API_KEY, "", cur_api_key, sizeof(cur_api_key));
+    bool has_api_key = (cur_api_key[0] != '\0');
+
+    if (settings->lbl_agent_key_st) {
+        char kbuf[64];
+        if (has_api_key) {
+            size_t klen = strlen(cur_api_key);
+            if (klen > 8) {
+                snprintf(kbuf, sizeof(kbuf), "API Key: [%.4s****%.4s]", cur_api_key, cur_api_key + klen - 4);
+            } else {
+                snprintf(kbuf, sizeof(kbuf), "API Key: [已配置密钥]");
+            }
+            lv_obj_set_style_text_color(settings->lbl_agent_key_st, lv_color_hex(0x00FF88), 0);
+        } else {
+            snprintf(kbuf, sizeof(kbuf), "API Key: [未配置 - 离线兜底]");
+            lv_obj_set_style_text_color(settings->lbl_agent_key_st, lv_color_hex(0xFFB700), 0);
+        }
+        lv_label_set_text(settings->lbl_agent_key_st, kbuf);
+    }
+
+    if (settings->lbl_agent_hint) {
+        char hbuf[128];
+        if (mode == NET_MODE_STA_CONNECTED && ip_buf[0]) {
+            snprintf(hbuf, sizeof(hbuf), "● 访问 http://%s/ 免端口录入 Key", ip_buf);
+            lv_obj_set_style_text_color(settings->lbl_agent_hint, lv_color_hex(0x00E5FF), 0);
+        } else if (mode == NET_MODE_SOFTAP_CONFIG) {
+            snprintf(hbuf, sizeof(hbuf), "● 手机连热点访问 http://192.168.4.1/ 录入 Key");
+            lv_obj_set_style_text_color(settings->lbl_agent_hint, lv_color_hex(0xFFB700), 0);
+        } else {
+            snprintf(hbuf, sizeof(hbuf), "● 请先在 [网络配网] 中连入 Wi-Fi");
+            lv_obj_set_style_text_color(settings->lbl_agent_hint, lv_color_hex(0x7E92AD), 0);
+        }
+        lv_label_set_text(settings->lbl_agent_hint, hbuf);
+    }
+
+    /* 6. 同步刷新主菜单列表卡片的右侧状态摘要 (Glanceable Summary) */
     if (settings->lbl_menu_net_sub) {
         if (mode == NET_MODE_STA_CONNECTED) {
             char nbuf[32];
@@ -1062,8 +1099,13 @@ void ui_settings_refresh_data(ui_settings_t *settings)
     }
 
     if (settings->lbl_menu_agent_sub) {
-        lv_label_set_text(settings->lbl_menu_agent_sub, "DeepSeek >");
-        lv_obj_set_style_text_color(settings->lbl_menu_agent_sub, lv_color_hex(0x00E5FF), 0);
+        if (has_api_key) {
+            lv_label_set_text(settings->lbl_menu_agent_sub, "DeepSeek >");
+            lv_obj_set_style_text_color(settings->lbl_menu_agent_sub, lv_color_hex(0x00FF88), 0);
+        } else {
+            lv_label_set_text(settings->lbl_menu_agent_sub, "待配Key >");
+            lv_obj_set_style_text_color(settings->lbl_menu_agent_sub, lv_color_hex(0xFFB700), 0);
+        }
     }
 
     if (settings->lbl_menu_system_sub) {

@@ -252,6 +252,7 @@ static void handle_rx_payload(const uint8_t *payload, uint16_t length)
             if (m && m->valuestring && strlen(m->valuestring) > 0) {
                 phoenix_config_set_str(PHOENIX_CFG_MODEL, m->valuestring);
             }
+            phoenix_config_save();
         }
 
         if (strlen(ssid) > 0) {

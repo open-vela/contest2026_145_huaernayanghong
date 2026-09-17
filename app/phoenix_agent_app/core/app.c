@@ -113,14 +113,26 @@ int phoenix_app_init(const phoenix_app_config_t *config)
         phoenix_register_builtin_tools();
     }
 
-    /* 9. LLM Channel Provider */
+    /* 9. LLM Channel Provider (优先尝试从持久化配置文件回读 API Key 与 Model) */
+    char saved_key[128] = {0};
     if (api_key && strlen(api_key) > 0) {
+        strncpy(saved_key, api_key, sizeof(saved_key) - 1);
+    } else {
+        phoenix_config_get_str(PHOENIX_CFG_API_KEY, "", saved_key, sizeof(saved_key));
+    }
+
+    if (saved_key[0] != '\0') {
         phoenix_llm_config_t llm_cfg;
         memset(&llm_cfg, 0, sizeof(llm_cfg));
-        strncpy(llm_cfg.api_key, api_key, sizeof(llm_cfg.api_key) - 1);
+        strncpy(llm_cfg.api_key, saved_key, sizeof(llm_cfg.api_key) - 1);
+        char model_buf[64] = {0};
+        phoenix_config_get_str(PHOENIX_CFG_MODEL, "deepseek-chat", model_buf, sizeof(model_buf));
+        strncpy(llm_cfg.model_name, model_buf, sizeof(llm_cfg.model_name) - 1);
         phoenix_llm_provider_init(&llm_cfg);
+        LOG_I(TAG, "🔑 已从系统配置载入 DeepSeek API Key (%zu 字节), 模型: %s", strlen(saved_key), model_buf);
     } else {
         phoenix_llm_provider_init(NULL);
+        LOG_I(TAG, "💡 本地未配置 API Key, 初始化离线具身仿真驱动模式");
     }
 
     /* 10. Embedded Web Portal (Optional) */

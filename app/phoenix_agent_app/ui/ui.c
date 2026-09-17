@@ -9,6 +9,7 @@
 #include "core/tool_registry.h"
 #include "core/store.h"
 #include "core/cartridge_mgr.h"
+#include "hal/network_mgr.h"
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -122,24 +123,41 @@ void phoenix_ui_show_flying_text(phoenix_ui_t *ui, const char *text, lv_color_t 
     lv_anim_start(&a);
 }
 
-/* 刷新顶部微状态胶囊 */
+/* 刷新顶部微状态胶囊 (依据真实网络状态动态感知) */
 static void refresh_status_capsule(phoenix_ui_t *ui)
 {
     if (!ui) return;
 
     if (ui->capsule) {
-        /* 左侧：环境温湿度 (26℃ 60%) */
+        /* 左侧：环境温湿度 */
         ui_capsule_update_env(ui->capsule, 26.0f, 60);
 
-        /* 右侧：网络状态与电池电量 (Wi-Fi 85%) */
-        ui_capsule_update_net_battery(ui->capsule, "Wi-Fi", ui->battery_pct);
+        /* 右侧：真实网络感知与电池电量 */
+        net_mode_t mode = net_mgr_get_mode();
+        char ip_buf[NET_MAX_IP_LEN] = {0};
+        net_mgr_get_ip(ip_buf, sizeof(ip_buf));
 
+        const char *net_label = "未连网";
+        if (mode == NET_MODE_STA_CONNECTED) {
+            net_label = ip_buf[0] ? ip_buf : "已连网";
+        } else if (mode == NET_MODE_STA_CONNECTING) {
+            net_label = "连网中";
+        } else if (mode == NET_MODE_SOFTAP_CONFIG) {
+            net_label = "AP配网";
+        } else {
+            net_label = "未连网";
+        }
+        ui_capsule_update_net_battery(ui->capsule, net_label, ui->battery_pct);
+
+        /* 中间心智状态：番茄钟 > 联网状态 > 默认状态 */
         if (ui->pomodoro_active) {
             uint16_t m = ui->pomodoro_remain_s / 60;
             uint16_t s = ui->pomodoro_remain_s % 60;
             char pbuf[32];
             snprintf(pbuf, sizeof(pbuf), "专注 %02u:%02u", m, s);
             ui_capsule_set_status(ui->capsule, pbuf, COLOR_POMO_ORANGE, false);
+        } else if (mode == NET_MODE_SOFTAP_CONFIG) {
+            ui_capsule_set_status(ui->capsule, "● AP配网", lv_color_hex(0xFFB700), false);
         }
     }
 }
@@ -545,6 +563,12 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
     phoenix_store_get_stats(&stats);
     ui->merit_count = stats.total_merit;
     refresh_status_capsule(ui);
+
+    /* 首次开机若处于未连网的 SoftAP 配网模式，主动弹出显性引导气泡 */
+    if (net_mgr_get_mode() == NET_MODE_SOFTAP_CONFIG) {
+        phoenix_ui_show_bubble(ui, "未连网: 请手机连热点 [Gemini-Agent-Setup] 极速配网", 8000);
+        phoenix_ui_show_flying_text(ui, "独立热点已就绪", COLOR_PRIMARY_GOLD);
+    }
 
     return ui;
 }

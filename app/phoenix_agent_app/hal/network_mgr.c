@@ -323,7 +323,7 @@ static void* sta_connect_worker_thread(void *arg)
     } else {
         LOG_W(TAG, "⚠️ [Worker] Wi-Fi 握手或 DHCP 超时，通知界面并自动恢复 SoftAP 独立热点");
         s_mode = NET_MODE_DISCONNECTED;
-        notify_state_changed_with_msg_unlocked("Wi-Fi 连接超时或失败");
+        notify_state_changed_with_msg_unlocked("Wi-Fi 连网失败(请核对密码与信号)，已恢复独立热点");
         pthread_mutex_unlock(&s_lock);
 
         /* 自动恢复独立热点供用户继续配网 */
@@ -781,6 +781,7 @@ int net_mgr_connect_sta(const char *ssid, const char *psk)
 
     /* 2. 持久化至全志原厂 /data/etc/wifi/wapi.conf 配置文件 */
     save_wapi_conf(s_current_ssid, psk);
+    phoenix_config_save();
 
 #if defined(HOST_TEST_RUNNER)
     /* Host 单测模式：同步完成以便单元测试断言 */
@@ -844,6 +845,7 @@ int net_mgr_reset_to_softap(void)
     LOG_I(TAG, "🔄 重置 Wi-Fi 配置并返回 SoftAP 独立热点配网模式...");
     phoenix_config_set_str(PHOENIX_CFG_WIFI_SSID, "");
     phoenix_config_set_str(PHOENIX_CFG_WIFI_PSK, "");
+    phoenix_config_save();
 
 #if !defined(HOST_TEST_RUNNER)
     /* 1. 彻底断开 wlan0 当前物理关联，避免后台重试干扰射频 */
