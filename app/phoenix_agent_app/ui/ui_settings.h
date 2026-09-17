@@ -16,46 +16,75 @@ extern "C" {
 #include <stdint.h>
 
 /**
- * @brief 设置中心二级侧边栏标签页定义
+ * @brief 设置中心顶部横向导航标签页定义
  */
 typedef enum {
-    UI_SETTINGS_TAB_HOTSPOT = 0,  /**< 二级页 1: 独立热点配网 (SoftAP) */
-    UI_SETTINGS_TAB_BLE,          /**< 二级页 2: 蓝牙极速配网 (Web Bluetooth) */
-    UI_SETTINGS_TAB_AGENT,        /**< 二级页 3: 灵眸大模型与 Prompt */
-    UI_SETTINGS_TAB_SYSTEM,       /**< 二级页 4: 系统健康与遥测 */
-    UI_SETTINGS_TAB_STORAGE,      /**< 二级页 5: 存储卡与外脑日志 */
+    UI_SETTINGS_TAB_NET = 0,      /**< 标签页 1: 统一极速配网 (Magic Provisioning: SoftAP + BLE 双模一体) */
+    UI_SETTINGS_TAB_AGENT,        /**< 标签页 2: 灵眸大模型与 Prompt */
+    UI_SETTINGS_TAB_SYSTEM,       /**< 标签页 3: 极客系统健康与遥测 */
+    UI_SETTINGS_TAB_STORAGE,      /**< 标签页 4: 存储卡与外脑日志 */
 
     /* 兼容历史枚举别名 */
+    UI_SETTINGS_TAB_HOTSPOT   = 0,
+    UI_SETTINGS_TAB_BLE       = 0,
     UI_SETTINGS_PAGE_MAIN     = 0,
     UI_SETTINGS_PAGE_NETWORK  = 0,
-    UI_SETTINGS_PAGE_SYSTEM   = 3,
-    UI_SETTINGS_PAGE_AGENT    = 2,
-    UI_SETTINGS_PAGE_STORAGE  = 4
+    UI_SETTINGS_PAGE_AGENT    = 1,
+    UI_SETTINGS_PAGE_SYSTEM   = 2,
+    UI_SETTINGS_PAGE_STORAGE  = 3
 } ui_settings_page_t;
 
 typedef ui_settings_page_t ui_settings_tab_t;
 
 /**
- * @brief 设置中心上下文结构体
+ * @brief 设置中心上下文结构体 (全宽 274px 舞台 + 顶部胶囊导航栏)
  */
 typedef struct {
     lv_obj_t *container;          /**< 设置主舞台容器 (同级视图: 274x216, x=46, y=24) */
     lv_obj_t *drawer;             /**< 兼容指针 (指向 container) */
 
-    /* 1. 内部二级侧边栏 (宽 56px) */
-    lv_obj_t *sub_sidebar;
-    lv_obj_t *btn_tab_hotspot;
-    lv_obj_t *lbl_tab_hotspot;
-    lv_obj_t *btn_tab_ble;
-    lv_obj_t *lbl_tab_ble;
+    /* 1. 顶部导航条 (高 30px, 宽 274px, x=0, y=0) */
+    lv_obj_t *top_tab_bar;
+    lv_obj_t *btn_top_close;      /**< 顶栏左侧按钮 (主菜单显示 ✕ 退出，详情页显示 < 返回) */
+    lv_obj_t *lbl_top_close;
+    lv_obj_t *lbl_top_title;      /**< 顶栏标题 (主菜单显示 ⚙️ 系统设置，详情页显示模块名) */
+
+    /* 2. 状态标识 */
+    bool is_in_detail;            /**< 当前是否下钻进入二级详情页 */
+
+    /* 3. 视图 1: 垂直卡片菜单列表 (宽 274px, 高 186px, 纵向平滑滚动) */
+    lv_obj_t *view_menu_list;
+    lv_obj_t *btn_menu_net;       /**< 菜单项 1: 网络配网 */
+    lv_obj_t *lbl_menu_net_sub;   /**< 菜单项 1 摘要: 已连接 / 广播中 */
+    lv_obj_t *btn_menu_agent;     /**< 菜单项 2: 灵眸模型 */
+    lv_obj_t *lbl_menu_agent_sub; /**< 菜单项 2 摘要: DeepSeek */
+    lv_obj_t *btn_menu_system;    /**< 菜单项 3: 硬件状态 */
+    lv_obj_t *lbl_menu_system_sub;/**< 菜单项 3 摘要: 正常 / 60FPS */
+    lv_obj_t *btn_menu_storage;   /**< 菜单项 4: 存储日志 */
+    lv_obj_t *lbl_menu_storage_sub;/**< 菜单项 4 摘要: 28.6GB */
+    lv_obj_t *btn_menu_about;     /**< 菜单项 5: 关于设备 */
+    lv_obj_t *lbl_menu_about_sub; /**< 菜单项 5 摘要: OpenVela */
+
+    /* 4. 视图 2: 二级下钻详情区域 (宽 274px, 高 186px) */
+    lv_obj_t *view_detail_area;
+    lv_obj_t *panel_about;        /**< 关于设备卡片 */
+
+    /* 兼容保留字段指针 */
+    lv_obj_t *btn_tab_net;
+    lv_obj_t *lbl_tab_net;
     lv_obj_t *btn_tab_agent;
     lv_obj_t *lbl_tab_agent;
     lv_obj_t *btn_tab_system;
     lv_obj_t *lbl_tab_system;
     lv_obj_t *btn_tab_storage;
     lv_obj_t *lbl_tab_storage;
+    lv_obj_t *sub_sidebar;
+    lv_obj_t *btn_tab_hotspot;
+    lv_obj_t *lbl_tab_hotspot;
+    lv_obj_t *btn_tab_ble;
+    lv_obj_t *lbl_tab_ble;
 
-    /* 2. 右侧内容区 (宽 218px) */
+    /* 5. 主内容容器 */
     lv_obj_t *content_area;
     lv_obj_t *header_bar;
     lv_obj_t *lbl_header_title;
@@ -191,9 +220,19 @@ void ui_settings_toggle(ui_settings_t *settings);
 bool ui_settings_is_open(const ui_settings_t *settings);
 
 /**
- * @brief 切换内部二级侧边栏标签页
+ * @brief 切换内部标签页
  */
 void ui_settings_switch_tab(ui_settings_t *settings, ui_settings_tab_t tab);
+
+/**
+ * @brief 下钻进入二级模块详情页
+ */
+void ui_settings_enter_detail(ui_settings_t *settings, ui_settings_tab_t tab);
+
+/**
+ * @brief 从二级详情页平滑返回设置主菜单列表
+ */
+void ui_settings_back_to_menu(ui_settings_t *settings);
 
 /**
  * @brief 兼容接口：设置页面
