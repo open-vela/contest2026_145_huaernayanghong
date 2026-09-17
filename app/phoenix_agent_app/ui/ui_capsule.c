@@ -231,7 +231,7 @@ void ui_capsule_update_pomodoro(ui_capsule_t *capsule, bool is_active, uint16_t 
         char pbuf[32];
         uint16_t min = remaining_s / 60;
         uint16_t sec = remaining_s % 60;
-        snprintf(pbuf, sizeof(pbuf), "🍅 %02u:%02u", min, sec);
+        snprintf(pbuf, sizeof(pbuf), "专注 %02u:%02u", min, sec);
         lv_label_set_text(capsule->lbl_status, pbuf);
         lv_obj_set_style_text_color(capsule->lbl_status, lv_color_hex(0xFF7043), LV_PART_MAIN);
         lv_obj_set_style_border_color(capsule->pill_status, lv_color_hex(0x663319), LV_PART_MAIN);

@@ -86,14 +86,14 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     s->lbl_top_close = lv_label_create(s->btn_top_close);
     lv_obj_center(s->lbl_top_close);
     if (s->font) lv_obj_set_style_text_font(s->lbl_top_close, s->font, 0);
-    lv_label_set_text(s->lbl_top_close, "✕");
+    lv_label_set_text(s->lbl_top_close, "X");
     lv_obj_set_style_text_color(s->lbl_top_close, lv_color_hex(0x00E5FF), 0);
 
-    /* 2.2 顶栏标题 (主菜单显示 ⚙️ 系统设置，详情页显示对应名称) */
+    /* 2.2 顶栏标题 (主菜单显示 系统设置，详情页显示对应名称) */
     s->lbl_top_title = lv_label_create(s->top_tab_bar);
     lv_obj_align(s->lbl_top_title, LV_ALIGN_CENTER, 0, 0);
     if (s->font) lv_obj_set_style_text_font(s->lbl_top_title, s->font, 0);
-    lv_label_set_text(s->lbl_top_title, "⚙️ 系统设置");
+    lv_label_set_text(s->lbl_top_title, "系统设置");
     lv_obj_set_style_text_color(s->lbl_top_title, lv_color_hex(0x00E5FF), 0);
     s->lbl_header_title = s->lbl_top_title; /* 兼容字段 */
 
@@ -117,13 +117,13 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     lv_obj_set_style_pad_all(s->view_menu_list, 6, 0);
     lv_obj_add_flag(s->view_menu_list, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* 创建 5 个菜单项卡片 (高度 34px, 宽度 260px) */
+    /* 创建 5 个菜单项卡片 (高度 34px, 宽度 260px，使用字库安全符号) */
     const char *menu_names[5] = {
-        "🌐 网络配网",
-        "🧠 灵眸模型",
-        "⚡ 硬件状态",
-        "📁 存储日志",
-        "ℹ️ 关于设备"
+        "● 网络配网",
+        "● 灵眸模型",
+        "● 硬件状态",
+        "● 存储日志",
+        "● 关于设备"
     };
     const char *menu_defaults[5] = {
         "已连接 >",
@@ -265,7 +265,7 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     s->lbl_hotspot_action = lv_label_create(s->btn_hotspot_action);
     lv_obj_center(s->lbl_hotspot_action);
     if (s->font) lv_obj_set_style_text_font(s->lbl_hotspot_action, s->font, 0);
-    lv_label_set_text(s->lbl_hotspot_action, "[📡 重启热点广播]");
+    lv_label_set_text(s->lbl_hotspot_action, "[● 重启热点广播]");
     lv_obj_set_style_text_color(s->lbl_hotspot_action, lv_color_hex(0x00E5FF), 0);
 
     /* 重置网络配置按钮 */
@@ -281,7 +281,7 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     s->lbl_hotspot_reset = lv_label_create(s->btn_hotspot_reset);
     lv_obj_center(s->lbl_hotspot_reset);
     if (s->font) lv_obj_set_style_text_font(s->lbl_hotspot_reset, s->font, 0);
-    lv_label_set_text(s->lbl_hotspot_reset, "[🔄 重置网络配置]");
+    lv_label_set_text(s->lbl_hotspot_reset, "[清空网络配置]");
     lv_obj_set_style_text_color(s->lbl_hotspot_reset, lv_color_hex(0x7E92AD), 0);
 
     /* 4.2 热点配网步进状态机进度卡片 */
@@ -297,7 +297,7 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     s->lbl_prog_title = lv_label_create(s->box_hotspot_progress);
     lv_obj_align(s->lbl_prog_title, LV_ALIGN_TOP_LEFT, 4, 2);
     if (s->font) lv_obj_set_style_text_font(s->lbl_prog_title, s->font, 0);
-    lv_label_set_text(s->lbl_prog_title, "📡 正在加入网络...");
+    lv_label_set_text(s->lbl_prog_title, "[>>] 正在加入网络...");
     lv_obj_set_style_text_color(s->lbl_prog_title, lv_color_hex(0xFFB700), 0);
 
     s->lbl_prog_step1 = lv_label_create(s->box_hotspot_progress);
@@ -309,13 +309,13 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     s->lbl_prog_step2 = lv_label_create(s->box_hotspot_progress);
     lv_obj_align(s->lbl_prog_step2, LV_ALIGN_TOP_LEFT, 4, 44);
     if (s->font) lv_obj_set_style_text_font(s->lbl_prog_step2, s->font, 0);
-    lv_label_set_text(s->lbl_prog_step2, "[⟳] 2. 正在关联目标 Wi-Fi 路由...");
+    lv_label_set_text(s->lbl_prog_step2, "[..] 2. 正在关联目标 Wi-Fi 路由...");
     lv_obj_set_style_text_color(s->lbl_prog_step2, lv_color_hex(0xFFB700), 0);
 
     s->lbl_prog_step3 = lv_label_create(s->box_hotspot_progress);
     lv_obj_align(s->lbl_prog_step3, LV_ALIGN_TOP_LEFT, 4, 64);
     if (s->font) lv_obj_set_style_text_font(s->lbl_prog_step3, s->font, 0);
-    lv_label_set_text(s->lbl_prog_step3, "[⟳] 3. 申请 DHCP 局域网 IP 租约...");
+    lv_label_set_text(s->lbl_prog_step3, "[..] 3. 申请 DHCP 局域网 IP 租约...");
     lv_obj_set_style_text_color(s->lbl_prog_step3, lv_color_hex(0x7E92AD), 0);
 
     /* 结果大卡片 */
@@ -410,7 +410,7 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     s->lbl_ble_toggle = lv_label_create(s->btn_ble_toggle);
     lv_obj_center(s->lbl_ble_toggle);
     if (s->font) lv_obj_set_style_text_font(s->lbl_ble_toggle, s->font, 0);
-    lv_label_set_text(s->lbl_ble_toggle, "[⚡ 重启蓝牙配网广播]");
+    lv_label_set_text(s->lbl_ble_toggle, "[● 重启蓝牙配网广播]");
     lv_obj_set_style_text_color(s->lbl_ble_toggle, lv_color_hex(0x00E5FF), 0);
 
     /* 蓝牙操作指引卡片 */
@@ -470,11 +470,11 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     lv_label_set_text(s->lbl_agent_prompt, "人设: 贴心极客使魔 (Cyber-Familiar)\n支持敲击感应/双敲唤醒大模型对话");
     lv_obj_set_style_text_color(s->lbl_agent_prompt, lv_color_hex(0x8B9EB5), 0);
 
-    s->lbl_agent_hint = lv_label_create(s->card_agent_info);
-    lv_obj_align(s->lbl_agent_hint, LV_ALIGN_BOTTOM_LEFT, 4, -2);
+    s->lbl_agent_hint = lv_label_create(s->panel_agent);
+    lv_obj_set_pos(s->lbl_agent_hint, 6, 142);
     if (s->font) lv_obj_set_style_text_font(s->lbl_agent_hint, s->font, 0);
-    lv_label_set_text(s->lbl_agent_hint, "💡 浏览器访问 :8080/ 修改密钥与系统Prompt");
-    lv_obj_set_style_text_color(s->lbl_agent_hint, lv_color_hex(0x7E92AD), 0);
+    lv_label_set_text(s->lbl_agent_hint, "● 浏览器访问 :8080/ 修改密钥与Prompt");
+    lv_obj_set_style_text_color(s->lbl_agent_hint, lv_color_hex(0xFFB700), 0);
 
     /* =====================================================================
      * 7. 独立标签页 3 (UI_SETTINGS_TAB_SYSTEM): 系统健康与遥测
@@ -697,11 +697,11 @@ void ui_settings_enter_detail(ui_settings_t *settings, ui_settings_tab_t tab)
     }
 
     const char *tab_titles[5] = {
-        "🌐 极速网络配网",
-        "🧠 灵眸大模型",
-        "⚡ 硬件状态与遥测",
-        "📁 存储卡与外脑日志",
-        "ℹ️ 关于设备"
+        "极速网络配网",
+        "灵眸大模型",
+        "硬件状态与遥测",
+        "存储卡与外脑日志",
+        "关于设备"
     };
     if (settings->lbl_top_title) {
         lv_label_set_text(settings->lbl_top_title, tab_titles[(int)tab]);
@@ -743,12 +743,12 @@ void ui_settings_back_to_menu(ui_settings_t *settings)
 
     settings->is_in_detail = false;
 
-    /* 1. 顶栏恢复为主菜单模式: [ ✕ ] 与 系统设置 */
+    /* 1. 顶栏恢复为主菜单模式: [ X ] 与 系统设置 */
     if (settings->lbl_top_close) {
-        lv_label_set_text(settings->lbl_top_close, "✕");
+        lv_label_set_text(settings->lbl_top_close, "X");
     }
     if (settings->lbl_top_title) {
-        lv_label_set_text(settings->lbl_top_title, "⚙️ 系统设置");
+        lv_label_set_text(settings->lbl_top_title, "系统设置");
     }
 
     /* 2. 隐藏二级详情区域，恢复菜单列表 */
@@ -782,7 +782,7 @@ void ui_settings_update_net_progress(ui_settings_t *settings, int mode, const ch
         if (settings->box_hotspot_progress) lv_obj_clear_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN);
 
         char tbuf[64];
-        snprintf(tbuf, sizeof(tbuf), "📡 正在加入网络: %s", (ssid && ssid[0]) ? ssid : "目标Wi-Fi");
+        snprintf(tbuf, sizeof(tbuf), "● 正在加入网络: %s", (ssid && ssid[0]) ? ssid : "目标Wi-Fi");
         if (settings->lbl_prog_title) lv_label_set_text(settings->lbl_prog_title, tbuf);
 
         bool is_dhcp_stage = (msg && (strstr(msg, "DHCP") || strstr(msg, "租约") || strstr(msg, "申请")));
@@ -798,7 +798,7 @@ void ui_settings_update_net_progress(ui_settings_t *settings, int mode, const ch
                 lv_obj_set_style_text_color(settings->lbl_prog_step2, lv_color_hex(0x00FF88), 0);
             }
             if (settings->lbl_prog_step3) {
-                lv_label_set_text(settings->lbl_prog_step3, "[⟳] 3. 正在申请 DHCP 局域网 IP...");
+                lv_label_set_text(settings->lbl_prog_step3, "[..] 3. 正在申请 DHCP 局域网 IP...");
                 lv_obj_set_style_text_color(settings->lbl_prog_step3, lv_color_hex(0xFFB700), 0);
             }
             if (settings->lbl_prog_result_ip) {
@@ -807,7 +807,7 @@ void ui_settings_update_net_progress(ui_settings_t *settings, int mode, const ch
             }
         } else {
             if (settings->lbl_prog_step2) {
-                lv_label_set_text(settings->lbl_prog_step2, "[⟳] 2. 正在关联目标 Wi-Fi 路由...");
+                lv_label_set_text(settings->lbl_prog_step2, "[..] 2. 正在关联目标 Wi-Fi 路由...");
                 lv_obj_set_style_text_color(settings->lbl_prog_step2, lv_color_hex(0xFFB700), 0);
             }
             if (settings->lbl_prog_step3) {
@@ -824,7 +824,7 @@ void ui_settings_update_net_progress(ui_settings_t *settings, int mode, const ch
             lv_obj_set_style_text_color(settings->lbl_prog_result_url, lv_color_hex(0x8B9EB5), 0);
         }
         if (settings->lbl_prog_done) {
-            lv_label_set_text(settings->lbl_prog_done, "[⟳ 连网进行中...]");
+            lv_label_set_text(settings->lbl_prog_done, "[.. 连网进行中...]");
             lv_obj_set_style_text_color(settings->lbl_prog_done, lv_color_hex(0xFFB700), 0);
         }
     } else if (mode == 2 /* NET_MODE_STA_CONNECTED */) {
@@ -832,7 +832,7 @@ void ui_settings_update_net_progress(ui_settings_t *settings, int mode, const ch
         if (settings->box_hotspot_progress) lv_obj_clear_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN);
 
         if (settings->lbl_prog_title) {
-            lv_label_set_text(settings->lbl_prog_title, "🎉 Wi-Fi 连接成功!");
+            lv_label_set_text(settings->lbl_prog_title, "[✓] Wi-Fi 连接成功!");
             lv_obj_set_style_text_color(settings->lbl_prog_title, lv_color_hex(0x00FF88), 0);
         }
         if (settings->lbl_prog_step2) {
@@ -865,7 +865,7 @@ void ui_settings_update_net_progress(ui_settings_t *settings, int mode, const ch
     } else if (mode == 0 /* DISCONNECTED / 失败 */) {
         if (settings->box_hotspot_progress && !lv_obj_has_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN)) {
             if (settings->lbl_prog_title) {
-                lv_label_set_text(settings->lbl_prog_title, "⚠️ 连网超时或密码错误");
+                lv_label_set_text(settings->lbl_prog_title, "[!] 连网超时或密码错误");
                 lv_obj_set_style_text_color(settings->lbl_prog_title, lv_color_hex(0xFF5252), 0);
             }
             if (settings->lbl_prog_step2) {
@@ -927,7 +927,7 @@ void ui_settings_refresh_data(ui_settings_t *settings)
             lv_obj_set_style_text_color(settings->lbl_ble_status, lv_color_hex(0x00FF88), 0);
         }
         if (settings->lbl_ble_toggle) {
-            lv_label_set_text(settings->lbl_ble_toggle, "[🛑 停止蓝牙广播]");
+            lv_label_set_text(settings->lbl_ble_toggle, "[关闭 停止蓝牙广播]");
             lv_obj_set_style_text_color(settings->lbl_ble_toggle, lv_color_hex(0xFF7043), 0);
         }
     } else if (bst == BLE_PROV_STATE_CONNECTED) {
@@ -936,7 +936,7 @@ void ui_settings_refresh_data(ui_settings_t *settings)
             lv_obj_set_style_text_color(settings->lbl_ble_status, lv_color_hex(0x00E5FF), 0);
         }
         if (settings->lbl_ble_toggle) {
-            lv_label_set_text(settings->lbl_ble_toggle, "[🛑 断开并停止广播]");
+            lv_label_set_text(settings->lbl_ble_toggle, "[关闭 断开并停止广播]");
             lv_obj_set_style_text_color(settings->lbl_ble_toggle, lv_color_hex(0xFF7043), 0);
         }
     } else if (bst == BLE_PROV_STATE_PROVISIONING) {
@@ -950,7 +950,7 @@ void ui_settings_refresh_data(ui_settings_t *settings)
             lv_obj_set_style_text_color(settings->lbl_ble_status, lv_color_hex(0x00FF88), 0);
         }
         if (settings->lbl_ble_toggle) {
-            lv_label_set_text(settings->lbl_ble_toggle, "[⚡ 重新开启配网广播]");
+            lv_label_set_text(settings->lbl_ble_toggle, "[● 重新开启配网广播]");
             lv_obj_set_style_text_color(settings->lbl_ble_toggle, lv_color_hex(0x00E5FF), 0);
         }
     } else {
@@ -959,7 +959,7 @@ void ui_settings_refresh_data(ui_settings_t *settings)
             lv_obj_set_style_text_color(settings->lbl_ble_status, lv_color_hex(0x7E92AD), 0);
         }
         if (settings->lbl_ble_toggle) {
-            lv_label_set_text(settings->lbl_ble_toggle, "[⚡ 启动蓝牙极速配网]");
+            lv_label_set_text(settings->lbl_ble_toggle, "[● 启动蓝牙极速配网]");
             lv_obj_set_style_text_color(settings->lbl_ble_toggle, lv_color_hex(0x00E5FF), 0);
         }
     }

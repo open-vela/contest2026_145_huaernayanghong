@@ -99,6 +99,7 @@ int  wapi_set_ifdown(int sock, const char *ifname);
 int  wapi_set_ip(int sock, const char *ifname, const struct in_addr *addr);
 int  wapi_set_netmask(int sock, const char *ifname, const struct in_addr *addr);
 int  wapi_set_mode(int sock, const char *ifname, int mode);
+int  wapi_set_freq(int sock, const char *ifname, double freq, int flag);
 int  wapi_set_essid(int sock, const char *ifname, const char *essid, int flag);
 void wpa_driver_wext_disconnect(int sockfd, const char *ifname);
 int  wpa_driver_wext_set_auth_param(int sockfd, const char *ifname, int idx, uint32_t value);
@@ -478,6 +479,13 @@ static void* mini_dhcpd_thread(void *arg)
     setsockopt(s_dhcp_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
     setsockopt(s_dhcp_sock, SOL_SOCKET, SO_BROADCAST, &opt, sizeof(opt));
 
+#if defined(SO_BINDTODEVICE)
+    struct ifreq ifr;
+    memset(&ifr, 0, sizeof(ifr));
+    strncpy(ifr.ifr_name, "wlan1", IFNAMSIZ - 1);
+    setsockopt(s_dhcp_sock, SOL_SOCKET, SO_BINDTODEVICE, (char *)&ifr, sizeof(ifr));
+#endif
+
     /* 设置 1 秒超时以便响应退出信号 */
     struct timeval tv;
     tv.tv_sec = 1;
@@ -663,33 +671,56 @@ static void* softap_worker_thread(void *arg)
     strncpy(ssid, s_current_ssid, sizeof(ssid) - 1);
     pthread_mutex_unlock(&s_lock);
 
-    LOG_I(TAG, "[SoftAP:Worker] 正在后台配置 SoftAP 物理网卡与射频...");
-    net_mgr_stop_softap();
+    LOG_I(TAG, "[SoftAP:Worker] 正在后台配置 SoftAP 物理网卡与射频 (SSID: %s)...", ssid);
 
+    /* 1. 先静默 wlan0 客户端并断开连接，避免与 SoftAP 争抢单天线物理射频 */
+    system("wapi disconnect wlan0 > /dev/null 2>&1");
+    system("wapi private wlan0 adaptivity 0 > /dev/null 2>&1");
+    system("wapi power_save wlan0 off > /dev/null 2>&1");
+
+    net_mgr_stop_softap();
+    usleep(100000);
+
+    /* 2. 原生 WAPI C API 配置 wlan1 Master 与固定 2.4GHz 信道 6 (2437MHz) */
     int sock = wapi_make_socket();
     if (sock >= 0) {
+        /* 设置 Master 模式 (AP) */
+        wapi_set_mode(sock, "wlan1", WAPI_MODE_MASTER);
+        usleep(50000);
+
+        /* 核心关键点 1: 显式锁定 2.4GHz 黄金信道 Channel 6 (2437MHz)，杜绝信道非法为 0 */
+        wapi_set_freq(sock, "wlan1", 2437, 1);
+        usleep(50000);
+
+        /* 配置物理网卡 IP 192.168.4.1 与掩码 255.255.255.0 并激活接口 */
         struct in_addr ip, mask;
         inet_aton("192.168.4.1", &ip);
         inet_aton("255.255.255.0", &mask);
-
         wapi_set_ip(sock, "wlan1", &ip);
         wapi_set_netmask(sock, "wlan1", &mask);
         wapi_set_ifup(sock, "wlan1");
         usleep(50000);
 
-        wapi_set_mode(sock, "wlan1", WAPI_MODE_MASTER);
-        usleep(50000);
+        /* 核心关键点 2: 彻底清除 wlan1 历史残留加密算法与密钥，确立纯净 OPEN 无密码模式 */
+        wpa_driver_wext_set_auth_param(sock, "wlan1", 0, 0);
+        wpa_driver_wext_set_key_ext(sock, "wlan1", 0, NULL, 0);
 
+        /* 设置广播 SSID 并启动射频发射 */
         wapi_set_essid(sock, "wlan1", ssid, WAPI_ESSID_ON);
         close(sock);
-        LOG_I(TAG, "⚡ [Native WAPI] SoftAP 射频与网卡已在后台激活");
-    } else {
-        system("ifconfig wlan1 192.168.4.1 netmask 255.255.255.0 up > /dev/null 2>&1");
-        system("wapi mode wlan1 3 > /dev/null 2>&1");
-        char cmd[256];
-        snprintf(cmd, sizeof(cmd), "wapi essid wlan1 \"%s\" 1 > /dev/null 2>&1", ssid);
-        system(cmd);
+        LOG_I(TAG, "⚡ [Native WAPI] SoftAP (SSID: %s, Ch: 6, IP: 192.168.4.1, Mode: OPEN) 射频已就绪", ssid);
     }
+
+    /* 3. 补充标准命令行确保全志底层 Realtek 驱动属性生效 */
+    system("ifconfig wlan1 192.168.4.1 netmask 255.255.255.0 up > /dev/null 2>&1");
+    system("wapi mode wlan1 3 > /dev/null 2>&1");
+    system("wapi freq wlan1 2437 1 > /dev/null 2>&1");
+    system("wapi psk wlan1 \"\" 0 0 > /dev/null 2>&1");
+    system("wapi private wlan1 adaptivity 0 > /dev/null 2>&1");
+    system("wapi power_save wlan1 off > /dev/null 2>&1");
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd), "wapi essid wlan1 \"%s\" 1 > /dev/null 2>&1", ssid);
+    system(cmd);
 
     mini_dhcpd_start();
     phoenix_web_portal_start(80, NULL);
@@ -813,6 +844,27 @@ int net_mgr_reset_to_softap(void)
     LOG_I(TAG, "🔄 重置 Wi-Fi 配置并返回 SoftAP 独立热点配网模式...");
     phoenix_config_set_str(PHOENIX_CFG_WIFI_SSID, "");
     phoenix_config_set_str(PHOENIX_CFG_WIFI_PSK, "");
+
+#if !defined(HOST_TEST_RUNNER)
+    /* 1. 彻底断开 wlan0 当前物理关联，避免后台重试干扰射频 */
+    int sock = wapi_make_socket();
+    if (sock >= 0) {
+        wpa_driver_wext_disconnect(sock, "wlan0");
+        close(sock);
+    }
+    system("wapi disconnect wlan0 > /dev/null 2>&1");
+
+    /* 2. 彻底清空全志板载持久化文件 /data/etc/wifi/wapi.conf 并刷盘 */
+    unlink(WAPI_CONF_FILE);
+    FILE *fp = fopen(WAPI_CONF_FILE, "w");
+    if (fp) {
+        fputs("{\n  \"ssid\": \"\",\n  \"psk\": \"\",\n  \"bssid\": \"\"\n}\n", fp);
+        fclose(fp);
+    }
+    sync();
+    LOG_I(TAG, "🧹 已彻底抹除持久化配置 /data/etc/wifi/wapi.conf");
+#endif
+
     return net_mgr_start_softap(NULL);
 }
 
@@ -895,7 +947,7 @@ int net_mgr_scan_wifi(net_wifi_ap_info_t *aps_out, size_t max_count)
 #if !defined(HOST_TEST_RUNNER)
     int sock = wapi_make_socket();
     if (sock >= 0) {
-        LOG_I(TAG, "📡 正在通过物理网卡 wlan0 发起实时空中 Wi-Fi 扫描...");
+        LOG_I(TAG, "正在通过物理网卡 wlan0 发起实时空中 Wi-Fi 扫描...");
         int ret = wapi_scan_init(sock, "wlan0", NULL);
         if (ret >= 0) {
             /* 轮询等待驱动空中抓包完成 (通常耗时 300ms ~ 1.2s) */
