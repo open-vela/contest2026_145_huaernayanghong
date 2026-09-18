@@ -92,15 +92,27 @@ static void flying_text_anim_cb(void *var, int32_t val)
 
 static void flying_text_ready_cb(lv_anim_t *a)
 {
-    lv_obj_t *label = (lv_obj_t *)a->var;
-    if (label) lv_obj_delete_async(label);
+    phoenix_ui_t *ui = (phoenix_ui_t *)a->user_data;
+    if (ui && ui->flying_label) {
+        lv_obj_delete(ui->flying_label);
+        ui->flying_label = NULL;
+    }
 }
 
 void phoenix_ui_show_flying_text(phoenix_ui_t *ui, const char *text, lv_color_t color)
 {
     if (!ui || !ui->screen || !text) return;
 
+    /* 单例防护：若已有未完成的飞字动画，先安全销毁旧动画与 Label，杜绝多实例堆积与异步删除竞争 */
+    if (ui->flying_label) {
+        lv_anim_delete(ui->flying_label, NULL);
+        lv_obj_delete(ui->flying_label);
+        ui->flying_label = NULL;
+    }
+
     lv_obj_t *fly_label = lv_label_create(ui->screen);
+    ui->flying_label = fly_label;
+
     if (ui->font_chinese) {
         lv_obj_set_style_text_font(fly_label, ui->font_chinese, LV_PART_MAIN);
     }
@@ -108,10 +120,12 @@ void phoenix_ui_show_flying_text(phoenix_ui_t *ui, const char *text, lv_color_t 
     lv_obj_set_style_text_color(fly_label, color, LV_PART_MAIN);
 
     int32_t scr_h = lv_obj_get_height(ui->screen);
+    if (scr_h <= 0) scr_h = 240;
     int32_t start_y = scr_h / 2 - 20;
 
     lv_obj_align(fly_label, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_y(fly_label, start_y);
+    lv_obj_move_foreground(fly_label);
 
     lv_anim_t a;
     lv_anim_init(&a);
@@ -120,6 +134,7 @@ void phoenix_ui_show_flying_text(phoenix_ui_t *ui, const char *text, lv_color_t 
     lv_anim_set_duration(&a, 1200);
     lv_anim_set_exec_cb(&a, flying_text_anim_cb);
     lv_anim_set_ready_cb(&a, flying_text_ready_cb);
+    lv_anim_set_user_data(&a, ui);
     lv_anim_start(&a);
 }
 
@@ -374,9 +389,21 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
             int mode = event->data.net.mode;
             const char *ip = event->data.net.ip ? event->data.net.ip : "";
             const char *ssid = event->data.net.ssid ? event->data.net.ssid : "";
+            const char *msg = event->data.net.msg;
             char bbuf[128];
 
-            const char *msg = event->data.net.msg;
+            /* UI 级防重去抖 (Debounce)：避免同状态重复派发导致刷屏与动画雪崩 */
+            static int  s_last_handled_mode = -1;
+            static char s_last_handled_ip[32] = {0};
+            static char s_last_handled_ssid[32] = {0};
+
+            bool state_changed = (mode != s_last_handled_mode || 
+                                  strcmp(ip, s_last_handled_ip) != 0 ||
+                                  strcmp(ssid, s_last_handled_ssid) != 0);
+
+            s_last_handled_mode = mode;
+            strncpy(s_last_handled_ip, ip, sizeof(s_last_handled_ip) - 1);
+            strncpy(s_last_handled_ssid, ssid, sizeof(s_last_handled_ssid) - 1);
 
             if (ui->settings) {
                 if (mode == 1 /* NET_MODE_STA_CONNECTING */) {
@@ -403,8 +430,15 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
                 }
             }
 
+            /* 若核心网络模式及 IP/SSID 均未改变且已处于 SoftAP 或断网稳定态，忽略冗余视觉飞字 */
+            if (!state_changed && (mode == 3 || mode == 0)) {
+                break;
+            }
+
             if (mode == 1 /* NET_MODE_STA_CONNECTING */) {
-                phoenix_ui_show_flying_text(ui, "正在连入 Wi-Fi...", lv_color_hex(0xFFB700));
+                if (state_changed) {
+                    phoenix_ui_show_flying_text(ui, "正在连入 Wi-Fi...", lv_color_hex(0xFFB700));
+                }
                 snprintf(bbuf, sizeof(bbuf), "正在连接 Wi-Fi: [%s]...", ssid && ssid[0] ? ssid : "目标路由");
                 phoenix_ui_show_bubble(ui, bbuf, 6000);
                 if (ui->capsule) {
@@ -419,9 +453,6 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
                     ui_capsule_set_status(ui->capsule, "● 已联网", lv_color_hex(0x00E676), false);
                     ui_capsule_update_telemetry(ui->capsule, "WiFi", ui->battery_pct);
                 }
-                if (ui->settings) {
-                    ui_settings_refresh_data(ui->settings);
-                }
             } else if (mode == 3 /* NET_MODE_SOFTAP_CONFIG */) {
                 phoenix_ui_show_flying_text(ui, "独立热点已就绪", lv_color_hex(0xFFB300));
                 snprintf(bbuf, sizeof(bbuf), "[热点广播] %s (192.168.4.1)", ssid && ssid[0] ? ssid : "Gemini-Setup");
@@ -430,18 +461,12 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
                     ui_capsule_set_status(ui->capsule, "● AP配网", lv_color_hex(0xFFB300), false);
                     ui_capsule_update_telemetry(ui->capsule, "AP", ui->battery_pct);
                 }
-                if (ui->settings) {
-                    ui_settings_refresh_data(ui->settings);
-                }
             } else {
                 phoenix_ui_show_flying_text(ui, "连网超时", lv_color_hex(0xFF5252));
                 phoenix_ui_show_bubble(ui, "Wi-Fi 连接失败，已恢复独立热点", 4000);
                 if (ui->capsule) {
                     ui_capsule_set_status(ui->capsule, "● 未连接", lv_color_hex(0x9E9E9E), false);
                     ui_capsule_update_telemetry(ui->capsule, "--", ui->battery_pct);
-                }
-                if (ui->settings) {
-                    ui_settings_refresh_data(ui->settings);
                 }
             }
             break;
@@ -574,10 +599,9 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
     ui->merit_count = stats.total_merit;
     refresh_status_capsule(ui);
 
-    /* 首次开机若处于未连网的 SoftAP 配网模式，主动弹出显性引导气泡 */
+    /* 首次开机若处于未连网的 SoftAP 配网模式，主动弹出显性引导气泡 (视觉飞字由 EventBus 统一驱动) */
     if (net_mgr_get_mode() == NET_MODE_SOFTAP_CONFIG) {
         phoenix_ui_show_bubble(ui, "未连网: 请手机连热点 [Gemini-Agent-Setup] 极速配网", 8000);
-        phoenix_ui_show_flying_text(ui, "独立热点已就绪", COLOR_PRIMARY_GOLD);
     }
 
     return ui;
@@ -586,6 +610,12 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
 void phoenix_ui_destroy(phoenix_ui_t *ui)
 {
     if (!ui) return;
+
+    if (ui->flying_label) {
+        lv_anim_delete(ui->flying_label, NULL);
+        lv_obj_delete(ui->flying_label);
+        ui->flying_label = NULL;
+    }
 
     if (ui->settings) {
         ui_settings_destroy(ui->settings);

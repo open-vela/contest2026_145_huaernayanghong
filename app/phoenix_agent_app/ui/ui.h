@@ -52,6 +52,9 @@ typedef struct {
     lv_obj_t *bubble_label;
     lv_timer_t *bubble_hide_timer; /**< 自动隐藏定时器 */
 
+    /* 4. 单例浮动飞字标签 (Singleton Flying Text HUD) */
+    lv_obj_t *flying_label;
+
     /* 核心上下文与状态指标 */
     phoenix_agent_ctx_t *agent_core;
     lv_timer_t *heartbeat_timer;

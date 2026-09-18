@@ -133,8 +133,40 @@ static volatile bool    s_watchdog_running = false;
 #endif
 static bool             s_worker_running = false;
 
+/* 全局网络状态变更防重去抖缓存 (Debounce Cache) */
+static net_mode_t       s_last_notified_mode = (net_mode_t)-1;
+static char             s_last_notified_ip[NET_MAX_IP_LEN] = {0};
+static char             s_last_notified_ssid[NET_MAX_SSID_LEN] = {0};
+static char             s_last_notified_msg[128] = {0};
+
 static void notify_state_changed_with_msg_unlocked(const char *custom_msg)
 {
+    const char *eff_msg = "";
+    if (custom_msg && custom_msg[0]) {
+        eff_msg = custom_msg;
+    } else if (s_mode == NET_MODE_STA_CONNECTED) {
+        eff_msg = "Wi-Fi 连接成功";
+    } else if (s_mode == NET_MODE_STA_CONNECTING) {
+        eff_msg = "正在连接 Wi-Fi";
+    } else if (s_mode == NET_MODE_SOFTAP_CONFIG) {
+        eff_msg = "独立热点配网就绪";
+    } else {
+        eff_msg = "网络未连接";
+    }
+
+    /* 防重过滤：若工作模式、IP、SSID 以及状态消息均无任何改变，抑制冗余广播 */
+    if (s_mode == s_last_notified_mode &&
+        strcmp(s_current_ip, s_last_notified_ip) == 0 &&
+        strcmp(s_current_ssid, s_last_notified_ssid) == 0 &&
+        strcmp(eff_msg, s_last_notified_msg) == 0) {
+        return;
+    }
+
+    s_last_notified_mode = s_mode;
+    strncpy(s_last_notified_ip, s_current_ip, sizeof(s_last_notified_ip) - 1);
+    strncpy(s_last_notified_ssid, s_current_ssid, sizeof(s_last_notified_ssid) - 1);
+    strncpy(s_last_notified_msg, eff_msg, sizeof(s_last_notified_msg) - 1);
+
     if (s_state_cb) {
         s_state_cb(s_mode, s_current_ip, s_state_user_data);
     }
@@ -145,17 +177,7 @@ static void notify_state_changed_with_msg_unlocked(const char *custom_msg)
     evt.data.net.mode = (int)s_mode;
     evt.data.net.ssid = s_current_ssid;
     evt.data.net.ip = s_current_ip;
-    if (custom_msg && custom_msg[0]) {
-        evt.data.net.msg = custom_msg;
-    } else if (s_mode == NET_MODE_STA_CONNECTED) {
-        evt.data.net.msg = "Wi-Fi 连接成功";
-    } else if (s_mode == NET_MODE_STA_CONNECTING) {
-        evt.data.net.msg = "正在连接 Wi-Fi";
-    } else if (s_mode == NET_MODE_SOFTAP_CONFIG) {
-        evt.data.net.msg = "独立热点配网就绪";
-    } else {
-        evt.data.net.msg = "网络未连接";
-    }
+    evt.data.net.msg = eff_msg;
 
 #if defined(HOST_TEST_RUNNER)
     phoenix_event_publish(&evt);
@@ -165,7 +187,7 @@ static void notify_state_changed_with_msg_unlocked(const char *custom_msg)
 
     const char *ble_state_str = (s_mode == NET_MODE_STA_CONNECTED) ? "connected" :
                                 (s_mode == NET_MODE_STA_CONNECTING) ? "connecting" : "disconnected";
-    ble_prov_service_notify_net_status(ble_state_str, s_current_ssid, s_current_ip, evt.data.net.msg);
+    ble_prov_service_notify_net_status(ble_state_str, s_current_ssid, s_current_ip, eff_msg);
 }
 
 static void notify_state_changed_unlocked(void)
@@ -347,6 +369,11 @@ static void* net_link_watchdog_thread(void *arg)
     return NULL;
 }
 
+#if !defined(HOST_TEST_RUNNER)
+static void start_link_watchdog(void);
+static void stop_link_watchdog(void);
+#endif
+
 typedef struct {
     char ssid[NET_MAX_SSID_LEN];
     char psk[NET_MAX_PSK_LEN];
@@ -444,12 +471,14 @@ static void* sta_connect_worker_thread(void *arg)
             phoenix_web_portal_start(80, NULL);
             LOG_I(TAG, "🌐 局域网 Web 伴侣已启动: http://%s/ (或 :8080)", acquired_ip);
         }
+        start_link_watchdog();
     } else {
         LOG_W(TAG, "⚠️ [Worker] Wi-Fi 握手或 DHCP 超时，通知界面并自动恢复 SoftAP 独立热点");
         s_mode = NET_MODE_DISCONNECTED;
         notify_state_changed_with_msg_unlocked("DHCP 协商超时(未能获取有效 IP)，已恢复独立热点");
         pthread_mutex_unlock(&s_lock);
 
+        stop_link_watchdog();
         /* 自动恢复统一命名的独立热点供用户继续配网 */
         net_mgr_start_softap(NET_DEFAULT_SOFTAP_SSID);
     }
@@ -469,6 +498,11 @@ static void start_link_watchdog(void)
         }
         pthread_attr_destroy(&w_attr);
     }
+}
+
+static void stop_link_watchdog(void)
+{
+    s_watchdog_running = false;
 }
 #endif
 
@@ -551,7 +585,7 @@ int net_mgr_init(void)
             close(sock);
         }
     }
-    start_link_watchdog();
+    /* 关键优化：开机无 Wi-Fi 或未连上 STA 时严禁启动看门狗，杜绝后台空转与射频争抢 */
 #endif
 
     pthread_mutex_unlock(&s_lock);
@@ -580,6 +614,10 @@ void net_mgr_deinit(void)
     s_mode = NET_MODE_DISCONNECTED;
     s_current_ip[0] = '\0';
     s_current_ssid[0] = '\0';
+    s_last_notified_mode = (net_mode_t)-1;
+    s_last_notified_ip[0] = '\0';
+    s_last_notified_ssid[0] = '\0';
+    s_last_notified_msg[0] = '\0';
     s_initialized = false;
     pthread_mutex_unlock(&s_lock);
 
@@ -1244,6 +1282,11 @@ void net_mgr_register_state_cb(net_state_cb_t cb, void *user_data)
     pthread_mutex_lock(&s_lock);
     s_state_cb = cb;
     s_state_user_data = user_data;
+    /* 注册新回调时重置防重缓存，确保新监听者能立即收到当前状态通知 */
+    s_last_notified_mode = (net_mode_t)-1;
+    s_last_notified_ip[0] = '\0';
+    s_last_notified_ssid[0] = '\0';
+    s_last_notified_msg[0] = '\0';
     pthread_mutex_unlock(&s_lock);
 }
 

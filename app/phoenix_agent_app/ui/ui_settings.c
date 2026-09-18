@@ -1002,6 +1002,14 @@ void ui_settings_refresh_data(ui_settings_t *settings)
         }
     }
 
+    /* 
+     * 关键性能保护：仅在设置抽屉实际展开处于前台时，才深度读取系统 CPU、温度、主频及 TF 卡 IO 遥测；
+     * 彻底规避抽屉隐藏在后台时因网络事件高频触发而导致的 sysfs/statvfs 硬件级 IO 阻塞。
+     */
+    if (!settings->is_open) {
+        return;
+    }
+
     /* 3. 刷新系统遥测与硬件状态页面 */
     hal_system_telemetry_t sys;
     memset(&sys, 0, sizeof(sys));
