@@ -316,7 +316,8 @@ static bool net_is_interface_running(const char *ifname)
 
     bool running = false;
     if (ioctl(sock, SIOCGIFFLAGS, &ifr) == 0) {
-        running = ((ifr.ifr_flags & IFF_RUNNING) != 0);
+        /* OpenVela / NuttX 网络栈兼容：允许 IFF_RUNNING 或 IFF_UP 均视为接口激活 */
+        running = ((ifr.ifr_flags & (IFF_RUNNING | IFF_UP)) != 0);
     }
     close(sock);
     return running;
@@ -440,14 +441,14 @@ static void* sta_connect_worker_thread(void *arg)
     notify_state_changed_with_msg_unlocked("热点已关闭，正在关联 Wi-Fi...");
     pthread_mutex_unlock(&s_lock);
 
-    /* 2. 关键修复：必须先激活 wlan0 物理接口为 UP 状态，再切换 STA 模式与触发空中扫描
-     * 否则底层 SIOCSIWSCAN 会报 -ENETDOWN (115 Network is down) 失败 */
+    /* 2. 激活 wlan0 为 Managed 模式并关闭省电与自适应干扰，确保射频处于最佳状态 */
     system("ifconfig wlan0 up > /dev/null");
     system("wapi mode wlan0 2 > /dev/null");
-    system("wapi scan wlan0 > /dev/null");
-    usleep(500000);
+    system("wapi private wlan0 adaptivity 0 > /dev/null");
+    system("wapi power_save wlan0 off > /dev/null");
+    usleep(200000);
 
-    /* 3. 规范时序：必须先下发 PSK 加密秘钥 (CCMP+WPA2: 3 2)，再下发 ESSID 触发关联握手 */
+    /* 3. 规范时序：先下发 PSK 加密秘钥 (CCMP+WPA2: 3 2)，再下发 ESSID 触发驱动关联握手 */
     char cmd[256];
     if (target_psk[0] != '\0') {
         snprintf(cmd, sizeof(cmd), "wapi psk wlan0 \"%s\" 3 2 > /dev/null", target_psk);
@@ -455,18 +456,17 @@ static void* sta_connect_worker_thread(void *arg)
     }
     snprintf(cmd, sizeof(cmd), "wapi essid wlan0 \"%s\" 1 > /dev/null", target_ssid);
     system(cmd);
-    system("wapi power_save wlan0 off > /dev/null");
     system("wapi save_config wlan0 > /dev/null");
     /* 核心注意：此处绝不调用 wapi reconnect wlan0，因为 wapi essid ... 1 已经触发驱动 associate 请求，
      * 调用 reconnect 会重置状态机打断 4-Way 握手 */
 
     /* 4. 前置关联门控（Fast Link-Ready Gate）：
-     * 轮询检测无线网卡是否真正与物理 AP 完成关联握手（BSSID 非全 0），最长等待 6 秒。
-     * 若未关联成功（密码错误/超出覆盖范围），决不盲目调用阻塞数十秒的 renew wlan0！ */
+     * 轮询检测无线网卡是否真正与物理 AP 完成 4-Way 握手关联（BSSID 非全 0），最长等待 10 秒 (20*500ms)。
+     * 注意：在 NuttX 未获取 IP 前网卡处于 IFF_UP，因此仅判定物理 AP 关联，绝不可强行校验 RUNNING！ */
     bool associated = false;
-    for (int wait_i = 1; wait_i <= 12; wait_i++) {
+    for (int wait_i = 1; wait_i <= 20; wait_i++) {
         usleep(500000); /* 每 500ms 探测一次 */
-        if (net_is_ap_associated("wlan0") && net_is_interface_running("wlan0")) {
+        if (net_is_ap_associated("wlan0")) {
             associated = true;
             LOG_I(TAG, "✅ [Worker] 芯片已成功关联至 AP，耗时约 %d ms", wait_i * 500);
             break;
@@ -486,15 +486,15 @@ static void* sta_connect_worker_thread(void *arg)
         /* 提升 WLAN 射频优先级，防止蓝牙共存仲裁丢弃 DHCP Discover 响应报文 */
         system("wapi pta_prio wlan0 3 > /dev/null");
 
-        /* 5. 快速 DHCP 租约获取（因已完成 4-Way 握手，首发通过 C 语言原生接口直接下发） */
-        for (int retry = 1; retry <= 3; retry++) {
+        /* 5. 快速 DHCP 租约获取：尝试 2 轮，每轮等待 8 秒，避免频繁重发打断 DHCP 事务 */
+        for (int retry = 1; retry <= 2; retry++) {
             char retry_msg[64];
-            snprintf(retry_msg, sizeof(retry_msg), "正在申请 DHCP IP 租约 (%d/3)...", retry);
+            snprintf(retry_msg, sizeof(retry_msg), "正在申请 DHCP IP 租约 (%d/2)...", retry);
             pthread_mutex_lock(&s_lock);
             notify_state_changed_with_msg_unlocked(retry_msg);
             pthread_mutex_unlock(&s_lock);
 
-            LOG_I(TAG, "[Worker] 尝试申请 DHCP 租约 (第 %d/3 次)...", retry);
+            LOG_I(TAG, "[Worker] 尝试申请 DHCP 租约 (第 %d/2 次)...", retry);
 
 #if !defined(HOST_TEST_RUNNER)
             /* 首选直接调用 C 语言协议栈原生接口，规避 NSH shell 字符串解析开销与 argc 溢出崩溃 */
@@ -507,12 +507,11 @@ static void* sta_connect_worker_thread(void *arg)
             system("renew wlan0 > /dev/null");
 #endif
 
-            /* 快速轮询探测窗口 (最多 3 秒，每 500ms 探测一次，一旦拿到 IP 立即突破跳出) */
-            for (int poll_i = 0; poll_i < 6; poll_i++) {
+            /* 充分轮询探测窗口 (最多 8 秒，每 500ms 探测一次，一旦拿到 IP 立即突破跳出) */
+            for (int poll_i = 0; poll_i < 16; poll_i++) {
                 usleep(500000);
                 if (query_interface_ip("wlan0", acquired_ip, sizeof(acquired_ip)) == 0 &&
                     net_is_valid_sta_ip(acquired_ip) &&
-                    net_is_interface_running("wlan0") &&
                     net_is_ap_associated("wlan0")) {
                     connected = true;
                     break;
