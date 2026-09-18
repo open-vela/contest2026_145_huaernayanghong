@@ -19,19 +19,6 @@ static void stage_anim_cb(void *var, int32_t val)
     }
 }
 
-static void stage_anim_ready_cb(lv_anim_t *a)
-{
-    ui_stage_t *stage = (ui_stage_t *)a->user_data;
-    if (!stage) return;
-
-    /* 清理滑出的旧卡带视图 */
-    if (stage->old_view) {
-        lv_obj_del(stage->old_view);
-        stage->old_view = NULL;
-    }
-    stage->is_animating = false;
-}
-
 static void stage_touch_event_cb(lv_event_t *e)
 {
     ui_stage_t *stage = (ui_stage_t *)lv_event_get_user_data(e);
@@ -106,14 +93,6 @@ ui_stage_t* ui_stage_create(lv_obj_t *parent)
 void ui_stage_destroy(ui_stage_t *stage)
 {
     if (!stage) return;
-    if (stage->old_view) {
-        lv_obj_del(stage->old_view);
-        stage->old_view = NULL;
-    }
-    if (stage->current_view) {
-        lv_obj_del(stage->current_view);
-        stage->current_view = NULL;
-    }
     if (stage->container) {
         lv_obj_del(stage->container);
         stage->container = NULL;
@@ -124,81 +103,6 @@ void ui_stage_destroy(ui_stage_t *stage)
 lv_obj_t* ui_stage_get_canvas(ui_stage_t *stage)
 {
     return stage ? stage->container : NULL;
-}
-
-void ui_stage_set_swipe_down_cb(ui_stage_t *stage, ui_stage_swipe_down_cb_t cb, void *user_data)
-{
-    if (!stage) return;
-    stage->on_swipe_down = cb;
-    stage->user_data = user_data;
-}
-
-void ui_stage_set_double_tap_cb(ui_stage_t *stage, ui_stage_action_cb_t cb, void *user_data)
-{
-    if (!stage) return;
-    stage->on_double_tap = cb;
-    stage->user_data = user_data;
-}
-
-void ui_stage_set_long_press_cb(ui_stage_t *stage, ui_stage_action_cb_t cb, void *user_data)
-{
-    if (!stage) return;
-    stage->on_long_press = cb;
-    stage->user_data = user_data;
-}
-
-void ui_stage_transition_to(ui_stage_t *stage, lv_obj_t *new_view, bool slide_to_left)
-{
-    if (!stage || !new_view) return;
-
-    /* 确保新进入视窗的卡带具备点击与事件向上冒泡，不重复注册回调 */
-    lv_obj_add_flag(new_view, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_flag(new_view, LV_OBJ_FLAG_EVENT_BUBBLE);
-
-    /* 架构师优化：强制停止正在运行的过渡动画，避免重入与野指针 */
-    if (stage->old_view) {
-        lv_anim_del(stage->old_view, NULL);
-        lv_obj_del(stage->old_view);
-        stage->old_view = NULL;
-    }
-    if (stage->current_view) {
-        lv_anim_del(stage->current_view, NULL);
-    }
-
-    stage->old_view = stage->current_view;
-    stage->current_view = new_view;
-    stage->is_animating = true;
-
-    int32_t w = lv_obj_get_width(stage->container);
-    if (w <= 0) w = 274; /* 侧边栏模式下舞台宽度保底 */
-
-    lv_coord_t enter_start_x = slide_to_left ? w : -w;
-    lv_coord_t exit_end_x    = slide_to_left ? -w : w;
-
-    /* 1. 新视图从侧边滑入至 0 */
-    lv_obj_set_x(new_view, enter_start_x);
-    lv_anim_t a_enter;
-    lv_anim_init(&a_enter);
-    lv_anim_set_var(&a_enter, new_view);
-    lv_anim_set_values(&a_enter, enter_start_x, 0);
-    lv_anim_set_time(&a_enter, STAGE_ANIM_DURATION_MS);
-    lv_anim_set_exec_cb(&a_enter, stage_anim_cb);
-    lv_anim_set_path_cb(&a_enter, lv_anim_path_ease_out);
-    lv_anim_set_ready_cb(&a_enter, stage_anim_ready_cb);
-    lv_anim_set_user_data(&a_enter, stage);
-    lv_anim_start(&a_enter);
-
-    /* 2. 旧视图同步滑出视窗 */
-    if (stage->old_view) {
-        lv_anim_t a_exit;
-        lv_anim_init(&a_exit);
-        lv_anim_set_var(&a_exit, stage->old_view);
-        lv_anim_set_values(&a_exit, 0, exit_end_x);
-        lv_anim_set_time(&a_exit, STAGE_ANIM_DURATION_MS);
-        lv_anim_set_exec_cb(&a_exit, stage_anim_cb);
-        lv_anim_set_path_cb(&a_exit, lv_anim_path_ease_out);
-        lv_anim_start(&a_exit);
-    }
 }
 
 void ui_stage_play_enter_anim(ui_stage_t *stage, bool slide_to_left)

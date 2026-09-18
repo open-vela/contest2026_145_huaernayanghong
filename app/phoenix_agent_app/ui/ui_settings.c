@@ -896,7 +896,8 @@ void ui_settings_update_net_progress(ui_settings_t *settings, int mode, const ch
 
 void ui_settings_refresh_data(ui_settings_t *settings)
 {
-    if (!settings) return;
+    /* 关键性能防护：仅在设置面板真正展开于前台时才执行数据获取与重绘，杜绝后台无谓更新与锁争抢 */
+    if (!settings || !settings->is_open) return;
 
     char ip_buf[32] = {0};
     char ssid_buf[32] = {0};

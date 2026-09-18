@@ -55,6 +55,13 @@ typedef void (*net_state_cb_t)(net_mode_t mode, const char *ip, void *user_data)
 int net_mgr_scan_wifi(net_wifi_ap_info_t *aps_out, size_t max_count);
 
 /**
+ * @brief 在纯 STA 模式或未拉起 SoftAP 前执行空中 Wi-Fi 预扫描并更新缓存
+ *        (避免在 SoftAP 活跃发射时跳频打断 Beacon 导致手机断网)
+ * @return 扫描到的热点数量 (>= 0), 负数失败
+ */
+int net_mgr_prescan_wifi(void);
+
+/**
  * @brief 初始化网络管理器并根据本地存储配置决定联网或进入配网
  * @return 0 成功, 负数失败
  */

@@ -166,12 +166,19 @@ void phoenix_app_tick(void)
     phoenix_event_bus_drain();
     phoenix_voice_pipeline_tick();
     phoenix_store_flush();
-    phoenix_log_flush();
     phoenix_web_portal_drain_commands();
+
+    uint64_t now_ms = time_utils_get_ms();
+
+    /* 1Hz (1000ms) 周期性刷新日志与标准输出缓冲，避免每 5ms 主循环高频调用 fflush(stdout) */
+    static uint64_t s_last_log_flush_ms = 0;
+    if (now_ms - s_last_log_flush_ms >= 1000) {
+        s_last_log_flush_ms = now_ms;
+        phoenix_log_flush();
+    }
 
     /* 20Hz (50ms) 具身环境与微敲击感知主循环驱动 */
     static uint64_t s_last_percept_ms = 0;
-    uint64_t now_ms = time_utils_get_ms();
     if (now_ms - s_last_percept_ms >= 50) {
         s_last_percept_ms = now_ms;
         phoenix_perception_step();

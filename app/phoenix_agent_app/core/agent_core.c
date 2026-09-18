@@ -333,16 +333,18 @@ int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input)
         /* Final Assistant Answer */
         if (resp.content) {
             history_add(ctx, PHOENIX_ROLE_ASSISTANT, resp.content, NULL, NULL, resp.reasoning_content);
+            const char *saved_content = (ctx->history_count > 0 && ctx->history[ctx->history_count - 1].content) ?
+                                         ctx->history[ctx->history_count - 1].content : resp.content;
 
-            /* Broadcast final text */
+            /* Broadcast final text (使用持久化副本，避免异步消费时被 phoenix_llm_resp_free 提前释放) */
             phoenix_event_data_t text_evt;
             memset(&text_evt, 0, sizeof(text_evt));
             text_evt.type = PHOENIX_EVT_LLM_FINISHED;
-            text_evt.data.llm_text.text = resp.content;
+            text_evt.data.llm_text.text = saved_content;
             text_evt.data.llm_text.is_final = true;
             phoenix_event_publish(&text_evt);
 
-            phoenix_agent_set_state(ctx, AGENT_STATE_IDLE, resp.content);
+            phoenix_agent_set_state(ctx, AGENT_STATE_IDLE, saved_content);
         }
 
         phoenix_llm_resp_free(&resp);

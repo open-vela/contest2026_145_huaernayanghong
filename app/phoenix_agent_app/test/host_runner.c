@@ -1496,7 +1496,10 @@ static void run_test_network_mgr(void)
 
     printf("  -> Captive Portal & SoftAP Web Redirect PASSED!\n");
 
-    /* 2.1 Test Wi-Fi scanning API & REST endpoint */
+    /* 2.1 Test Wi-Fi pre-scan cache & REST endpoint in SoftAP protection mode */
+    int prescan_cnt = net_mgr_prescan_wifi();
+    assert(prescan_cnt >= 4);
+
     net_wifi_ap_info_t scan_aps[8];
     int scanned = net_mgr_scan_wifi(scan_aps, 8);
     assert(scanned >= 4);
@@ -1507,7 +1510,7 @@ static void run_test_network_mgr(void)
     assert(resp_len > 0);
     assert(strstr(resp_buf, "\"aps\"") != NULL);
     assert(strstr(resp_buf, "Office-5G") != NULL);
-    printf("  -> Wi-Fi Scan & REST API PASSED! (Found %d APs)\n", scanned);
+    printf("  -> Wi-Fi Pre-Scan Cache & SoftAP RF Protection PASSED! (Found %d APs)\n", scanned);
 
     /* 3.1 Test OPTIONS preflight request for CORS */
     const char *req_options = "OPTIONS /api/wifi/connect HTTP/1.1\r\nHost: 192.168.4.1\r\nAccess-Control-Request-Method: POST\r\n\r\n";

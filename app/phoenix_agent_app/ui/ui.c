@@ -138,7 +138,7 @@ void phoenix_ui_show_flying_text(phoenix_ui_t *ui, const char *text, lv_color_t 
     lv_anim_start(&a);
 }
 
-/* 刷新顶部微状态胶囊 (依据真实网络状态动态感知) */
+/* 刷新顶部微状态胶囊 (纯事件驱动，使用已缓存网络信息，杜绝加锁轮询) */
 static void refresh_status_capsule(phoenix_ui_t *ui)
 {
     if (!ui) return;
@@ -147,17 +147,16 @@ static void refresh_status_capsule(phoenix_ui_t *ui)
         /* 左侧：环境温湿度 */
         ui_capsule_update_env(ui->capsule, 26.0f, 60);
 
-        /* 右侧：真实网络感知与电池电量 */
-        net_mode_t mode = net_mgr_get_mode();
-        char ip_buf[NET_MAX_IP_LEN] = {0};
-        net_mgr_get_ip(ip_buf, sizeof(ip_buf));
+        /* 右侧：真实网络感知与电池电量 (直接从 UI 只读缓存中读取，杜绝锁竞争) */
+        int mode = ui->cached_net_mode;
+        const char *ip_buf = ui->cached_net_ip;
 
         const char *net_label = "未连网";
-        if (mode == NET_MODE_STA_CONNECTED) {
-            net_label = ip_buf[0] ? ip_buf : "已连网";
-        } else if (mode == NET_MODE_STA_CONNECTING) {
+        if (mode == 2 /* NET_MODE_STA_CONNECTED */) {
+            net_label = (ip_buf && ip_buf[0]) ? ip_buf : "已连网";
+        } else if (mode == 1 /* NET_MODE_STA_CONNECTING */) {
             net_label = "连网中";
-        } else if (mode == NET_MODE_SOFTAP_CONFIG) {
+        } else if (mode == 3 /* NET_MODE_SOFTAP_CONFIG */) {
             net_label = "AP配网";
         } else {
             net_label = "未连网";
@@ -171,7 +170,7 @@ static void refresh_status_capsule(phoenix_ui_t *ui)
             char pbuf[32];
             snprintf(pbuf, sizeof(pbuf), "专注 %02u:%02u", m, s);
             ui_capsule_set_status(ui->capsule, pbuf, COLOR_POMO_ORANGE, false);
-        } else if (mode == NET_MODE_SOFTAP_CONFIG) {
+        } else if (mode == 3 /* NET_MODE_SOFTAP_CONFIG */) {
             ui_capsule_set_status(ui->capsule, "● AP配网", lv_color_hex(0xFFB700), false);
         }
     }
@@ -405,6 +404,12 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
             strncpy(s_last_handled_ip, ip, sizeof(s_last_handled_ip) - 1);
             strncpy(s_last_handled_ssid, ssid, sizeof(s_last_handled_ssid) - 1);
 
+            /* 更新 UI 只读事件缓存并按需刷新胶囊 */
+            ui->cached_net_mode = mode;
+            strncpy(ui->cached_net_ip, ip, sizeof(ui->cached_net_ip) - 1);
+            strncpy(ui->cached_net_ssid, ssid, sizeof(ui->cached_net_ssid) - 1);
+            refresh_status_capsule(ui);
+
             if (ui->settings) {
                 if (mode == 1 /* NET_MODE_STA_CONNECTING */) {
                     if (!ui_settings_is_open(ui->settings)) {
@@ -486,13 +491,6 @@ static void heartbeat_timer_cb(lv_timer_t *timer)
     if (ui->agent_core) {
         phoenix_agent_tick_1s(ui->agent_core);
     }
-    refresh_status_capsule(ui);
-}
-
-static void flush_timer_cb(lv_timer_t *timer)
-{
-    (void)timer;
-    phoenix_store_flush();
 }
 
 phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
@@ -589,9 +587,13 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
     ui->bubble_hide_timer = lv_timer_create(bubble_hide_timer_cb, 4000, ui);
     lv_timer_pause(ui->bubble_hide_timer);
 
-    /* 启动秒级心跳与状态持久化定时器 */
+    /* 初始化网络状态只读缓存 */
+    ui->cached_net_mode = (int)net_mgr_get_mode();
+    net_mgr_get_ip(ui->cached_net_ip, sizeof(ui->cached_net_ip));
+    net_mgr_get_ssid(ui->cached_net_ssid, sizeof(ui->cached_net_ssid));
+
+    /* 启动秒级心跳定时器 */
     ui->heartbeat_timer = lv_timer_create(heartbeat_timer_cb, 1000, ui);
-    ui->flush_timer = lv_timer_create(flush_timer_cb, 5000, ui);
 
     /* 同步当前已持久化的功德数 */
     phoenix_stats_t stats;
@@ -635,7 +637,6 @@ void phoenix_ui_destroy(phoenix_ui_t *ui)
     }
 
     if (ui->heartbeat_timer) lv_timer_delete(ui->heartbeat_timer);
-    if (ui->flush_timer) lv_timer_delete(ui->flush_timer);
     if (ui->bubble_hide_timer) lv_timer_delete(ui->bubble_hide_timer);
     if (ui->eye) phoenix_eye_destroy(ui->eye);
 

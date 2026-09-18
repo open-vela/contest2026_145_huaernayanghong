@@ -45,9 +45,14 @@ int phoenix_store_load(void);
 int phoenix_store_save(void);
 
 /**
- * @brief Flush dirty data to disk (called periodically by UI timer)
+ * @brief Flush dirty data to disk with debounce window (called periodically by main loop)
  */
 void phoenix_store_flush(void);
+
+/**
+ * @brief Force flush dirty data immediately (bypassing debounce)
+ */
+void phoenix_store_force_flush(void);
 
 /**
  * @brief Mark memory data as dirty (needs save)

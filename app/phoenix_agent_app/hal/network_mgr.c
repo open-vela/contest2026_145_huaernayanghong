@@ -4,6 +4,12 @@
  * @author OpenVela Contest 2026 Team 145
  */
 
+#include <pthread.h>
+#include <time.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <stddef.h>
+
 #include "network_mgr.h"
 #include "../core/config.h"
 #include "../core/web_portal.h"
@@ -47,6 +53,7 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <poll.h>
+#include <time.h>
 
 #if !defined(HOST_TEST_RUNNER)
 #  if defined(__has_include) && __has_include(<wireless/wapi.h>)
@@ -139,8 +146,18 @@ static char             s_last_notified_ip[NET_MAX_IP_LEN] = {0};
 static char             s_last_notified_ssid[NET_MAX_SSID_LEN] = {0};
 static char             s_last_notified_msg[128] = {0};
 
-static void notify_state_changed_with_msg_unlocked(const char *custom_msg)
+/* 全局空中 Wi-Fi 预扫描缓存 (Pre-Scan Cache) 与单天线 SoftAP 射频防打断保护 */
+#define NET_SCAN_CACHE_MAX_APS 32
+#define NET_SCAN_CACHE_TTL_SEC 600 /* 缓存有效期 10 分钟 */
+
+static net_wifi_ap_info_t s_scan_cache[NET_SCAN_CACHE_MAX_APS];
+static size_t             s_scan_cache_count = 0;
+static time_t             s_scan_cache_time = 0;
+static pthread_mutex_t    s_scan_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static void notify_state_changed_with_msg(const char *custom_msg)
 {
+    pthread_mutex_lock(&s_lock);
     const char *eff_msg = "";
     if (custom_msg && custom_msg[0]) {
         eff_msg = custom_msg;
@@ -159,6 +176,7 @@ static void notify_state_changed_with_msg_unlocked(const char *custom_msg)
         strcmp(s_current_ip, s_last_notified_ip) == 0 &&
         strcmp(s_current_ssid, s_last_notified_ssid) == 0 &&
         strcmp(eff_msg, s_last_notified_msg) == 0) {
+        pthread_mutex_unlock(&s_lock);
         return;
     }
 
@@ -167,17 +185,27 @@ static void notify_state_changed_with_msg_unlocked(const char *custom_msg)
     strncpy(s_last_notified_ssid, s_current_ssid, sizeof(s_last_notified_ssid) - 1);
     strncpy(s_last_notified_msg, eff_msg, sizeof(s_last_notified_msg) - 1);
 
-    if (s_state_cb) {
-        s_state_cb(s_mode, s_current_ip, s_state_user_data);
-    }
+    net_mode_t cur_mode = s_mode;
+    net_state_cb_t cb = s_state_cb;
+    void *cb_ud = s_state_user_data;
 
     phoenix_event_data_t evt;
     memset(&evt, 0, sizeof(evt));
     evt.type = PHOENIX_EVT_NET_STATUS;
-    evt.data.net.mode = (int)s_mode;
+    evt.data.net.mode = (int)cur_mode;
     evt.data.net.ssid = s_current_ssid;
     evt.data.net.ip = s_current_ip;
     evt.data.net.msg = eff_msg;
+
+    const char *ble_state_str = (cur_mode == NET_MODE_STA_CONNECTED) ? "connected" :
+                                (cur_mode == NET_MODE_STA_CONNECTING) ? "connecting" : "disconnected";
+
+    /* 关键安全保障：释放 s_lock 后再派发外部事件，彻底消除锁内回调自死锁与 UI 锁争抢 */
+    pthread_mutex_unlock(&s_lock);
+
+    if (cb) {
+        cb(cur_mode, evt.data.net.ip, cb_ud);
+    }
 
 #if defined(HOST_TEST_RUNNER)
     phoenix_event_publish(&evt);
@@ -185,9 +213,15 @@ static void notify_state_changed_with_msg_unlocked(const char *custom_msg)
     phoenix_event_post_async(&evt);
 #endif
 
-    const char *ble_state_str = (s_mode == NET_MODE_STA_CONNECTED) ? "connected" :
-                                (s_mode == NET_MODE_STA_CONNECTING) ? "connecting" : "disconnected";
-    ble_prov_service_notify_net_status(ble_state_str, s_current_ssid, s_current_ip, eff_msg);
+    ble_prov_service_notify_net_status(ble_state_str, evt.data.net.ssid, evt.data.net.ip, eff_msg);
+}
+
+static void notify_state_changed_with_msg_unlocked(const char *custom_msg)
+{
+    /* 锁外派发模式：调用前暂时释放 s_lock，派发完毕再恢复锁，杜绝锁内回调自死锁 */
+    pthread_mutex_unlock(&s_lock);
+    notify_state_changed_with_msg(custom_msg);
+    pthread_mutex_lock(&s_lock);
 }
 
 static void notify_state_changed_unlocked(void)
@@ -594,7 +628,8 @@ int net_mgr_init(void)
         LOG_I(TAG, "检测到已保存的 Wi-Fi 配置: [%s]，尝试连入局域网...", saved_ssid);
         return net_mgr_connect_sta(saved_ssid, saved_psk);
     } else {
-        LOG_I(TAG, "本地无 Wi-Fi 配置，自动启动 SoftAP 独立热点配网模式...");
+        LOG_I(TAG, "本地无 Wi-Fi 配置，预扫描周边网络并启动 SoftAP 独立热点配网模式...");
+        net_mgr_prescan_wifi();
         return net_mgr_start_softap(NULL);
     }
 }
@@ -620,6 +655,11 @@ void net_mgr_deinit(void)
     s_last_notified_msg[0] = '\0';
     s_initialized = false;
     pthread_mutex_unlock(&s_lock);
+
+    pthread_mutex_lock(&s_scan_lock);
+    s_scan_cache_count = 0;
+    s_scan_cache_time = 0;
+    pthread_mutex_unlock(&s_scan_lock);
 
     phoenix_web_portal_stop();
     net_mgr_stop_softap();
@@ -1093,6 +1133,15 @@ static void* softap_worker_thread(void *arg)
 
 int net_mgr_start_softap(const char *custom_ssid)
 {
+    /* 若启动 SoftAP 时预扫描缓存尚为空，先在纯 STA 模式下快速预扫描，杜绝开热点后跳频断网 */
+    pthread_mutex_lock(&s_scan_lock);
+    bool need_prescan = (s_scan_cache_count == 0);
+    pthread_mutex_unlock(&s_scan_lock);
+
+    if (need_prescan) {
+        net_mgr_prescan_wifi();
+    }
+
     pthread_mutex_lock(&s_lock);
     const char *ssid = (custom_ssid && custom_ssid[0]) ? custom_ssid : NET_DEFAULT_SOFTAP_SSID;
 
@@ -1237,6 +1286,9 @@ int net_mgr_reset_to_softap(void)
     sync();
     LOG_I(TAG, "🧹 已彻底抹除持久化配置 /data/etc/wifi/wapi.conf");
 #endif
+
+    /* 3. 在断开网络后、拉起 SoftAP 前，执行空中预扫描刷新缓存 */
+    net_mgr_prescan_wifi();
 
     return net_mgr_start_softap(NULL);
 }
@@ -1391,43 +1443,35 @@ static int do_wapi_scan_on_if(int sock, const char *ifname, net_wifi_ap_info_t *
     wapi_scan_coll_free(&list);
     return (int)real_count;
 }
-#endif
 
-int net_mgr_scan_wifi(net_wifi_ap_info_t *aps_out, size_t max_count)
+static int net_mgr_do_hardware_scan_unlocked(net_wifi_ap_info_t *aps_out, size_t max_count)
 {
-    if (!aps_out || max_count == 0) return -1;
-
-#if !defined(HOST_TEST_RUNNER)
     int sock = wapi_make_socket();
-    if (sock >= 0) {
-        LOG_I(TAG, "🔍 正在通过物理网卡 wlan0 发起实时空中 Wi-Fi 扫描...");
+    if (sock < 0) return -1;
 
-        /* 仅在 STA 网卡 wlan0 上执行全信道物理扫描，保护 SoftAP 网卡 wlan1 射频稳定 */
-        int count = do_wapi_scan_on_if(sock, "wlan0", aps_out, max_count);
+    LOG_I(TAG, "🔍 [硬件扫描] 正在通过物理网卡 wlan0 发起实时空中探针扫描...");
+    int count = do_wapi_scan_on_if(sock, "wlan0", aps_out, max_count);
+    close(sock);
 
-        close(sock);
-
-        if (count > 0) {
-            /* 按信号强度从强到弱排序 (RSSI 降序) */
-            for (int i = 0; i < count - 1; i++) {
-                for (int j = 0; j < count - 1 - i; j++) {
-                    if (aps_out[j].rssi < aps_out[j + 1].rssi) {
-                        net_wifi_ap_info_t tmp = aps_out[j];
-                        aps_out[j] = aps_out[j + 1];
-                        aps_out[j + 1] = tmp;
-                    }
+    if (count > 0) {
+        for (int i = 0; i < count - 1; i++) {
+            for (int j = 0; j < count - 1 - i; j++) {
+                if (aps_out[j].rssi < aps_out[j + 1].rssi) {
+                    net_wifi_ap_info_t tmp = aps_out[j];
+                    aps_out[j] = aps_out[j + 1];
+                    aps_out[j + 1] = tmp;
                 }
             }
-            LOG_I(TAG, "📡 真实 Wi-Fi 扫描成功，捕获周边 %d 个活跃真实热点", count);
-            return count;
         }
-
-        LOG_W(TAG, "⚠️ 空中周边未捕获到真实 Wi-Fi 信号");
-        return 0;
+        LOG_I(TAG, "📡 [硬件扫描] 物理空中扫描成功，捕获周边 %d 个活跃热点", count);
+    } else {
+        LOG_W(TAG, "⚠️ [硬件扫描] 空中周边未捕获到真实 Wi-Fi 信号");
     }
-    return 0;
+    return count;
+}
 #else
-    /* 宿主机仿真测试 (HOST_TEST_RUNNER) 基准测试热点 */
+static int net_mgr_do_hardware_scan_unlocked(net_wifi_ap_info_t *aps_out, size_t max_count)
+{
     static const net_wifi_ap_info_t s_default_aps[] = {
         {"Office-5G",          -45, "WPA2"},
         {"Home-Mesh-2.4G",     -58, "WPA2"},
@@ -1443,7 +1487,94 @@ int net_mgr_scan_wifi(net_wifi_ap_info_t *aps_out, size_t max_count)
         aps_out[i] = s_default_aps[i];
     }
 
-    LOG_I(TAG, "📡 Wi-Fi 扫描完成 (宿主机测试模式)，返回 %zu 个测试热点", count);
+    LOG_I(TAG, "📡 [宿主机测试] 生成 %zu 个测试热点", count);
     return (int)count;
+}
 #endif
+
+int net_mgr_prescan_wifi(void)
+{
+    pthread_mutex_lock(&s_scan_lock);
+
+    /* 检查当前是否在 SoftAP 活跃状态，若已在 SoftAP 状态，切勿强制进行跳频预扫描 */
+    pthread_mutex_lock(&s_lock);
+    net_mode_t cur_mode = s_mode;
+    pthread_mutex_unlock(&s_lock);
+
+    if (cur_mode == NET_MODE_SOFTAP_CONFIG) {
+        LOG_W(TAG, "⚠️ SoftAP 独立热点已在广播中，为避免破坏 Beacon 与手机连接，跳过硬件全信道预扫描");
+        int count = (int)s_scan_cache_count;
+        pthread_mutex_unlock(&s_scan_lock);
+        return count;
+    }
+
+    LOG_I(TAG, "📡 正在执行空中 Wi-Fi 预扫描 (Pre-Scan)，填充全局缓存以供配网即开即用...");
+    net_wifi_ap_info_t temp_aps[NET_SCAN_CACHE_MAX_APS];
+    int count = net_mgr_do_hardware_scan_unlocked(temp_aps, NET_SCAN_CACHE_MAX_APS);
+
+    if (count > 0) {
+        s_scan_cache_count = (size_t)count;
+        memcpy(s_scan_cache, temp_aps, sizeof(net_wifi_ap_info_t) * s_scan_cache_count);
+        s_scan_cache_time = time(NULL);
+        LOG_I(TAG, "✅ 空中预扫描成功完成，已缓存 %zu 个热点至全局内存", s_scan_cache_count);
+    } else {
+        LOG_W(TAG, "⚠️ 空中预扫描未捕获到有效热点");
+    }
+
+    pthread_mutex_unlock(&s_scan_lock);
+    return count;
+}
+
+int net_mgr_scan_wifi(net_wifi_ap_info_t *aps_out, size_t max_count)
+{
+    if (!aps_out || max_count == 0) return -1;
+
+    pthread_mutex_lock(&s_lock);
+    net_mode_t cur_mode = s_mode;
+    pthread_mutex_unlock(&s_lock);
+
+    pthread_mutex_lock(&s_scan_lock);
+
+    /* 核心保护 1: 在 SoftAP 独立热点模式下，绝对禁止全信道跳频扫描！直接返回内存预扫描缓存 */
+    if (cur_mode == NET_MODE_SOFTAP_CONFIG) {
+        if (s_scan_cache_count > 0) {
+            size_t copy_cnt = (s_scan_cache_count < max_count) ? s_scan_cache_count : max_count;
+            memcpy(aps_out, s_scan_cache, sizeof(net_wifi_ap_info_t) * copy_cnt);
+            pthread_mutex_unlock(&s_scan_lock);
+            LOG_I(TAG, "⚡ [SoftAP保护] 命中内存预扫描缓存，极速返回 %zu 个周边热点 (零射频冲突，手机不掉线)", copy_cnt);
+            return (int)copy_cnt;
+        }
+
+        /* 若特殊情况下缓存尚未填充，且在 SoftAP 活跃中，切勿粗暴跳频扫描导致脱网掉线 */
+        LOG_W(TAG, "⚠️ [SoftAP保护] 当前处于 SoftAP 热点模式且预扫描缓存为空，拒绝全信道跳频扫描以保护热点连接");
+        pthread_mutex_unlock(&s_scan_lock);
+        return 0;
+    }
+
+    /* 核心逻辑 2: 在非 SoftAP 模式下 (纯 STA / 未联网)，检查缓存是否在 TTL 内有效 */
+    time_t now = time(NULL);
+    if (s_scan_cache_count > 0 && (now - s_scan_cache_time) < NET_SCAN_CACHE_TTL_SEC) {
+        size_t copy_cnt = (s_scan_cache_count < max_count) ? s_scan_cache_count : max_count;
+        memcpy(aps_out, s_scan_cache, sizeof(net_wifi_ap_info_t) * copy_cnt);
+        pthread_mutex_unlock(&s_scan_lock);
+        LOG_I(TAG, "⚡ 命中有效扫描缓存 (TTL内)，直接返回 %zu 个热点", copy_cnt);
+        return (int)copy_cnt;
+    }
+
+    /* 核心逻辑 3: 缓存失效且处于纯 STA 状态，安全执行物理扫描并刷新缓存 */
+    net_wifi_ap_info_t temp_aps[NET_SCAN_CACHE_MAX_APS];
+    int count = net_mgr_do_hardware_scan_unlocked(temp_aps, NET_SCAN_CACHE_MAX_APS);
+    if (count > 0) {
+        s_scan_cache_count = (size_t)count;
+        memcpy(s_scan_cache, temp_aps, sizeof(net_wifi_ap_info_t) * s_scan_cache_count);
+        s_scan_cache_time = now;
+
+        size_t copy_cnt = (s_scan_cache_count < max_count) ? s_scan_cache_count : max_count;
+        memcpy(aps_out, s_scan_cache, sizeof(net_wifi_ap_info_t) * copy_cnt);
+        pthread_mutex_unlock(&s_scan_lock);
+        return (int)copy_cnt;
+    }
+
+    pthread_mutex_unlock(&s_scan_lock);
+    return 0;
 }

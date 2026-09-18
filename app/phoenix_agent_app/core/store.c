@@ -22,6 +22,10 @@
 #else
 #include <netutils/cJSON.h>
 #endif
+#include "../utils/time_utils.h"
+
+#define STORE_FLUSH_DEBOUNCE_MS 3000
+static uint64_t s_last_dirty_ms = 0;
 
 #define STORE_PATH_MAX 256
 #define STORE_FILENAME "stats.json"
@@ -81,7 +85,7 @@ void phoenix_store_deinit(void)
 {
     if (!g_store.initialized) return;
 
-    phoenix_store_flush();
+    phoenix_store_force_flush();
 
     pthread_mutex_lock(&g_store.lock);
     g_store.initialized = false;
@@ -209,6 +213,18 @@ void phoenix_store_flush(void)
     if (!g_store.initialized) return;
 
     if (g_store.dirty) {
+        uint64_t now_ms = time_utils_get_ms();
+        if (now_ms - s_last_dirty_ms >= STORE_FLUSH_DEBOUNCE_MS) {
+            phoenix_store_save();
+        }
+    }
+}
+
+void phoenix_store_force_flush(void)
+{
+    if (!g_store.initialized) return;
+
+    if (g_store.dirty) {
         phoenix_store_save();
     }
 }
@@ -216,6 +232,7 @@ void phoenix_store_flush(void)
 void phoenix_store_set_dirty(void)
 {
     g_store.dirty = true;
+    s_last_dirty_ms = time_utils_get_ms();
 }
 
 void phoenix_store_get_stats(phoenix_stats_t *out_stats)
@@ -232,6 +249,7 @@ uint32_t phoenix_store_add_merit(uint32_t delta)
     pthread_mutex_lock(&g_store.lock);
     g_store.stats.total_merit += delta;
     g_store.dirty = true;
+    s_last_dirty_ms = time_utils_get_ms();
     uint32_t total = g_store.stats.total_merit;
     pthread_mutex_unlock(&g_store.lock);
     return total;
@@ -243,6 +261,7 @@ void phoenix_store_add_pomodoro(uint32_t duration_seconds)
     g_store.stats.pomodoro_count++;
     g_store.stats.total_focus_seconds += duration_seconds;
     g_store.dirty = true;
+    s_last_dirty_ms = time_utils_get_ms();
     pthread_mutex_unlock(&g_store.lock);
 }
 
@@ -251,5 +270,6 @@ void phoenix_store_inc_interaction(void)
     pthread_mutex_lock(&g_store.lock);
     g_store.stats.interaction_count++;
     g_store.dirty = true;
+    s_last_dirty_ms = time_utils_get_ms();
     pthread_mutex_unlock(&g_store.lock);
 }

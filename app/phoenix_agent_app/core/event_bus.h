@@ -14,6 +14,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <pthread.h>
 
 /**
  * @brief Event Types in Phoenix Agent System
@@ -193,6 +194,18 @@ size_t phoenix_event_bus_drain(void);
  * @return Count of pending events
  */
 size_t phoenix_event_bus_pending_count(void);
+
+/**
+ * @brief Set the designated UI main thread ID for cross-thread dispatch safety
+ * @param tid pthread ID of the main thread
+ */
+void phoenix_event_bus_set_main_thread(pthread_t tid);
+
+/**
+ * @brief Check whether caller is running on the registered main thread
+ * @return true if running on main thread or unconstrained
+ */
+bool phoenix_event_bus_is_main_thread(void);
 
 /**
  * @brief De-initialize and cleanup Event Bus

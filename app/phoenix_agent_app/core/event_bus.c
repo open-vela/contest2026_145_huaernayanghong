@@ -12,7 +12,7 @@
 #include <pthread.h>
 
 #define MAX_SUBSCRIBERS_PER_EVENT 8
-#define EVENT_QUEUE_CAPACITY      32
+#define EVENT_QUEUE_CAPACITY      64
 
 typedef struct {
     phoenix_event_cb_t cb;
@@ -30,6 +30,20 @@ static ring_buffer_t g_async_ring_buffer;
 static pthread_mutex_t g_queue_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t g_bus_lock = PTHREAD_MUTEX_INITIALIZER;
 static bool g_bus_initialized = false;
+static pthread_t g_main_thread = 0;
+static bool g_main_thread_set = false;
+
+void phoenix_event_bus_set_main_thread(pthread_t tid)
+{
+    g_main_thread = tid;
+    g_main_thread_set = true;
+}
+
+bool phoenix_event_bus_is_main_thread(void)
+{
+    if (!g_main_thread_set) return true;
+    return (pthread_equal(pthread_self(), g_main_thread) != 0);
+}
 
 int phoenix_event_bus_init(void)
 {
@@ -41,6 +55,8 @@ int phoenix_event_bus_init(void)
     ring_buffer_init(&g_async_ring_buffer, g_queue_storage, sizeof(phoenix_event_data_t), EVENT_QUEUE_CAPACITY);
     pthread_mutex_unlock(&g_queue_lock);
 
+    g_main_thread = pthread_self();
+    g_main_thread_set = true;
     g_bus_initialized = true;
     return 0;
 }
@@ -97,6 +113,17 @@ void phoenix_event_unsubscribe(phoenix_event_type_t type, phoenix_event_cb_t cb,
 void phoenix_event_publish(const phoenix_event_data_t *event)
 {
     if (!g_bus_initialized || !event || event->type <= PHOENIX_EVT_NONE || event->type >= PHOENIX_EVT_COUNT) {
+        return;
+    }
+
+    /*
+     * 跨线程并发安全防护：
+     * 若调用者处于非 UI 主线程（如网络看门狗、配网 Worker、后台大模型推理等线程），
+     * 自动将事件路由至异步环形队列，交由主线程 phoenix_app_tick 串行消费分发，
+     * 彻底杜绝后台线程并发执行订阅者的 UI/LVGL 操作引发链表死锁与内存崩溃。
+     */
+    if (g_main_thread_set && !pthread_equal(pthread_self(), g_main_thread)) {
+        phoenix_event_post_async(event);
         return;
     }
 
@@ -179,6 +206,7 @@ void phoenix_event_bus_deinit(void)
 
     pthread_mutex_lock(&g_bus_lock);
     memset(g_event_slots, 0, sizeof(g_event_slots));
+    g_main_thread_set = false;
     g_bus_initialized = false;
     pthread_mutex_unlock(&g_bus_lock);
 }

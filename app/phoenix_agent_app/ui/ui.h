@@ -58,12 +58,16 @@ typedef struct {
     /* 核心上下文与状态指标 */
     phoenix_agent_ctx_t *agent_core;
     lv_timer_t *heartbeat_timer;
-    lv_timer_t *flush_timer;
     uint32_t uptime_sec;
     uint32_t merit_count;
     uint8_t  battery_pct;
     bool     pomodoro_active;
     uint16_t pomodoro_remain_s;
+
+    /* 纯事件驱动的网络状态只读缓存 (杜绝主循环加锁轮询) */
+    int      cached_net_mode;
+    char     cached_net_ip[32];
+    char     cached_net_ssid[32];
 
     const lv_font_t *font_chinese;
 } phoenix_ui_t;
