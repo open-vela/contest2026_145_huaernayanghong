@@ -23,6 +23,7 @@
 #include "core/web_portal.h"
 #include "hal/network_mgr.h"
 #include "hal/hal_sensor.h"
+#include "hal/hal_system.h"
 #include "utils/log_mgr.h"
 #include "ui/ui.h"
 #include "test/test_autodrive.h"

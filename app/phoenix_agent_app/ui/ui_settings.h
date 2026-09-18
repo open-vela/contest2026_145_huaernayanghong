@@ -19,19 +19,22 @@ extern "C" {
  * @brief 设置中心顶部横向导航标签页定义
  */
 typedef enum {
-    UI_SETTINGS_TAB_NET = 0,      /**< 标签页 1: 统一极速配网 (Magic Provisioning: SoftAP + BLE 双模一体) */
-    UI_SETTINGS_TAB_AGENT,        /**< 标签页 2: 灵眸大模型与 Prompt */
-    UI_SETTINGS_TAB_SYSTEM,       /**< 标签页 3: 极客系统健康与遥测 */
-    UI_SETTINGS_TAB_STORAGE,      /**< 标签页 4: 存储卡与外脑日志 */
+    UI_SETTINGS_TAB_NET = 0,      /**< 标签页 1: Wi-Fi 网络连接与热点 */
+    UI_SETTINGS_TAB_BLE,          /**< 标签页 2: 蓝牙配网广播开关与服务 */
+    UI_SETTINGS_TAB_AGENT,        /**< 标签页 3: 灵眸大模型与 Prompt */
+    UI_SETTINGS_TAB_SYSTEM,       /**< 标签页 4: 极客系统健康与遥测 */
+    UI_SETTINGS_TAB_STORAGE,      /**< 标签页 5: 存储卡与外脑日志 */
+    UI_SETTINGS_TAB_ABOUT,        /**< 标签页 6: 关于设备 */
 
     /* 兼容历史枚举别名 */
     UI_SETTINGS_TAB_HOTSPOT   = 0,
-    UI_SETTINGS_TAB_BLE       = 0,
     UI_SETTINGS_PAGE_MAIN     = 0,
     UI_SETTINGS_PAGE_NETWORK  = 0,
-    UI_SETTINGS_PAGE_AGENT    = 1,
-    UI_SETTINGS_PAGE_SYSTEM   = 2,
-    UI_SETTINGS_PAGE_STORAGE  = 3
+    UI_SETTINGS_PAGE_BLE      = 1,
+    UI_SETTINGS_PAGE_AGENT    = 2,
+    UI_SETTINGS_PAGE_SYSTEM   = 3,
+    UI_SETTINGS_PAGE_STORAGE  = 4,
+    UI_SETTINGS_PAGE_ABOUT    = 5
 } ui_settings_page_t;
 
 typedef ui_settings_page_t ui_settings_tab_t;
@@ -54,16 +57,18 @@ typedef struct {
 
     /* 3. 视图 1: 垂直卡片菜单列表 (宽 274px, 高 186px, 纵向平滑滚动) */
     lv_obj_t *view_menu_list;
-    lv_obj_t *btn_menu_net;       /**< 菜单项 1: 网络配网 */
+    lv_obj_t *btn_menu_net;       /**< 菜单项 1: Wi-Fi网络 */
     lv_obj_t *lbl_menu_net_sub;   /**< 菜单项 1 摘要: 已连接 / 广播中 */
-    lv_obj_t *btn_menu_agent;     /**< 菜单项 2: 灵眸模型 */
-    lv_obj_t *lbl_menu_agent_sub; /**< 菜单项 2 摘要: DeepSeek */
-    lv_obj_t *btn_menu_system;    /**< 菜单项 3: 硬件状态 */
-    lv_obj_t *lbl_menu_system_sub;/**< 菜单项 3 摘要: 正常 / 60FPS */
-    lv_obj_t *btn_menu_storage;   /**< 菜单项 4: 存储日志 */
-    lv_obj_t *lbl_menu_storage_sub;/**< 菜单项 4 摘要: 28.6GB */
-    lv_obj_t *btn_menu_about;     /**< 菜单项 5: 关于设备 */
-    lv_obj_t *lbl_menu_about_sub; /**< 菜单项 5 摘要: OpenVela */
+    lv_obj_t *btn_menu_ble;       /**< 菜单项 2: 蓝牙配网 (独立开关面板) */
+    lv_obj_t *lbl_menu_ble_sub;   /**< 菜单项 2 摘要: 广播中 / 未开启 */
+    lv_obj_t *btn_menu_agent;     /**< 菜单项 3: 灵眸模型 */
+    lv_obj_t *lbl_menu_agent_sub; /**< 菜单项 3 摘要: DeepSeek */
+    lv_obj_t *btn_menu_system;    /**< 菜单项 4: 硬件状态 */
+    lv_obj_t *lbl_menu_system_sub;/**< 菜单项 4 摘要: 正常 / 60FPS */
+    lv_obj_t *btn_menu_storage;   /**< 菜单项 5: 存储日志 */
+    lv_obj_t *lbl_menu_storage_sub;/**< 菜单项 5 摘要: 28.6GB */
+    lv_obj_t *btn_menu_about;     /**< 菜单项 6: 关于设备 */
+    lv_obj_t *lbl_menu_about_sub; /**< 菜单项 6 摘要: OpenVela */
 
     /* 4. 视图 2: 二级下钻详情区域 (宽 274px, 高 186px) */
     lv_obj_t *view_detail_area;

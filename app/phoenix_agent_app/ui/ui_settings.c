@@ -118,37 +118,41 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     lv_obj_set_style_pad_all(s->view_menu_list, 6, 0);
     lv_obj_add_flag(s->view_menu_list, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* 创建 5 个菜单项卡片 (高度 34px, 宽度 260px，使用字库安全符号) */
-    const char *menu_names[5] = {
-        "● 网络配网",
+    /* 创建 6 个菜单项卡片 (高度 34px, 宽度 260px，使用字库安全符号) */
+    const char *menu_names[6] = {
+        "● Wi-Fi网络",
+        "● 蓝牙配网",
         "● 灵眸模型",
         "● 硬件状态",
         "● 存储日志",
         "● 关于设备"
     };
-    const char *menu_defaults[5] = {
+    const char *menu_defaults[6] = {
         "已连接 >",
+        "未开启 >",
         "DeepSeek >",
         "60FPS / 正常 >",
         "28.6GB >",
         "R528-S3 >"
     };
-    lv_obj_t **menu_btns[5] = {
+    lv_obj_t **menu_btns[6] = {
         &s->btn_menu_net,
+        &s->btn_menu_ble,
         &s->btn_menu_agent,
         &s->btn_menu_system,
         &s->btn_menu_storage,
         &s->btn_menu_about
     };
-    lv_obj_t **menu_subs[5] = {
+    lv_obj_t **menu_subs[6] = {
         &s->lbl_menu_net_sub,
+        &s->lbl_menu_ble_sub,
         &s->lbl_menu_agent_sub,
         &s->lbl_menu_system_sub,
         &s->lbl_menu_storage_sub,
         &s->lbl_menu_about_sub
     };
 
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 6; i++) {
         lv_obj_t *b = lv_btn_create(s->view_menu_list);
         lv_obj_set_size(b, 260, 34);
         lv_obj_set_pos(b, 1, (lv_coord_t)(i * 38));
@@ -172,7 +176,7 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
         lv_obj_align(lbl_sub, LV_ALIGN_RIGHT_MID, -6, 0);
         if (s->font) lv_obj_set_style_text_font(lbl_sub, s->font, 0);
         lv_label_set_text(lbl_sub, menu_defaults[i]);
-        lv_obj_set_style_text_color(lbl_sub, (i == 0 || i == 2) ? lv_color_hex(0x00FF88) : lv_color_hex(0x00E5FF), 0);
+        lv_obj_set_style_text_color(lbl_sub, (i == 0 || i == 1 || i == 3) ? lv_color_hex(0x00FF88) : lv_color_hex(0x00E5FF), 0);
 
         *menu_btns[i] = b;
         *menu_subs[i] = lbl_sub;
@@ -181,6 +185,8 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     /* 兼容历史字段指针绑定 */
     s->btn_tab_net = s->btn_menu_net;
     s->lbl_tab_net = s->lbl_menu_net_sub;
+    s->btn_tab_ble = s->btn_menu_ble;
+    s->lbl_tab_ble = s->lbl_menu_ble_sub;
     s->btn_tab_agent = s->btn_menu_agent;
     s->lbl_tab_agent = s->lbl_menu_agent_sub;
     s->btn_tab_system = s->btn_menu_system;
@@ -189,8 +195,6 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     s->lbl_tab_storage = s->lbl_menu_storage_sub;
     s->btn_tab_hotspot = s->btn_menu_net;
     s->lbl_tab_hotspot = s->lbl_menu_net_sub;
-    s->btn_tab_ble = s->btn_menu_net;
-    s->lbl_tab_ble = s->lbl_menu_net_sub;
 
     /* =====================================================================
      * 3.2 视图 2: 二级下钻详情区域 (宽 274px, 高 186px, 默认隐藏)
@@ -687,7 +691,7 @@ ui_settings_page_t ui_settings_get_page(const ui_settings_t *settings)
 void ui_settings_enter_detail(ui_settings_t *settings, ui_settings_tab_t tab)
 {
     if (!settings) return;
-    if ((int)tab > 4) tab = UI_SETTINGS_TAB_NET;
+    if ((int)tab > 5) tab = UI_SETTINGS_TAB_NET;
 
     settings->is_in_detail = true;
     settings->current_tab = tab;
@@ -697,8 +701,9 @@ void ui_settings_enter_detail(ui_settings_t *settings, ui_settings_tab_t tab)
         lv_label_set_text(settings->lbl_top_close, "<");
     }
 
-    const char *tab_titles[5] = {
-        "极速网络配网",
+    const char *tab_titles[6] = {
+        "Wi-Fi网络连接",
+        "蓝牙极速配网",
         "灵眸大模型",
         "硬件状态与遥测",
         "存储卡与外脑日志",
@@ -717,21 +722,19 @@ void ui_settings_enter_detail(ui_settings_t *settings, ui_settings_tab_t tab)
     }
 
     /* 3. 切换详情面板可见性 */
-    lv_obj_t *panels[5] = {
+    lv_obj_t *panels[6] = {
         settings->panel_hotspot,
+        settings->panel_ble,
         settings->panel_agent,
         settings->panel_system,
         settings->panel_storage,
         settings->panel_about
     };
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 6; i++) {
         if (panels[i]) {
             if (i == (int)tab) lv_obj_clear_flag(panels[i], LV_OBJ_FLAG_HIDDEN);
             else lv_obj_add_flag(panels[i], LV_OBJ_FLAG_HIDDEN);
         }
-    }
-    if (settings->panel_ble) {
-        lv_obj_add_flag(settings->panel_ble, LV_OBJ_FLAG_HIDDEN);
     }
 
     ui_settings_refresh_data(settings);
@@ -950,8 +953,11 @@ void ui_settings_refresh_data(ui_settings_t *settings)
             lv_obj_set_style_text_color(settings->lbl_ble_status, lv_color_hex(0x00FF88), 0);
         }
         if (settings->lbl_ble_toggle) {
-            lv_label_set_text(settings->lbl_ble_toggle, "[关闭 停止蓝牙广播]");
+            lv_label_set_text(settings->lbl_ble_toggle, "[🛑 停止蓝牙配网广播]");
             lv_obj_set_style_text_color(settings->lbl_ble_toggle, lv_color_hex(0xFF7043), 0);
+        }
+        if (settings->btn_ble_toggle) {
+            lv_obj_set_style_border_color(settings->btn_ble_toggle, lv_color_hex(0xFF7043), 0);
         }
     } else if (bst == BLE_PROV_STATE_CONNECTED) {
         if (settings->lbl_ble_status) {
@@ -959,8 +965,11 @@ void ui_settings_refresh_data(ui_settings_t *settings)
             lv_obj_set_style_text_color(settings->lbl_ble_status, lv_color_hex(0x00E5FF), 0);
         }
         if (settings->lbl_ble_toggle) {
-            lv_label_set_text(settings->lbl_ble_toggle, "[关闭 断开并停止广播]");
+            lv_label_set_text(settings->lbl_ble_toggle, "[🛑 断开并停止广播]");
             lv_obj_set_style_text_color(settings->lbl_ble_toggle, lv_color_hex(0xFF7043), 0);
+        }
+        if (settings->btn_ble_toggle) {
+            lv_obj_set_style_border_color(settings->btn_ble_toggle, lv_color_hex(0xFF7043), 0);
         }
     } else if (bst == BLE_PROV_STATE_PROVISIONING) {
         if (settings->lbl_ble_status) {
@@ -973,17 +982,23 @@ void ui_settings_refresh_data(ui_settings_t *settings)
             lv_obj_set_style_text_color(settings->lbl_ble_status, lv_color_hex(0x00FF88), 0);
         }
         if (settings->lbl_ble_toggle) {
-            lv_label_set_text(settings->lbl_ble_toggle, "[● 重新开启配网广播]");
+            lv_label_set_text(settings->lbl_ble_toggle, "[⚡ 重新开启配网广播]");
             lv_obj_set_style_text_color(settings->lbl_ble_toggle, lv_color_hex(0x00E5FF), 0);
+        }
+        if (settings->btn_ble_toggle) {
+            lv_obj_set_style_border_color(settings->btn_ble_toggle, lv_color_hex(0x00E5FF), 0);
         }
     } else {
         if (settings->lbl_ble_status) {
-            lv_label_set_text(settings->lbl_ble_status, "● 蓝牙状态: 未广播 (点击开启)");
+            lv_label_set_text(settings->lbl_ble_status, "● 蓝牙状态: 未开启 (点击启动)");
             lv_obj_set_style_text_color(settings->lbl_ble_status, lv_color_hex(0x7E92AD), 0);
         }
         if (settings->lbl_ble_toggle) {
-            lv_label_set_text(settings->lbl_ble_toggle, "[● 启动蓝牙极速配网]");
+            lv_label_set_text(settings->lbl_ble_toggle, "[⚡ 启动蓝牙极速配网]");
             lv_obj_set_style_text_color(settings->lbl_ble_toggle, lv_color_hex(0x00E5FF), 0);
+        }
+        if (settings->btn_ble_toggle) {
+            lv_obj_set_style_border_color(settings->btn_ble_toggle, lv_color_hex(0x00E5FF), 0);
         }
     }
 
@@ -1120,6 +1135,25 @@ void ui_settings_refresh_data(ui_settings_t *settings)
         }
     }
 
+    if (settings->lbl_menu_ble_sub) {
+        if (ble_prov_service_is_active()) {
+            ble_prov_state_t bst = ble_prov_service_get_state();
+            if (bst == BLE_PROV_STATE_CONNECTED) {
+                lv_label_set_text(settings->lbl_menu_ble_sub, "Web已在线 >");
+                lv_obj_set_style_text_color(settings->lbl_menu_ble_sub, lv_color_hex(0x00E5FF), 0);
+            } else if (bst == BLE_PROV_STATE_PROVISIONED) {
+                lv_label_set_text(settings->lbl_menu_ble_sub, "配网完成 >");
+                lv_obj_set_style_text_color(settings->lbl_menu_ble_sub, lv_color_hex(0x00FF88), 0);
+            } else {
+                lv_label_set_text(settings->lbl_menu_ble_sub, "广播中 >");
+                lv_obj_set_style_text_color(settings->lbl_menu_ble_sub, lv_color_hex(0x00FF88), 0);
+            }
+        } else {
+            lv_label_set_text(settings->lbl_menu_ble_sub, "已关闭 >");
+            lv_obj_set_style_text_color(settings->lbl_menu_ble_sub, lv_color_hex(0x7E92AD), 0);
+        }
+    }
+
     if (settings->lbl_menu_agent_sub) {
         if (has_api_key) {
             lv_label_set_text(settings->lbl_menu_agent_sub, "DeepSeek >");
@@ -1186,6 +1220,8 @@ static void on_menu_item_clicked(lv_event_t *e)
     lv_obj_t *target = lv_event_get_target(e);
     if (target == s->btn_menu_net) {
         ui_settings_enter_detail(s, UI_SETTINGS_TAB_NET);
+    } else if (target == s->btn_menu_ble) {
+        ui_settings_enter_detail(s, UI_SETTINGS_TAB_BLE);
     } else if (target == s->btn_menu_agent) {
         ui_settings_enter_detail(s, UI_SETTINGS_TAB_AGENT);
     } else if (target == s->btn_menu_system) {
@@ -1193,7 +1229,7 @@ static void on_menu_item_clicked(lv_event_t *e)
     } else if (target == s->btn_menu_storage) {
         ui_settings_enter_detail(s, UI_SETTINGS_TAB_STORAGE);
     } else if (target == s->btn_menu_about) {
-        ui_settings_enter_detail(s, (ui_settings_tab_t)4);
+        ui_settings_enter_detail(s, UI_SETTINGS_TAB_ABOUT);
     }
 }
 
@@ -1205,6 +1241,8 @@ static void on_top_tab_btn_clicked(lv_event_t *e)
     lv_obj_t *btn = lv_event_get_target(e);
     if (btn == s->btn_tab_net) {
         ui_settings_switch_tab(s, UI_SETTINGS_TAB_NET);
+    } else if (btn == s->btn_tab_ble) {
+        ui_settings_switch_tab(s, UI_SETTINGS_TAB_BLE);
     } else if (btn == s->btn_tab_agent) {
         ui_settings_switch_tab(s, UI_SETTINGS_TAB_AGENT);
     } else if (btn == s->btn_tab_system) {

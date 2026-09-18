@@ -105,7 +105,7 @@ int  wapi_set_essid(int sock, const char *ifname, const char *essid, int flag);
 void wpa_driver_wext_disconnect(int sockfd, const char *ifname);
 int  wpa_driver_wext_set_auth_param(int sockfd, const char *ifname, int idx, uint32_t value);
 int  wpa_driver_wext_set_key_ext(int sockfd, const char *ifname, int alg, const char *key, size_t key_len);
-int  wapi_scan_init(int sock, const char *ifname);
+int  wapi_scan_init(int sock, const char *ifname, const char *essid);
 int  wapi_scan_stat(int sock, const char *ifname);
 int  wapi_scan_coll(int sock, const char *ifname, struct wapi_list_s *list);
 void wapi_scan_coll_free(struct wapi_list_s *list);
@@ -1148,7 +1148,7 @@ int net_mgr_scan_wifi(net_wifi_ap_info_t *aps_out, size_t max_count)
     int sock = wapi_make_socket();
     if (sock >= 0) {
         LOG_I(TAG, "正在通过物理网卡 wlan0 发起实时空中 Wi-Fi 扫描...");
-        int ret = wapi_scan_init(sock, "wlan0");
+        int ret = wapi_scan_init(sock, "wlan0", NULL);
         if (ret >= 0) {
             /* 轮询等待驱动空中抓包完成 (通常耗时 300ms ~ 1.2s) */
             int tries = 15;
