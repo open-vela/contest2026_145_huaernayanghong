@@ -284,11 +284,11 @@ static void* sta_connect_worker_thread(void *arg)
     char cmd[256];
     snprintf(cmd, sizeof(cmd), "wapi essid wlan0 \"%s\" 1 > /dev/null 2>&1", target_ssid);
     system(cmd);
+    system("wapi mode wlan0 2 > /dev/null 2>&1");
     if (target_psk[0] != '\0') {
-        snprintf(cmd, sizeof(cmd), "wapi psk wlan0 \"%s\" 1 3 > /dev/null 2>&1", target_psk);
+        snprintf(cmd, sizeof(cmd), "wapi psk wlan0 \"%s\" 3 2 > /dev/null 2>&1", target_psk);
         system(cmd);
     }
-    system("wapi private wlan0 adaptivity 0 > /dev/null 2>&1");
     system("wapi power_save wlan0 off > /dev/null 2>&1");
     system("wapi save_config wlan0 > /dev/null 2>&1");
     system("wapi reconnect wlan0 > /dev/null 2>&1");

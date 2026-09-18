@@ -48,11 +48,12 @@ ifconfig wlan0
 wapi disconnect wlan0
 sleep 1
 
-# 2. 设置目标 SSID (末尾 1 表示开启)
+# 2. 设置工作模式为 Managed 客户端 (2) 并指定目标 SSID (末尾 1 表示开启)
+wapi mode wlan0 2
 wapi essid wlan0 "MyHome_WiFi" 1
 
-# 3. 设置密码 (参数: 接口名 密码 开启标识 加密类型; 3 代表 WPA2-PSK)
-wapi psk wlan0 "password123456" 1 3
+# 3. 设置密码 (参数: 接口名 密码 加密算法 WPA版本; 3 代表 CCMP/AES, 2 代表 WPA2)
+wapi psk wlan0 "password123456" 3 2
 
 # 4. (可选) 锁定 5GHz 频点或指定 AP BSSID
 # wapi ap wlan0 12:34:56:78:9a:bc
