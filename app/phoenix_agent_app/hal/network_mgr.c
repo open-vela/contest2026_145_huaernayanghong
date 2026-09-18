@@ -878,15 +878,12 @@ static void* softap_worker_thread(void *arg)
 
     LOG_I(TAG, "[SoftAP:Worker] 正在后台配置 wlan1 SoftAP 物理网卡与射频 (SSID: %s)...", ssid);
 
-    /* 1. 先关闭旧的热点 (wlan1) 并断开 wlan0 连接，避免与 SoftAP 争抢单天线物理射频 */
+    /* 1. 先关闭旧的热点 (wlan1) 并保持 wlan0 监听态就绪 */
     net_mgr_stop_softap();
 
     int sock = wapi_make_socket();
     if (sock >= 0) {
-        /* STA 模式断开连接以让出射频天线 */
-        wpa_driver_wext_disconnect(sock, "wlan0");
-
-        /* 2. 原生 WAPI C API 配置 wlan1 Master 与固定 IP 192.168.4.1 */
+        /* 2. 原生 WAPI C API 配置 wlan1 Master 与固定 IP 192.168.4.1、信道 6 (2437MHz) */
         struct in_addr ip, mask;
         inet_aton("192.168.4.1", &ip);
         inet_aton("255.255.255.0", &mask);
@@ -894,17 +891,23 @@ static void* softap_worker_thread(void *arg)
         wapi_set_netmask(sock, "wlan1", &mask);
         wapi_set_ifup(sock, "wlan1");
         wapi_set_mode(sock, "wlan1", WAPI_MODE_MASTER);
+        wapi_set_freq(sock, "wlan1", 2437, 1);
         wapi_set_essid(sock, "wlan1", ssid, WAPI_ESSID_ON);
         close(sock);
-        LOG_I(TAG, "⚡ [Native WAPI] SoftAP wlan1 (SSID: %s, IP: 192.168.4.1, Mode: OPEN) 射频已就绪", ssid);
+        LOG_I(TAG, "⚡ [Native WAPI] SoftAP wlan1 (SSID: %s, Ch: 6, IP: 192.168.4.1, Mode: OPEN) 射频已就绪", ssid);
     }
 
     /* 3. 补充标准命令行确保全志底层 Realtek wlan1 属性与路由生效 */
     system("ifconfig wlan1 192.168.4.1 netmask 255.255.255.0 up > /dev/null 2>&1");
     system("wapi mode wlan1 3 > /dev/null 2>&1");
+    system("wapi freq wlan1 2437 1 > /dev/null 2>&1");
     char cmd[256];
     snprintf(cmd, sizeof(cmd), "wapi essid wlan1 \"%s\" 1 > /dev/null 2>&1", ssid);
     system(cmd);
+
+    /* 确保 wlan0 处于唤醒监听状态，关闭自适应与省电，为空中扫描留出稳定环境 */
+    system("wapi private wlan0 adaptivity 0 > /dev/null 2>&1");
+    system("wapi power_save wlan0 off > /dev/null 2>&1");
 
     /* 4. 启动内嵌 MiniDHCP+DNS 服务 (Web 服务在开机时已常驻监听 0.0.0.0:80，无需重启) */
     mini_dhcpd_start();
@@ -1136,6 +1139,81 @@ bool net_mgr_is_web_enabled(void)
     return en;
 }
 
+#if !defined(HOST_TEST_RUNNER)
+static int do_wapi_scan_on_if(int sock, const char *ifname, net_wifi_ap_info_t *aps_out, size_t max_count)
+{
+    if (!ifname || !aps_out || max_count == 0) return -1;
+
+    /* 1. 确保目标网卡处于激活 UP 状态与 Managed 模式 */
+    wapi_set_mode(sock, ifname, WAPI_MODE_MANAGED);
+    wapi_set_ifup(sock, ifname);
+
+    /* 2. 触发空中主动探针扫描 (Active Scan) */
+    int ret = wapi_scan_init(sock, ifname, NULL);
+    if (ret < 0) {
+        LOG_W(TAG, "wapi_scan_init on %s failed: %d", ifname, ret);
+        return -1;
+    }
+
+    /* 3. 核心时序保护：全志 Realtek 芯片遍历 1~13 信道探针需物理时间，
+     * 先强制等待 1.2 秒给底层射频空中抓包，彻底杜绝第 0 毫秒 wapi_scan_stat 早退误判 */
+    usleep(1200 * 1000);
+
+    /* 4. 动态轮询等待驱动数据最终落盘就绪 (最多再等 1.5 秒，每 150ms 轮询一次) */
+    int tries = 10;
+    while (--tries > 0) {
+        ret = wapi_scan_stat(sock, ifname);
+        if (ret == 0) {
+            /* 扫描数据已就绪 */
+            break;
+        }
+        usleep(150 * 1000);
+    }
+
+    /* 5. 收集驱动扫描结果 */
+    struct wapi_list_s list;
+    memset(&list, 0, sizeof(list));
+    ret = wapi_scan_coll(sock, ifname, &list);
+    if (ret != 0 || list.head.scan == NULL) {
+        return 0;
+    }
+
+    size_t real_count = 0;
+    struct wapi_scan_info_s *info = list.head.scan;
+    while (info != NULL && real_count < max_count) {
+        if (info->has_essid && info->essid[0] != '\0') {
+            /* 检查同名 SSID 去重 (双频 2.4G/5G 保留最强信号) */
+            int dup_idx = -1;
+            for (size_t i = 0; i < real_count; i++) {
+                if (strcmp(aps_out[i].ssid, info->essid) == 0) {
+                    dup_idx = (int)i;
+                    break;
+                }
+            }
+
+            int rssi_val = info->has_rssi ? info->rssi : -75;
+            const char *auth_type = (info->has_encode && info->encode != 0) ? "WPA2" : "OPEN";
+
+            if (dup_idx >= 0) {
+                if (rssi_val > aps_out[dup_idx].rssi) {
+                    aps_out[dup_idx].rssi = (int16_t)rssi_val;
+                    strncpy(aps_out[dup_idx].auth, auth_type, sizeof(aps_out[dup_idx].auth) - 1);
+                }
+            } else {
+                strncpy(aps_out[real_count].ssid, info->essid, sizeof(aps_out[real_count].ssid) - 1);
+                aps_out[real_count].rssi = (int16_t)rssi_val;
+                strncpy(aps_out[real_count].auth, auth_type, sizeof(aps_out[real_count].auth) - 1);
+                real_count++;
+            }
+        }
+        info = info->next;
+    }
+
+    wapi_scan_coll_free(&list);
+    return (int)real_count;
+}
+#endif
+
 int net_mgr_scan_wifi(net_wifi_ap_info_t *aps_out, size_t max_count)
 {
     if (!aps_out || max_count == 0) return -1;
@@ -1143,88 +1221,34 @@ int net_mgr_scan_wifi(net_wifi_ap_info_t *aps_out, size_t max_count)
 #if !defined(HOST_TEST_RUNNER)
     int sock = wapi_make_socket();
     if (sock >= 0) {
-        LOG_I(TAG, "正在通过物理网卡 wlan0 发起实时空中 Wi-Fi 扫描...");
-        int ret = wapi_scan_init(sock, "wlan0", NULL);
-        if (ret >= 0) {
-            /* 轮询等待驱动空中抓包完成 (通常耗时 300ms ~ 1.2s) */
-            int tries = 15;
-            while (--tries > 0) {
-                ret = wapi_scan_stat(sock, "wlan0");
-                if (ret == 0) {
-                    /* 扫描完成 */
-                    break;
-                }
-                usleep(100 * 1000);
-            }
+        LOG_I(TAG, "🔍 正在通过物理网卡 wlan0 发起实时空中 Wi-Fi 扫描...");
 
-            struct wapi_list_s list;
-            memset(&list, 0, sizeof(list));
-            ret = wapi_scan_coll(sock, "wlan0", &list);
-            if (ret == 0 && list.head.scan != NULL) {
-                size_t real_count = 0;
-                struct wapi_scan_info_s *info = list.head.scan;
+        /* 仅在 STA 网卡 wlan0 上执行全信道物理扫描，保护 SoftAP 网卡 wlan1 射频稳定 */
+        int count = do_wapi_scan_on_if(sock, "wlan0", aps_out, max_count);
 
-                while (info != NULL && real_count < max_count) {
-                    if (info->has_essid && info->essid[0] != '\0') {
-                        /* 检查同名 SSID 去重 (双频 2.4G/5G 保留最强信号) */
-                        int dup_idx = -1;
-                        for (size_t i = 0; i < real_count; i++) {
-                            if (strcmp(aps_out[i].ssid, info->essid) == 0) {
-                                dup_idx = (int)i;
-                                break;
-                            }
-                        }
+        close(sock);
 
-                        int rssi_val = info->has_rssi ? info->rssi : -75;
-                        const char *auth_type = "OPEN";
-                        if (info->has_encode && info->encode != 0) {
-                            auth_type = "WPA2";
-                        }
-
-                        if (dup_idx >= 0) {
-                            if (rssi_val > aps_out[dup_idx].rssi) {
-                                aps_out[dup_idx].rssi = (int16_t)rssi_val;
-                                strncpy(aps_out[dup_idx].auth, auth_type, sizeof(aps_out[dup_idx].auth) - 1);
-                            }
-                        } else {
-                            strncpy(aps_out[real_count].ssid, info->essid, sizeof(aps_out[real_count].ssid) - 1);
-                            aps_out[real_count].rssi = (int16_t)rssi_val;
-                            strncpy(aps_out[real_count].auth, auth_type, sizeof(aps_out[real_count].auth) - 1);
-                            real_count++;
-                        }
+        if (count > 0) {
+            /* 按信号强度从强到弱排序 (RSSI 降序) */
+            for (int i = 0; i < count - 1; i++) {
+                for (int j = 0; j < count - 1 - i; j++) {
+                    if (aps_out[j].rssi < aps_out[j + 1].rssi) {
+                        net_wifi_ap_info_t tmp = aps_out[j];
+                        aps_out[j] = aps_out[j + 1];
+                        aps_out[j + 1] = tmp;
                     }
-                    info = info->next;
                 }
-
-                wapi_scan_coll_free(&list);
-                close(sock);
-
-                if (real_count > 0) {
-                    /* 按信号强度从强到弱排序 (RSSI 降序) */
-                    for (size_t i = 0; i < real_count - 1; i++) {
-                        for (size_t j = 0; j < real_count - 1 - i; j++) {
-                            if (aps_out[j].rssi < aps_out[j + 1].rssi) {
-                                net_wifi_ap_info_t tmp = aps_out[j];
-                                aps_out[j] = aps_out[j + 1];
-                                aps_out[j + 1] = tmp;
-                            }
-                        }
-                    }
-
-                    LOG_I(TAG, "📡 真实 Wi-Fi 扫描成功，捕获周边 %zu 个活跃热点", real_count);
-                    return (int)real_count;
-                }
-            } else {
-                close(sock);
             }
-        } else {
-            close(sock);
+            LOG_I(TAG, "📡 真实 Wi-Fi 扫描成功，捕获周边 %d 个活跃真实热点", count);
+            return count;
         }
-        LOG_W(TAG, "物理网卡扫描暂无空中数据，回退至安全模式");
-    }
-#endif
 
-    /* 宿主机仿真测试 (HOST_TEST_RUNNER) 或无线驱动初始化未就绪时的备用数据 */
+        LOG_W(TAG, "⚠️ 空中周边未捕获到真实 Wi-Fi 信号");
+        return 0;
+    }
+    return 0;
+#else
+    /* 宿主机仿真测试 (HOST_TEST_RUNNER) 基准测试热点 */
     static const net_wifi_ap_info_t s_default_aps[] = {
         {"Office-5G",          -45, "WPA2"},
         {"Home-Mesh-2.4G",     -58, "WPA2"},
@@ -1240,6 +1264,7 @@ int net_mgr_scan_wifi(net_wifi_ap_info_t *aps_out, size_t max_count)
         aps_out[i] = s_default_aps[i];
     }
 
-    LOG_I(TAG, "📡 Wi-Fi 扫描完成 (宿主机/备用模式)，返回 %zu 个测试热点", count);
+    LOG_I(TAG, "📡 Wi-Fi 扫描完成 (宿主机测试模式)，返回 %zu 个测试热点", count);
     return (int)count;
+#endif
 }

@@ -384,7 +384,8 @@
         const qk = document.getElementById('quickList');
 
         if (scanData.length === 0) {
-          sel.innerHTML = '<option value="__manual__">未搜到热点 - 手动输入 SSID</option>';
+          sel.innerHTML = '<option value="__manual__">未搜到热点 - 已展开手动输入 SSID</option>';
+          document.getElementById('manualBox').style.display = 'block';
           return;
         }
 
@@ -410,7 +411,8 @@
         mOpt.text = '➕ 手动输入隐藏 Wi-Fi...';
         sel.appendChild(mOpt);
       }).catch(e => {
-        sel.innerHTML = '<option value="__manual__">扫描失败 - 手动输入 SSID</option>';
+        sel.innerHTML = '<option value="__manual__">扫描超时 - 已展开手动输入 SSID</option>';
+        document.getElementById('manualBox').style.display = 'block';
       });
     }
 

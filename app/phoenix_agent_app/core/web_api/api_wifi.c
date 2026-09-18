@@ -16,8 +16,8 @@
 int handle_wifi_scan(const http_req_t *req, http_resp_t *resp)
 {
     (void)req;
-    net_wifi_ap_info_t aps[8];
-    int count = net_mgr_scan_wifi(aps, 8);
+    net_wifi_ap_info_t aps[32];
+    int count = net_mgr_scan_wifi(aps, 32);
     if (count < 0) count = 0;
 
     cJSON *root = cJSON_CreateObject();
