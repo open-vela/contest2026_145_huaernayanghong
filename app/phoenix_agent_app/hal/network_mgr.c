@@ -118,6 +118,7 @@ int  wapi_scan_coll(int sock, const char *ifname, struct wapi_list_s *list);
 void wapi_scan_coll_free(struct wapi_list_s *list);
 int  wapi_get_ap(int sock, const char *ifname, void *ap);
 #  endif
+int netlib_obtain_ipv4addr(const char *ifname);
 #endif
 
 #define TAG "NetMgr"
@@ -367,7 +368,7 @@ static void* net_link_watchdog_thread(void *arg)
                       running, ap_ok, link_down_count);
 
                 /* 立即触发底层静默快速重连自愈 */
-                system("wapi reconnect wlan0 > /dev/null 2>&1");
+                system("wapi reconnect wlan0 > /dev/null");
 
                 if (link_down_count >= 3) {
                     LOG_E(TAG, "[Watchdog] ❌ 链路连续 3 次检测脱网，切换为断开态并通知界面...");
@@ -429,8 +430,8 @@ static void* sta_connect_worker_thread(void *arg)
 
     /* 1. 先关闭 softap 并断开旧连接，清空残留伪 IP */
     net_mgr_stop_softap();
-    system("wapi disconnect wlan0 > /dev/null 2>&1");
-    system("ifconfig wlan0 0.0.0.0 > /dev/null 2>&1");
+    system("wapi disconnect wlan0 > /dev/null");
+    system("ifconfig wlan0 0.0.0.0 > /dev/null");
     usleep(300000);
 
     pthread_mutex_lock(&s_lock);
@@ -440,21 +441,21 @@ static void* sta_connect_worker_thread(void *arg)
 
     /* 2. 关键修复：必须先激活 wlan0 物理接口为 UP 状态，再切换 STA 模式与触发空中扫描
      * 否则底层 SIOCSIWSCAN 会报 -ENETDOWN (115 Network is down) 失败 */
-    system("ifconfig wlan0 up > /dev/null 2>&1");
-    system("wapi mode wlan0 2 > /dev/null 2>&1");
-    system("wapi scan wlan0 > /dev/null 2>&1");
+    system("ifconfig wlan0 up > /dev/null");
+    system("wapi mode wlan0 2 > /dev/null");
+    system("wapi scan wlan0 > /dev/null");
     usleep(500000);
 
     /* 3. 规范时序：必须先下发 PSK 加密秘钥 (CCMP+WPA2: 3 2)，再下发 ESSID 触发关联握手 */
     char cmd[256];
     if (target_psk[0] != '\0') {
-        snprintf(cmd, sizeof(cmd), "wapi psk wlan0 \"%s\" 3 2 > /dev/null 2>&1", target_psk);
+        snprintf(cmd, sizeof(cmd), "wapi psk wlan0 \"%s\" 3 2 > /dev/null", target_psk);
         system(cmd);
     }
-    snprintf(cmd, sizeof(cmd), "wapi essid wlan0 \"%s\" 1 > /dev/null 2>&1", target_ssid);
+    snprintf(cmd, sizeof(cmd), "wapi essid wlan0 \"%s\" 1 > /dev/null", target_ssid);
     system(cmd);
-    system("wapi power_save wlan0 off > /dev/null 2>&1");
-    system("wapi save_config wlan0 > /dev/null 2>&1");
+    system("wapi power_save wlan0 off > /dev/null");
+    system("wapi save_config wlan0 > /dev/null");
     /* 核心注意：此处绝不调用 wapi reconnect wlan0，因为 wapi essid ... 1 已经触发驱动 associate 请求，
      * 调用 reconnect 会重置状态机打断 4-Way 握手 */
 
@@ -482,9 +483,9 @@ static void* sta_connect_worker_thread(void *arg)
         pthread_mutex_unlock(&s_lock);
 
         /* 提升 WLAN 射频优先级，防止蓝牙共存仲裁丢弃 DHCP Discover 响应报文 */
-        system("wapi pta_prio wlan0 3 > /dev/null 2>&1");
+        system("wapi pta_prio wlan0 3 > /dev/null");
 
-        /* 5. 快速 DHCP 租约获取（因已完成 4-Way 握手，通常首发即可秒级获取） */
+        /* 5. 快速 DHCP 租约获取（因已完成 4-Way 握手，首发通过 C 语言原生接口直接下发） */
         for (int retry = 1; retry <= 3; retry++) {
             char retry_msg[64];
             snprintf(retry_msg, sizeof(retry_msg), "正在申请 DHCP IP 租约 (%d/3)...", retry);
@@ -493,14 +494,31 @@ static void* sta_connect_worker_thread(void *arg)
             pthread_mutex_unlock(&s_lock);
 
             LOG_I(TAG, "[Worker] 尝试申请 DHCP 租约 (第 %d/3 次)...", retry);
-            system("renew wlan0 > /dev/null 2>&1");
-            usleep(1000000);
 
-            if (query_interface_ip("wlan0", acquired_ip, sizeof(acquired_ip)) == 0 &&
-                net_is_valid_sta_ip(acquired_ip) &&
-                net_is_interface_running("wlan0") &&
-                net_is_ap_associated("wlan0")) {
-                connected = true;
+#if !defined(HOST_TEST_RUNNER)
+            /* 首选直接调用 C 语言协议栈原生接口，规避 NSH shell 字符串解析开销与 argc 溢出崩溃 */
+            int dret = netlib_obtain_ipv4addr("wlan0");
+            if (dret < 0) {
+                LOG_W(TAG, "⚠️ [Worker] netlib_obtain_ipv4addr 返回 %d，回退调用 renew 命令", dret);
+                system("renew wlan0 > /dev/null");
+            }
+#else
+            system("renew wlan0 > /dev/null");
+#endif
+
+            /* 快速轮询探测窗口 (最多 3 秒，每 500ms 探测一次，一旦拿到 IP 立即突破跳出) */
+            for (int poll_i = 0; poll_i < 6; poll_i++) {
+                usleep(500000);
+                if (query_interface_ip("wlan0", acquired_ip, sizeof(acquired_ip)) == 0 &&
+                    net_is_valid_sta_ip(acquired_ip) &&
+                    net_is_interface_running("wlan0") &&
+                    net_is_ap_associated("wlan0")) {
+                    connected = true;
+                    break;
+                }
+            }
+
+            if (connected) {
                 break;
             }
         }
@@ -1061,8 +1079,8 @@ int net_mgr_stop_softap(void)
         wapi_set_ifdown(sock, "wlan1");
         close(sock);
     } else {
-        system("wapi essid wlan1 \"\" 0 > /dev/null 2>&1");
-        system("ifconfig wlan1 down > /dev/null 2>&1");
+        system("wapi essid wlan1 \"\" 0 > /dev/null");
+        system("ifconfig wlan1 down > /dev/null");
     }
 #endif
     return 0;
@@ -1133,16 +1151,16 @@ static void* softap_worker_thread(void *arg)
     }
 
     /* 3. 补充标准命令行确保全志底层 Realtek wlan1 属性与路由生效 */
-    system("ifconfig wlan1 192.168.4.1 netmask 255.255.255.0 up > /dev/null 2>&1");
-    system("wapi mode wlan1 3 > /dev/null 2>&1");
-    system("wapi freq wlan1 2437 1 > /dev/null 2>&1");
+    system("ifconfig wlan1 192.168.4.1 netmask 255.255.255.0 up > /dev/null");
+    system("wapi mode wlan1 3 > /dev/null");
+    system("wapi freq wlan1 2437 1 > /dev/null");
     char cmd[256];
-    snprintf(cmd, sizeof(cmd), "wapi essid wlan1 \"%s\" 1 > /dev/null 2>&1", ssid);
+    snprintf(cmd, sizeof(cmd), "wapi essid wlan1 \"%s\" 1 > /dev/null", ssid);
     system(cmd);
 
     /* 确保 wlan0 处于唤醒监听状态，关闭自适应与省电，为空中扫描留出稳定环境 */
-    system("wapi private wlan0 adaptivity 0 > /dev/null 2>&1");
-    system("wapi power_save wlan0 off > /dev/null 2>&1");
+    system("wapi private wlan0 adaptivity 0 > /dev/null");
+    system("wapi power_save wlan0 off > /dev/null");
 
     /* 4. 启动内嵌 MiniDHCP+DNS 服务 (Web 服务在开机时已常驻监听 0.0.0.0:80，无需重启) */
     mini_dhcpd_start();
@@ -1268,7 +1286,7 @@ void net_mgr_disconnect(void)
         wpa_driver_wext_disconnect(sock, "wlan0");
         close(sock);
     } else {
-        system("wapi disconnect wlan0 > /dev/null 2>&1");
+        system("wapi disconnect wlan0 > /dev/null");
     }
     net_mgr_stop_softap();
 #endif
@@ -1294,8 +1312,8 @@ int net_mgr_reset_to_softap(void)
         wpa_driver_wext_disconnect(sock, "wlan0");
         close(sock);
     }
-    system("wapi disconnect wlan0 > /dev/null 2>&1");
-    system("ifconfig wlan0 0.0.0.0 > /dev/null 2>&1");
+    system("wapi disconnect wlan0 > /dev/null");
+    system("ifconfig wlan0 0.0.0.0 > /dev/null");
 
     /* 2. 彻底清空全志板载持久化文件 /data/etc/wifi/wapi.conf 并刷盘 */
     unlink(WAPI_CONF_FILE);

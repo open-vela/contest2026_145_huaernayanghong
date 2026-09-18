@@ -879,17 +879,54 @@ void ui_settings_update_net_progress(ui_settings_t *settings, int mode, const ch
                 lv_obj_set_style_text_color(settings->lbl_prog_title, lv_color_hex(0xFF5252), 0);
             }
             if (settings->lbl_prog_step2) {
-                lv_label_set_text(settings->lbl_prog_step2, "[x] 2. 路由关联或 DHCP 失败");
-                lv_obj_set_style_text_color(settings->lbl_prog_step2, lv_color_hex(0xFF5252), 0);
+                const char *cur_s2 = lv_label_get_text(settings->lbl_prog_step2);
+                if (!cur_s2 || !strstr(cur_s2, "✓")) {
+                    lv_label_set_text(settings->lbl_prog_step2, "[x] 2. 路由关联握手失败");
+                    lv_obj_set_style_text_color(settings->lbl_prog_step2, lv_color_hex(0xFF5252), 0);
+                }
+            }
+            if (settings->lbl_prog_step3) {
+                lv_label_set_text(settings->lbl_prog_step3, "[x] 3. DHCP 局域网 IP 获取超时");
+                lv_obj_set_style_text_color(settings->lbl_prog_step3, lv_color_hex(0xFF5252), 0);
             }
             if (settings->lbl_prog_result_ip) {
-                lv_label_set_text(settings->lbl_prog_result_ip, "正在自动重启 SoftAP 热点...");
+                lv_label_set_text(settings->lbl_prog_result_ip, (msg && msg[0]) ? msg : "已自动切回独立热点");
                 lv_obj_set_style_text_color(settings->lbl_prog_result_ip, lv_color_hex(0xFFB700), 0);
             }
             if (settings->lbl_prog_done) {
                 lv_label_set_text(settings->lbl_prog_done, "[返回热点重试]");
                 lv_obj_set_style_text_color(settings->lbl_prog_done, lv_color_hex(0xFF5252), 0);
             }
+        }
+    } else if (mode == NET_MODE_SOFTAP_CONFIG) {
+        /* 当系统切换为 SoftAP 独立热点时：
+         * 若此时进度卡片处于显示中，更新提示为热点就绪并允许用户点击一键切回待机；
+         * 若用户直接在常规视图，则正常隐藏进度框展示待机卡片 */
+        if (settings->box_hotspot_progress && !lv_obj_has_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN)) {
+            if (settings->lbl_prog_result_ip) {
+                lv_label_set_text(settings->lbl_prog_result_ip, "📡 独立热点已就绪: 192.168.4.1");
+                lv_obj_set_style_text_color(settings->lbl_prog_result_ip, lv_color_hex(0x00FF88), 0);
+            }
+            if (settings->lbl_prog_done) {
+                lv_label_set_text(settings->lbl_prog_done, "[返回热点待机卡片]");
+                lv_obj_set_style_text_color(settings->lbl_prog_done, lv_color_hex(0x00E5FF), 0);
+            }
+        } else {
+            if (settings->box_hotspot_progress) lv_obj_add_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN);
+            if (settings->box_hotspot_idle) lv_obj_clear_flag(settings->box_hotspot_idle, LV_OBJ_FLAG_HIDDEN);
+        }
+
+        if (settings->lbl_hotspot_ssid) {
+            char buf[64];
+            snprintf(buf, sizeof(buf), "热点: %s", (ssid && ssid[0]) ? ssid : "Gemini-Agent-Setup");
+            lv_label_set_text(settings->lbl_hotspot_ssid, buf);
+        }
+        if (settings->lbl_hotspot_ip) {
+            lv_label_set_text(settings->lbl_hotspot_ip, "IP: 192.168.4.1 (Web 免端口直达)");
+        }
+        if (settings->lbl_hotspot_action) {
+            lv_label_set_text(settings->lbl_hotspot_action, "[● 重启热点广播]");
+            lv_obj_set_style_text_color(settings->lbl_hotspot_action, lv_color_hex(0x00E5FF), 0);
         }
     }
 }
@@ -1342,9 +1379,11 @@ static void on_prog_done_clicked(lv_event_t *e)
         } else {
             ui_settings_close(s);
         }
-    } else if (mode == NET_MODE_DISCONNECTED) {
-        /* 失败状态，点击重新启动热点 */
-        net_mgr_start_softap(NULL);
+    } else {
+        /* 处于断网、失败或已恢复 SoftAP 状态，点击统统切回热点就绪待机卡片 */
+        if (mode == NET_MODE_DISCONNECTED) {
+            net_mgr_start_softap(NULL);
+        }
         if (s->box_hotspot_idle) lv_obj_clear_flag(s->box_hotspot_idle, LV_OBJ_FLAG_HIDDEN);
         if (s->box_hotspot_progress) lv_obj_add_flag(s->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN);
         ui_settings_refresh_data(s);

@@ -428,6 +428,7 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
                     ui_settings_update_net_progress(ui->settings, mode, ssid, ip, msg);
                     ui_settings_refresh_data(ui->settings);
                 } else if (mode == 3 /* NET_MODE_SOFTAP_CONFIG */) {
+                    ui_settings_update_net_progress(ui->settings, mode, ssid, ip, msg);
                     ui_settings_refresh_data(ui->settings);
                 } else {
                     ui_settings_update_net_progress(ui->settings, mode, ssid, ip, msg);
