@@ -265,11 +265,22 @@ bool net_is_valid_sta_ip(const char *ip)
     if (!ip || ip[0] == '\0') return false;
     if (strcmp(ip, "0.0.0.0") == 0) return false;
     if (strcmp(ip, "127.0.0.1") == 0) return false;
+    if (strcmp(ip, "255.255.255.255") == 0) return false; /* 排除受限广播地址 (DHCP 过程中的临时占位) */
+    if (strncmp(ip, "255.", 4) == 0) return false;        /* 排除全 1 广播段 */
     if (strncmp(ip, "192.168.4.", 10) == 0) return false; /* 排除 SoftAP 独立热点网段 */
     if (strcmp(ip, "10.0.0.2") == 0) return false;        /* 排除 OpenVela 内核 netinit 默认静态占位 IP */
     if (strcmp(ip, "10.0.0.1") == 0) return false;        /* 排除内核默认网关占位 IP */
     if (strcmp(ip, "10.0.2.15") == 0) return false;       /* 排除 QEMU 模拟器虚拟网卡占位 IP */
     if (strncmp(ip, "169.254.", 8) == 0) return false;    /* 排除 APIPA 链路本地未获取到 DHCP 的临时 IP */
+
+    /* 校验单播有效性: 首字节不得为 0，且不得 >= 224 (组播/保留段) */
+    struct in_addr in;
+    if (inet_aton(ip, &in) == 0) return false;
+    uint32_t host_ip = ntohl(in.s_addr);
+    uint8_t first_byte = (host_ip >> 24) & 0xFF;
+    if (first_byte == 0 || first_byte >= 224) {
+        return false;
+    }
     return true;
 }
 
@@ -291,7 +302,7 @@ static int query_interface_ip(const char *ifname, char *ip_buf, size_t max_len)
     if (ioctl(sock, SIOCGIFADDR, &ifr) == 0) {
         struct sockaddr_in *sin = (struct sockaddr_in *)&ifr.ifr_addr;
         char *addr_str = inet_ntoa(sin->sin_addr);
-        if (addr_str && strcmp(addr_str, "0.0.0.0") != 0 && strcmp(addr_str, "127.0.0.1") != 0) {
+        if (addr_str && strcmp(addr_str, "0.0.0.0") != 0 && strcmp(addr_str, "127.0.0.1") != 0 && strcmp(addr_str, "255.255.255.255") != 0) {
             snprintf(ip_buf, max_len, "%s", addr_str);
             close(sock);
             return 0;
@@ -386,6 +397,19 @@ static void* net_link_watchdog_thread(void *arg)
                     LOG_I(TAG, "[Watchdog] 🎉 wlan0 链路已自愈恢复正常！");
                     link_down_count = 0;
                 }
+
+                /* 周期校验/自愈同步 IP 地址 (防止 DHCP 异步分配完成后应用层 IP 仍停留在旧状态) */
+                char check_ip[NET_MAX_IP_LEN] = {0};
+                if (query_interface_ip("wlan0", check_ip, sizeof(check_ip)) == 0 &&
+                    net_is_valid_sta_ip(check_ip)) {
+                    pthread_mutex_lock(&s_lock);
+                    if (strcmp(s_current_ip, check_ip) != 0) {
+                        LOG_I(TAG, "[Watchdog] 🔄 检测到物理 IP 变更/自愈: [%s] -> [%s]", s_current_ip, check_ip);
+                        snprintf(s_current_ip, sizeof(s_current_ip), "%s", check_ip);
+                        notify_state_changed_with_msg_unlocked("Wi-Fi 连接已就绪");
+                    }
+                    pthread_mutex_unlock(&s_lock);
+                }
             }
         } else if (cur_mode == NET_MODE_DISCONNECTED && !in_worker) {
             /* 2. 若当前为断开态，但底层重新恢复了 RUNNING 并且拿到了有效 IP，自动触发状态恢复 */
@@ -399,7 +423,13 @@ static void* net_link_watchdog_thread(void *arg)
                 snprintf(s_current_ip, sizeof(s_current_ip), "%s", check_ip);
                 LOG_I(TAG, "🎉 [Watchdog] Wi-Fi 重新自愈连通，物理 IP: [%s]", s_current_ip);
                 notify_state_changed_with_msg_unlocked("Wi-Fi 连接成功");
+                bool web_en = s_web_enabled;
                 pthread_mutex_unlock(&s_lock);
+
+                if (web_en) {
+                    phoenix_web_portal_start(80, NULL);
+                    LOG_I(TAG, "🌐 局域网 Web 伴侣已启动: http://%s/ (或 :8080)", check_ip);
+                }
             }
         }
     }
@@ -479,6 +509,9 @@ static void* sta_connect_worker_thread(void *arg)
     if (!associated) {
         LOG_W(TAG, "⚠️ [Worker] 物理 AP 关联超时(未握手成功)，跳过 DHCP 避免无谓长阻塞");
     } else {
+        /* AP 物理握手成功后预留 1 秒稳定延时，等待底层链路状态机同步与端口就绪，避免 DHCP 首次超时 */
+        sleep(1);
+
         pthread_mutex_lock(&s_lock);
         notify_state_changed_with_msg_unlocked("物理 AP 已关联，正在申请 DHCP IP 租约...");
         pthread_mutex_unlock(&s_lock);

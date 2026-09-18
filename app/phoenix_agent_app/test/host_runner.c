@@ -1438,6 +1438,26 @@ static void run_test_network_mgr(void)
 {
     printf("\n[TEST 23] Testing SoftAP Hotspot & Dual-Mode Network State Machine (TASK-03)...\n");
 
+    /* 0. Verify STA IP validity filter logic (rejection of broadcast, loopback, softap, multicast, reserved) */
+    assert(net_is_valid_sta_ip(NULL) == false);
+    assert(net_is_valid_sta_ip("") == false);
+    assert(net_is_valid_sta_ip("0.0.0.0") == false);
+    assert(net_is_valid_sta_ip("127.0.0.1") == false);
+    assert(net_is_valid_sta_ip("255.255.255.255") == false);
+    assert(net_is_valid_sta_ip("255.255.255.0") == false);
+    assert(net_is_valid_sta_ip("192.168.4.1") == false);
+    assert(net_is_valid_sta_ip("10.0.0.2") == false);
+    assert(net_is_valid_sta_ip("10.0.0.1") == false);
+    assert(net_is_valid_sta_ip("10.0.2.15") == false);
+    assert(net_is_valid_sta_ip("169.254.1.1") == false);
+    assert(net_is_valid_sta_ip("224.0.0.1") == false);
+    assert(net_is_valid_sta_ip("239.255.255.250") == false);
+    assert(net_is_valid_sta_ip("240.0.0.1") == false);
+    assert(net_is_valid_sta_ip("192.168.1.15") == true);
+    assert(net_is_valid_sta_ip("10.10.1.20") == true);
+    assert(net_is_valid_sta_ip("172.16.0.100") == true);
+    printf("  -> STA IP Validation & Broadcast/Multicast Rejection Filter PASSED!\n");
+
     /* 1. Register state callback and initialize */
     net_mgr_register_state_cb(on_test_net_state_changed, NULL);
     assert(net_mgr_init() == 0);
