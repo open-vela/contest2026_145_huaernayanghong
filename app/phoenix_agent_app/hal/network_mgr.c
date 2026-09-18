@@ -438,10 +438,12 @@ static void* sta_connect_worker_thread(void *arg)
     notify_state_changed_with_msg_unlocked("热点已关闭，正在关联 Wi-Fi...");
     pthread_mutex_unlock(&s_lock);
 
-    /* 2. 切换 STA 模式并执行快速空中扫描，填充驱动底层 scanned_queue 候选列表 */
+    /* 2. 关键修复：必须先激活 wlan0 物理接口为 UP 状态，再切换 STA 模式与触发空中扫描
+     * 否则底层 SIOCSIWSCAN 会报 -ENETDOWN (115 Network is down) 失败 */
+    system("ifconfig wlan0 up > /dev/null 2>&1");
     system("wapi mode wlan0 2 > /dev/null 2>&1");
     system("wapi scan wlan0 > /dev/null 2>&1");
-    usleep(800000);
+    usleep(500000);
 
     /* 3. 规范时序：必须先下发 PSK 加密秘钥 (CCMP+WPA2: 3 2)，再下发 ESSID 触发关联握手 */
     char cmd[256];
@@ -453,39 +455,54 @@ static void* sta_connect_worker_thread(void *arg)
     system(cmd);
     system("wapi power_save wlan0 off > /dev/null 2>&1");
     system("wapi save_config wlan0 > /dev/null 2>&1");
-    system("wapi reconnect wlan0 > /dev/null 2>&1");
+    /* 核心注意：此处绝不调用 wapi reconnect wlan0，因为 wapi essid ... 1 已经触发驱动 associate 请求，
+     * 调用 reconnect 会重置状态机打断 4-Way 握手 */
 
-    /* 等待 4 秒供无线网卡完成 AP 关联与信道对齐 */
-    sleep(4);
+    /* 4. 前置关联门控（Fast Link-Ready Gate）：
+     * 轮询检测无线网卡是否真正与物理 AP 完成关联握手（BSSID 非全 0），最长等待 6 秒。
+     * 若未关联成功（密码错误/超出覆盖范围），决不盲目调用阻塞数十秒的 renew wlan0！ */
+    bool associated = false;
+    for (int wait_i = 1; wait_i <= 12; wait_i++) {
+        usleep(500000); /* 每 500ms 探测一次 */
+        if (net_is_ap_associated("wlan0") && net_is_interface_running("wlan0")) {
+            associated = true;
+            LOG_I(TAG, "✅ [Worker] 芯片已成功关联至 AP，耗时约 %d ms", wait_i * 500);
+            break;
+        }
+    }
 
-    pthread_mutex_lock(&s_lock);
-    notify_state_changed_with_msg_unlocked("目标 Wi-Fi 已关联，正在申请 DHCP IP 租约...");
-    pthread_mutex_unlock(&s_lock);
-
-    /* 4. DHCP 租约重试获取 IP (最多 5 次) */
     char acquired_ip[NET_MAX_IP_LEN] = {0};
     bool connected = false;
 
-    /* 提升 WLAN 射频优先级，防止蓝牙共存仲裁丢弃 DHCP Discover 响应报文 */
-    system("wapi pta_prio wlan0 3 > /dev/null 2>&1");
-
-    for (int retry = 1; retry <= 5; retry++) {
-        char retry_msg[64];
-        snprintf(retry_msg, sizeof(retry_msg), "正在申请 DHCP IP 租约 (%d/5)...", retry);
+    if (!associated) {
+        LOG_W(TAG, "⚠️ [Worker] 物理 AP 关联超时(未握手成功)，跳过 DHCP 避免无谓长阻塞");
+    } else {
         pthread_mutex_lock(&s_lock);
-        notify_state_changed_with_msg_unlocked(retry_msg);
+        notify_state_changed_with_msg_unlocked("物理 AP 已关联，正在申请 DHCP IP 租约...");
         pthread_mutex_unlock(&s_lock);
 
-        LOG_I(TAG, "[Worker] 尝试申请 DHCP 租约 (第 %d/5 次)...", retry);
-        system("renew wlan0 > /dev/null 2>&1");
-        sleep(2);
+        /* 提升 WLAN 射频优先级，防止蓝牙共存仲裁丢弃 DHCP Discover 响应报文 */
+        system("wapi pta_prio wlan0 3 > /dev/null 2>&1");
 
-        if (query_interface_ip("wlan0", acquired_ip, sizeof(acquired_ip)) == 0 &&
-            net_is_valid_sta_ip(acquired_ip) &&
-            net_is_interface_running("wlan0") &&
-            net_is_ap_associated("wlan0")) {
-            connected = true;
-            break;
+        /* 5. 快速 DHCP 租约获取（因已完成 4-Way 握手，通常首发即可秒级获取） */
+        for (int retry = 1; retry <= 3; retry++) {
+            char retry_msg[64];
+            snprintf(retry_msg, sizeof(retry_msg), "正在申请 DHCP IP 租约 (%d/3)...", retry);
+            pthread_mutex_lock(&s_lock);
+            notify_state_changed_with_msg_unlocked(retry_msg);
+            pthread_mutex_unlock(&s_lock);
+
+            LOG_I(TAG, "[Worker] 尝试申请 DHCP 租约 (第 %d/3 次)...", retry);
+            system("renew wlan0 > /dev/null 2>&1");
+            usleep(1000000);
+
+            if (query_interface_ip("wlan0", acquired_ip, sizeof(acquired_ip)) == 0 &&
+                net_is_valid_sta_ip(acquired_ip) &&
+                net_is_interface_running("wlan0") &&
+                net_is_ap_associated("wlan0")) {
+                connected = true;
+                break;
+            }
         }
     }
 
@@ -509,7 +526,11 @@ static void* sta_connect_worker_thread(void *arg)
     } else {
         LOG_W(TAG, "⚠️ [Worker] Wi-Fi 握手或 DHCP 超时，通知界面并自动恢复 SoftAP 独立热点");
         s_mode = NET_MODE_DISCONNECTED;
-        notify_state_changed_with_msg_unlocked("DHCP 协商超时(未能获取有效 IP)，已恢复独立热点");
+        if (!associated) {
+            notify_state_changed_with_msg_unlocked("Wi-Fi 关联失败(无法连接AP或密码错误)，已恢复独立热点");
+        } else {
+            notify_state_changed_with_msg_unlocked("DHCP 协商超时(未能获取有效 IP)，已恢复独立热点");
+        }
         pthread_mutex_unlock(&s_lock);
 
         stop_link_watchdog();
