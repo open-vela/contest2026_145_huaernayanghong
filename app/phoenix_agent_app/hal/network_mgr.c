@@ -273,14 +273,13 @@ static bool net_is_ap_associated(const char *ifname)
     int sock = wapi_make_socket();
     if (sock < 0) return false;
 
-    struct ether_addr_sub ap;
-    memset(&ap, 0, sizeof(ap));
-    int ret = wapi_get_ap(sock, ifname, (void *)&ap);
+    uint8_t ap_mac[6] = {0};
+    int ret = wapi_get_ap(sock, ifname, (void *)ap_mac);
     close(sock);
 
     if (ret < 0) return false;
     static const uint8_t zero_mac[6] = {0};
-    return (memcmp(ap.ether_addr_octet, zero_mac, 6) != 0);
+    return (memcmp(ap_mac, zero_mac, 6) != 0);
 }
 
 /**
