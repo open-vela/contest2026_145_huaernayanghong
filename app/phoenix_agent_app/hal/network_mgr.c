@@ -270,25 +270,19 @@ static void* sta_connect_worker_thread(void *arg)
     notify_state_changed_with_msg_unlocked("热点已关闭，正在关联 Wi-Fi...");
     pthread_mutex_unlock(&s_lock);
 
-    /* 2. 原生 WAPI C API 激活网卡 STA 模式并配置目标 SSID */
-    int sock = wapi_make_socket();
-    if (sock >= 0) {
-        wapi_set_mode(sock, "wlan0", WAPI_MODE_MANAGED);
-        wapi_set_ifup(sock, "wlan0");
-        wapi_set_essid(sock, "wlan0", target_ssid, WAPI_ESSID_ON);
-        close(sock);
-        LOG_I(TAG, "⚡ [Worker] 已通过原生 WAPI C API 激活 STA 模式并配置目标 SSID: [%s]", target_ssid);
-    }
-
-    /* 3. 补全标准命令行指令序列 (关闭自适应与省电，保存并重连) */
-    char cmd[256];
-    snprintf(cmd, sizeof(cmd), "wapi essid wlan0 \"%s\" 1 > /dev/null 2>&1", target_ssid);
-    system(cmd);
+    /* 2. 切换 STA 模式并执行快速空中扫描，填充驱动底层 scanned_queue 候选列表 */
     system("wapi mode wlan0 2 > /dev/null 2>&1");
+    system("wapi scan wlan0 > /dev/null 2>&1");
+    usleep(800000);
+
+    /* 3. 规范时序：必须先下发 PSK 加密秘钥 (CCMP+WPA2: 3 2)，再下发 ESSID 触发关联握手 */
+    char cmd[256];
     if (target_psk[0] != '\0') {
         snprintf(cmd, sizeof(cmd), "wapi psk wlan0 \"%s\" 3 2 > /dev/null 2>&1", target_psk);
         system(cmd);
     }
+    snprintf(cmd, sizeof(cmd), "wapi essid wlan0 \"%s\" 1 > /dev/null 2>&1", target_ssid);
+    system(cmd);
     system("wapi power_save wlan0 off > /dev/null 2>&1");
     system("wapi save_config wlan0 > /dev/null 2>&1");
     system("wapi reconnect wlan0 > /dev/null 2>&1");
