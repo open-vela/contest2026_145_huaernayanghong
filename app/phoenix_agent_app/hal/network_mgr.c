@@ -270,18 +270,14 @@ static void* sta_connect_worker_thread(void *arg)
     notify_state_changed_with_msg_unlocked("热点已关闭，正在关联 Wi-Fi...");
     pthread_mutex_unlock(&s_lock);
 
-    /* 2. 原生 WAPI C API 下发 STA 连接序列 */
+    /* 2. 原生 WAPI C API 激活网卡 STA 模式并配置目标 SSID */
     int sock = wapi_make_socket();
     if (sock >= 0) {
         wapi_set_mode(sock, "wlan0", WAPI_MODE_MANAGED);
-        if (target_psk[0] != '\0') {
-            wpa_driver_wext_set_auth_param(sock, "wlan0", IW_AUTH_WPA_VERSION, IW_AUTH_WPA_VERSION_WPA2);
-            wpa_driver_wext_set_auth_param(sock, "wlan0", IW_AUTH_CIPHER_PAIRWISE, IW_AUTH_CIPHER_CCMP);
-            wpa_driver_wext_set_key_ext(sock, "wlan0", WPA_ALG_CCMP, target_psk, strlen(target_psk));
-        }
+        wapi_set_ifup(sock, "wlan0");
         wapi_set_essid(sock, "wlan0", target_ssid, WAPI_ESSID_ON);
         close(sock);
-        LOG_I(TAG, "⚡ [Worker] 已通过原生 WAPI C API 触发 STA 握手");
+        LOG_I(TAG, "⚡ [Worker] 已通过原生 WAPI C API 激活 STA 模式并配置目标 SSID: [%s]", target_ssid);
     }
 
     /* 3. 补全标准命令行指令序列 (关闭自适应与省电，保存并重连) */
@@ -791,7 +787,11 @@ static void mini_dhcpd_start(void)
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setstacksize(&attr, 8192);
-    pthread_create(&s_dhcp_tid, &attr, mini_dhcpd_thread, NULL);
+    pthread_t tid = 0;
+    if (pthread_create(&tid, &attr, mini_dhcpd_thread, NULL) == 0) {
+        pthread_detach(tid);
+        s_dhcp_tid = tid;
+    }
     pthread_attr_destroy(&attr);
 }
 
@@ -799,18 +799,20 @@ static void mini_dhcpd_stop(void)
 {
     if (!s_dhcp_running) return;
     s_dhcp_running = false;
-    if (s_dhcp_sock >= 0) {
-        close(s_dhcp_sock);
-        s_dhcp_sock = -1;
+
+    /* 发送本地 UDP 唤醒报文打破 poll() 阻塞，促使 mini_dhcpd_thread 立即优雅退出 */
+    int wake_sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (wake_sock >= 0) {
+        struct sockaddr_in to;
+        memset(&to, 0, sizeof(to));
+        to.sin_family = AF_INET;
+        to.sin_port = htons(53);
+        to.sin_addr.s_addr = inet_addr("127.0.0.1");
+        char dummy = 0;
+        sendto(wake_sock, &dummy, 1, 0, (struct sockaddr *)&to, sizeof(to));
+        close(wake_sock);
     }
-    if (s_dns_sock >= 0) {
-        close(s_dns_sock);
-        s_dns_sock = -1;
-    }
-    if (s_dhcp_tid != 0) {
-        pthread_join(s_dhcp_tid, NULL);
-        s_dhcp_tid = 0;
-    }
+    s_dhcp_tid = 0;
 }
 #endif
 
