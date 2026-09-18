@@ -19,7 +19,7 @@ extern "C" {
 #define NET_MAX_PSK_LEN  64
 #define NET_MAX_IP_LEN   32
 
-#define NET_DEFAULT_SOFTAP_SSID "Gemini-Agent-S1"
+#define NET_DEFAULT_SOFTAP_SSID "Gemini-Agent-Setup"
 #define NET_DEFAULT_SOFTAP_IP   "192.168.4.1"
 
 /**

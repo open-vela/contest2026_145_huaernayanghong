@@ -406,7 +406,16 @@ static void* sta_connect_worker_thread(void *arg)
     char acquired_ip[NET_MAX_IP_LEN] = {0};
     bool connected = false;
 
+    /* 提升 WLAN 射频优先级，防止蓝牙共存仲裁丢弃 DHCP Discover 响应报文 */
+    system("wapi pta_prio wlan0 3 > /dev/null 2>&1");
+
     for (int retry = 1; retry <= 5; retry++) {
+        char retry_msg[64];
+        snprintf(retry_msg, sizeof(retry_msg), "正在申请 DHCP IP 租约 (%d/5)...", retry);
+        pthread_mutex_lock(&s_lock);
+        notify_state_changed_with_msg_unlocked(retry_msg);
+        pthread_mutex_unlock(&s_lock);
+
         LOG_I(TAG, "[Worker] 尝试申请 DHCP 租约 (第 %d/5 次)...", retry);
         system("renew wlan0 > /dev/null 2>&1");
         sleep(2);
@@ -439,11 +448,11 @@ static void* sta_connect_worker_thread(void *arg)
     } else {
         LOG_W(TAG, "⚠️ [Worker] Wi-Fi 握手或 DHCP 超时，通知界面并自动恢复 SoftAP 独立热点");
         s_mode = NET_MODE_DISCONNECTED;
-        notify_state_changed_with_msg_unlocked("Wi-Fi 连网失败(请核对密码与信号)，已恢复独立热点");
+        notify_state_changed_with_msg_unlocked("DHCP 协商超时(未能获取有效 IP)，已恢复独立热点");
         pthread_mutex_unlock(&s_lock);
 
-        /* 自动恢复独立热点供用户继续配网 */
-        net_mgr_start_softap(NULL);
+        /* 自动恢复统一命名的独立热点供用户继续配网 */
+        net_mgr_start_softap(NET_DEFAULT_SOFTAP_SSID);
     }
 
     return NULL;
