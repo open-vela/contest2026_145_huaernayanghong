@@ -417,9 +417,14 @@ int net_mgr_init(void)
             return 0;
         }
     } else {
-        /* 本地无凭证，清除 NuttX netinit 默认赋给 wlan0 的 10.0.0.2 伪静态 IP */
-        system("ifconfig wlan0 0.0.0.0 down > /dev/null 2>&1");
-        system("ifconfig wlan0 up > /dev/null 2>&1");
+        /* 本地无凭证，清除 NuttX netinit 默认赋给 wlan0 的 10.0.0.2 伪静态 IP (微秒级原生调用，避免阻塞) */
+        int sock = wapi_make_socket();
+        if (sock >= 0) {
+            struct in_addr zero_ip;
+            zero_ip.s_addr = 0;
+            wapi_set_ip(sock, "wlan0", &zero_ip);
+            close(sock);
+        }
     }
 #endif
 
@@ -577,7 +582,7 @@ static void* mini_dhcpd_thread(void *arg)
 #if defined(SO_BINDTODEVICE)
     struct ifreq ifr;
     memset(&ifr, 0, sizeof(ifr));
-    strncpy(ifr.ifr_name, "wlan0", IFNAMSIZ - 1);
+    strncpy(ifr.ifr_name, "wlan1", IFNAMSIZ - 1);
     setsockopt(s_dhcp_sock, SOL_SOCKET, SO_BINDTODEVICE, (char *)&ifr, sizeof(ifr));
 #endif
 
@@ -783,7 +788,11 @@ static void mini_dhcpd_start(void)
 {
     if (s_dhcp_running) return;
     s_dhcp_running = true;
-    pthread_create(&s_dhcp_tid, NULL, mini_dhcpd_thread, NULL);
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setstacksize(&attr, 8192);
+    pthread_create(&s_dhcp_tid, &attr, mini_dhcpd_thread, NULL);
+    pthread_attr_destroy(&attr);
 }
 
 static void mini_dhcpd_stop(void)
@@ -807,18 +816,18 @@ static void mini_dhcpd_stop(void)
 
 int net_mgr_stop_softap(void)
 {
-    LOG_I(TAG, "🛑 关闭 SoftAP 独立热点与内嵌 DHCP 服务...");
+    LOG_I(TAG, "🛑 关闭 SoftAP 独立热点 (wlan1) 与内嵌 DHCP 服务...");
 #if !defined(HOST_TEST_RUNNER)
     mini_dhcpd_stop();
 
     int sock = wapi_make_socket();
     if (sock >= 0) {
-        wapi_set_essid(sock, "wlan0", "", WAPI_ESSID_OFF);
-        wapi_set_ifdown(sock, "wlan0");
+        wapi_set_essid(sock, "wlan1", "", WAPI_ESSID_OFF);
+        wapi_set_ifdown(sock, "wlan1");
         close(sock);
     } else {
-        system("wapi essid wlan0 \"\" 0 > /dev/null 2>&1");
-        system("ifconfig wlan0 down > /dev/null 2>&1");
+        system("wapi essid wlan1 \"\" 0 > /dev/null 2>&1");
+        system("ifconfig wlan1 down > /dev/null 2>&1");
     }
 #endif
     return 0;
@@ -864,64 +873,43 @@ static void* softap_worker_thread(void *arg)
     char ssid[NET_MAX_SSID_LEN];
     pthread_mutex_lock(&s_lock);
     strncpy(ssid, s_current_ssid, sizeof(ssid) - 1);
+    ssid[sizeof(ssid) - 1] = '\0';
     pthread_mutex_unlock(&s_lock);
 
-    LOG_I(TAG, "[SoftAP:Worker] 正在后台配置 SoftAP 物理网卡与射频 (SSID: %s)...", ssid);
+    LOG_I(TAG, "[SoftAP:Worker] 正在后台配置 wlan1 SoftAP 物理网卡与射频 (SSID: %s)...", ssid);
 
-    /* 1. 先静默 wlan0 客户端并断开连接，避免与 SoftAP 争抢单天线物理射频 */
-    system("wapi disconnect wlan0 > /dev/null 2>&1");
-    system("wapi private wlan0 adaptivity 0 > /dev/null 2>&1");
-    system("wapi power_save wlan0 off > /dev/null 2>&1");
-
+    /* 1. 先关闭旧的热点 (wlan1) 并断开 wlan0 连接，避免与 SoftAP 争抢单天线物理射频 */
     net_mgr_stop_softap();
-    usleep(100000);
 
-    /* 2. 原生 WAPI C API 配置 wlan0 Master 与固定 2.4GHz 信道 6 (2437MHz) */
     int sock = wapi_make_socket();
     if (sock >= 0) {
-        /* 设置 Master 模式 (AP) */
-        wapi_set_mode(sock, "wlan0", WAPI_MODE_MASTER);
-        usleep(50000);
+        /* STA 模式断开连接以让出射频天线 */
+        wpa_driver_wext_disconnect(sock, "wlan0");
 
-        /* 核心关键点 1: 显式锁定 2.4GHz 黄金信道 Channel 6 (2437MHz)，杜绝信道非法为 0 */
-        wapi_set_freq(sock, "wlan0", 2437, 1);
-        usleep(50000);
-
-        /* 配置物理网卡 IP 192.168.4.1 与掩码 255.255.255.0 并激活接口 */
+        /* 2. 原生 WAPI C API 配置 wlan1 Master 与固定 IP 192.168.4.1 */
         struct in_addr ip, mask;
         inet_aton("192.168.4.1", &ip);
         inet_aton("255.255.255.0", &mask);
-        wapi_set_ip(sock, "wlan0", &ip);
-        wapi_set_netmask(sock, "wlan0", &mask);
-        wapi_set_ifup(sock, "wlan0");
-        usleep(50000);
-
-        /* 核心关键点 2: 彻底清除 wlan0 历史残留加密算法，确立纯净 OPEN 无密码模式 */
-        wpa_driver_wext_set_auth_param(sock, "wlan0", 0, 0);
-
-        /* 设置广播 SSID 并启动射频发射 */
-        wapi_set_essid(sock, "wlan0", ssid, WAPI_ESSID_ON);
+        wapi_set_ip(sock, "wlan1", &ip);
+        wapi_set_netmask(sock, "wlan1", &mask);
+        wapi_set_ifup(sock, "wlan1");
+        wapi_set_mode(sock, "wlan1", WAPI_MODE_MASTER);
+        wapi_set_essid(sock, "wlan1", ssid, WAPI_ESSID_ON);
         close(sock);
-        LOG_I(TAG, "⚡ [Native WAPI] SoftAP (SSID: %s, Ch: 6, IP: 192.168.4.1, Mode: OPEN) 射频已就绪", ssid);
+        LOG_I(TAG, "⚡ [Native WAPI] SoftAP wlan1 (SSID: %s, IP: 192.168.4.1, Mode: OPEN) 射频已就绪", ssid);
     }
 
-    /* 3. 补充标准命令行确保全志底层 Realtek 驱动属性与路由生效 */
-    system("ifconfig wlan0 192.168.4.1 netmask 255.255.255.0 up > /dev/null 2>&1");
-    system("wapi mode wlan0 3 > /dev/null 2>&1");
-    system("wapi freq wlan0 2437 1 > /dev/null 2>&1");
-    system("wapi psk wlan0 \"\" 0 0 > /dev/null 2>&1");
-    system("wapi private wlan0 adaptivity 0 > /dev/null 2>&1");
-    system("wapi power_save wlan0 off > /dev/null 2>&1");
+    /* 3. 补充标准命令行确保全志底层 Realtek wlan1 属性与路由生效 */
+    system("ifconfig wlan1 192.168.4.1 netmask 255.255.255.0 up > /dev/null 2>&1");
+    system("wapi mode wlan1 3 > /dev/null 2>&1");
     char cmd[256];
-    snprintf(cmd, sizeof(cmd), "wapi essid wlan0 \"%s\" 1 > /dev/null 2>&1", ssid);
+    snprintf(cmd, sizeof(cmd), "wapi essid wlan1 \"%s\" 1 > /dev/null 2>&1", ssid);
     system(cmd);
 
-    /* 4. 完成 wlan0 192.168.4.1 配置后立即热重载 Web 服务，确保监听套接字新鲜有效 */
-    phoenix_web_portal_stop();
-    phoenix_web_portal_start(80, NULL);
+    /* 4. 启动内嵌 MiniDHCP+DNS 服务 (Web 服务在开机时已常驻监听 0.0.0.0:80，无需重启) */
     mini_dhcpd_start();
 
-    LOG_I(TAG, "📡 [SoftAP:Worker] 热点广播、内嵌 MiniDHCP+DNS 与 Web 服务热重载已就绪");
+    LOG_I(TAG, "📡 [SoftAP:Worker] 热点广播与内嵌 MiniDHCP 服务已就绪");
     return NULL;
 }
 #endif
@@ -941,7 +929,11 @@ int net_mgr_start_softap(const char *custom_ssid)
 
 #if !defined(HOST_TEST_RUNNER)
     pthread_t softap_tid;
-    pthread_create(&softap_tid, NULL, softap_worker_thread, NULL);
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setstacksize(&attr, 16384);
+    pthread_create(&softap_tid, &attr, softap_worker_thread, NULL);
+    pthread_attr_destroy(&attr);
     pthread_detach(softap_tid);
 #else
     phoenix_web_portal_start(80, NULL);
@@ -1002,7 +994,11 @@ int net_mgr_connect_sta(const char *ssid, const char *psk)
         strncpy(param->ssid, s_current_ssid, sizeof(param->ssid) - 1);
         if (psk) strncpy(param->psk, psk, sizeof(param->psk) - 1);
         else param->psk[0] = '\0';
-        pthread_create(&s_connect_tid, NULL, sta_connect_worker_thread, param);
+        pthread_attr_t attr;
+        pthread_attr_init(&attr);
+        pthread_attr_setstacksize(&attr, 16384);
+        pthread_create(&s_connect_tid, &attr, sta_connect_worker_thread, param);
+        pthread_attr_destroy(&attr);
         pthread_detach(s_connect_tid);
     } else {
         s_worker_running = false;
