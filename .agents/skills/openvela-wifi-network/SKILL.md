@@ -179,3 +179,9 @@ close(sock);
    - 全志无线芯片在部分弱信号场景自适应算法不稳定，可通过 `wapi private wlan0 adaptivity 0` 关闭自适应模式，提升 TCP/WebSocket 长连接质量。
 5. **断电重启后 Wi-Fi 配置丢失**：
    - 确保配置文件写入路径为 `/data`（掉电不丢失的只读/读写挂载区），不可保存在临时目录 `/tmp` 或 `/var`。写入完成后建议执行 `sync` 刷盘。
+6. **显示有 IP 却 Ping 不通 / 报 ENETUNREACH 101（假连接现象）**：
+   - NuttX 网络栈在射频断开时不会清除 IP，导致网卡处于 `at UP` 但缺少 `IFF_RUNNING`，BSSID 全 0。判定连网成功时必须实施三重强校验：`net_is_valid_sta_ip` + `(flags & IFF_RUNNING)` + `wapi_get_ap(非全0)`。
+7. **连接时驱动报 `_FAIL(candidate == NULL)`**：
+   - 从 SoftAP 切换至 STA 模式后，必须先执行一次快速 `wapi scan wlan0`（耗时约 800ms）以填充驱动底层 `scanned_queue`，且必须先下发 `wapi psk` 硬件秘钥，再下发 `wapi essid` 触发关联。
+8. **单天线蓝牙与 Wi-Fi 共存脱网自愈（Link Watchdog）**：
+   - RTL8723FS 为单天线二合一芯片，建议在应用层常驻轻量级 Link Watchdog 守护线程，检测到链路非 RUNNING 时自动触发 `wapi reconnect wlan0` 静默自愈。

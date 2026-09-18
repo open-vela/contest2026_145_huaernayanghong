@@ -109,6 +109,7 @@ int  wapi_scan_init(int sock, const char *ifname, const char *essid);
 int  wapi_scan_stat(int sock, const char *ifname);
 int  wapi_scan_coll(int sock, const char *ifname, struct wapi_list_s *list);
 void wapi_scan_coll_free(struct wapi_list_s *list);
+int  wapi_get_ap(int sock, const char *ifname, void *ap);
 #  endif
 #endif
 
@@ -127,6 +128,8 @@ static pthread_mutex_t  s_lock = PTHREAD_MUTEX_INITIALIZER;
 static bool             s_initialized = false;
 #if !defined(HOST_TEST_RUNNER)
 static pthread_t        s_connect_tid = 0;
+static pthread_t        s_watchdog_tid = 0;
+static volatile bool    s_watchdog_running = false;
 #endif
 static bool             s_worker_running = false;
 
@@ -240,6 +243,111 @@ static int query_interface_ip(const char *ifname, char *ip_buf, size_t max_len)
     return -1;
 }
 
+/**
+ * @brief 校验底层网络接口是否处于 IFF_RUNNING 活跃态 (Link Up / Carrier Active)
+ */
+static bool net_is_interface_running(const char *ifname)
+{
+    if (!ifname || !ifname[0]) return false;
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) return false;
+
+    struct ifreq ifr;
+    memset(&ifr, 0, sizeof(ifr));
+    strncpy(ifr.ifr_name, ifname, IFNAMSIZ - 1);
+
+    bool running = false;
+    if (ioctl(sock, SIOCGIFFLAGS, &ifr) == 0) {
+        running = ((ifr.ifr_flags & IFF_RUNNING) != 0);
+    }
+    close(sock);
+    return running;
+}
+
+/**
+ * @brief 校验底层网卡是否已真正关联到物理 AP (BSSID 非全 0)
+ */
+static bool net_is_ap_associated(const char *ifname)
+{
+    if (!ifname || !ifname[0]) return false;
+    int sock = wapi_make_socket();
+    if (sock < 0) return false;
+
+    struct ether_addr_sub ap;
+    memset(&ap, 0, sizeof(ap));
+    int ret = wapi_get_ap(sock, ifname, (void *)&ap);
+    close(sock);
+
+    if (ret < 0) return false;
+    static const uint8_t zero_mac[6] = {0};
+    return (memcmp(ap.ether_addr_octet, zero_mac, 6) != 0);
+}
+
+/**
+ * @brief 物理链路掉线看门狗守护线程 (Link Watchdog)
+ * 周期性检测 wlan0 的 IFF_RUNNING 与 BSSID 状态，掉线时自动触发静默重连自愈
+ */
+static void* net_link_watchdog_thread(void *arg)
+{
+    (void)arg;
+    int link_down_count = 0;
+
+    while (s_watchdog_running) {
+        sleep(5);
+        if (!s_watchdog_running) break;
+
+        pthread_mutex_lock(&s_lock);
+        net_mode_t cur_mode = s_mode;
+        bool in_worker = s_worker_running;
+        pthread_mutex_unlock(&s_lock);
+
+        /* 1. 仅在 STA_CONNECTED 且无配网 Worker 运行中时监控物理链路 */
+        if (cur_mode == NET_MODE_STA_CONNECTED && !in_worker) {
+            bool running = net_is_interface_running("wlan0");
+            bool ap_ok   = net_is_ap_associated("wlan0");
+
+            if (!running || !ap_ok) {
+                link_down_count++;
+                LOG_W(TAG, "[Watchdog] ⚠️ 检测到 wlan0 链路脱网 (Running=%d, AP=%d, 脱网计数 %d/3)...",
+                      running, ap_ok, link_down_count);
+
+                /* 立即触发底层静默快速重连自愈 */
+                system("wapi reconnect wlan0 > /dev/null 2>&1");
+
+                if (link_down_count >= 3) {
+                    LOG_E(TAG, "[Watchdog] ❌ 链路连续 3 次检测脱网，切换为断开态并通知界面...");
+                    pthread_mutex_lock(&s_lock);
+                    s_mode = NET_MODE_DISCONNECTED;
+                    s_current_ip[0] = '\0';
+                    notify_state_changed_with_msg_unlocked("Wi-Fi 意外断开，正在尝试重连...");
+                    pthread_mutex_unlock(&s_lock);
+                    link_down_count = 0;
+                }
+            } else {
+                if (link_down_count > 0) {
+                    LOG_I(TAG, "[Watchdog] 🎉 wlan0 链路已自愈恢复正常！");
+                    link_down_count = 0;
+                }
+            }
+        } else if (cur_mode == NET_MODE_DISCONNECTED && !in_worker) {
+            /* 2. 若当前为断开态，但底层重新恢复了 RUNNING 并且拿到了有效 IP，自动触发状态恢复 */
+            char check_ip[NET_MAX_IP_LEN] = {0};
+            if (query_interface_ip("wlan0", check_ip, sizeof(check_ip)) == 0 &&
+                net_is_valid_sta_ip(check_ip) &&
+                net_is_interface_running("wlan0") &&
+                net_is_ap_associated("wlan0")) {
+                pthread_mutex_lock(&s_lock);
+                s_mode = NET_MODE_STA_CONNECTED;
+                snprintf(s_current_ip, sizeof(s_current_ip), "%s", check_ip);
+                LOG_I(TAG, "🎉 [Watchdog] Wi-Fi 重新自愈连通，物理 IP: [%s]", s_current_ip);
+                notify_state_changed_with_msg_unlocked("Wi-Fi 连接成功");
+                pthread_mutex_unlock(&s_lock);
+            }
+        }
+    }
+    return NULL;
+}
+
 typedef struct {
     char ssid[NET_MAX_SSID_LEN];
     char psk[NET_MAX_PSK_LEN];
@@ -304,7 +412,9 @@ static void* sta_connect_worker_thread(void *arg)
         sleep(2);
 
         if (query_interface_ip("wlan0", acquired_ip, sizeof(acquired_ip)) == 0 &&
-            net_is_valid_sta_ip(acquired_ip)) {
+            net_is_valid_sta_ip(acquired_ip) &&
+            net_is_interface_running("wlan0") &&
+            net_is_ap_associated("wlan0")) {
             connected = true;
             break;
         }
@@ -337,6 +447,20 @@ static void* sta_connect_worker_thread(void *arg)
     }
 
     return NULL;
+}
+
+static void start_link_watchdog(void)
+{
+    if (!s_watchdog_running) {
+        s_watchdog_running = true;
+        pthread_attr_t w_attr;
+        pthread_attr_init(&w_attr);
+        pthread_attr_setstacksize(&w_attr, 8192);
+        if (pthread_create(&s_watchdog_tid, &w_attr, net_link_watchdog_thread, NULL) == 0) {
+            pthread_detach(s_watchdog_tid);
+        }
+        pthread_attr_destroy(&w_attr);
+    }
 }
 #endif
 
@@ -390,7 +514,9 @@ int net_mgr_init(void)
     if (saved_ssid[0] != '\0') {
         char existing_ip[NET_MAX_IP_LEN] = {0};
         if (query_interface_ip("wlan0", existing_ip, sizeof(existing_ip)) == 0 &&
-            net_is_valid_sta_ip(existing_ip)) {
+            net_is_valid_sta_ip(existing_ip) &&
+            net_is_interface_running("wlan0") &&
+            net_is_ap_associated("wlan0")) {
             s_mode = NET_MODE_STA_CONNECTED;
             snprintf(s_current_ip, sizeof(s_current_ip), "%s", existing_ip);
             snprintf(s_current_ssid, sizeof(s_current_ssid), "%s", saved_ssid);
@@ -404,6 +530,7 @@ int net_mgr_init(void)
                 phoenix_web_portal_start(80, NULL);
                 LOG_I(TAG, "🌐 局域网 Web 伴侣已启动: http://%s/ (或 :8080)", existing_ip);
             }
+            start_link_watchdog();
             return 0;
         }
     } else {
@@ -416,6 +543,7 @@ int net_mgr_init(void)
             close(sock);
         }
     }
+    start_link_watchdog();
 #endif
 
     pthread_mutex_unlock(&s_lock);
@@ -436,6 +564,10 @@ void net_mgr_deinit(void)
         pthread_mutex_unlock(&s_lock);
         return;
     }
+
+#if !defined(HOST_TEST_RUNNER)
+    s_watchdog_running = false;
+#endif
 
     s_mode = NET_MODE_DISCONNECTED;
     s_current_ip[0] = '\0';
