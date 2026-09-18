@@ -147,9 +147,10 @@ static char             s_last_notified_ip[NET_MAX_IP_LEN] = {0};
 static char             s_last_notified_ssid[NET_MAX_SSID_LEN] = {0};
 static char             s_last_notified_msg[128] = {0};
 
-/* 全局空中 Wi-Fi 预扫描缓存 (Pre-Scan Cache) 与单天线 SoftAP 射频防打断保护 */
-#define NET_SCAN_CACHE_MAX_APS 32
-#define NET_SCAN_CACHE_TTL_SEC 600 /* 缓存有效期 10 分钟 */
+/* 全局空中 Wi-Fi 扫描缓存与 SoftAP 射频防抖保护机制 */
+#define NET_SCAN_CACHE_MAX_APS          32
+#define NET_SCAN_CACHE_TTL_SEC          30  /* 扫描缓存默认有效期 30 秒 (保证热点列表新鲜度) */
+#define NET_SOFTAP_SCAN_COOLDOWN_SEC    6   /* SoftAP 热点模式下两次硬件扫描最小冷却间隔 (防抖流控) */
 
 static net_wifi_ap_info_t s_scan_cache[NET_SCAN_CACHE_MAX_APS];
 static size_t             s_scan_cache_count = 0;
@@ -1535,13 +1536,13 @@ int net_mgr_prescan_wifi(void)
 {
     pthread_mutex_lock(&s_scan_lock);
 
-    /* 检查当前是否在 SoftAP 活跃状态，若已在 SoftAP 状态，切勿强制进行跳频预扫描 */
+    /* 检查当前是否在 SoftAP 活跃状态 */
     pthread_mutex_lock(&s_lock);
     net_mode_t cur_mode = s_mode;
     pthread_mutex_unlock(&s_lock);
 
-    if (cur_mode == NET_MODE_SOFTAP_CONFIG) {
-        LOG_W(TAG, "⚠️ SoftAP 独立热点已在广播中，为避免破坏 Beacon 与手机连接，跳过硬件全信道预扫描");
+    if (cur_mode == NET_MODE_SOFTAP_CONFIG && s_scan_cache_count > 0) {
+        LOG_I(TAG, "⚡ SoftAP 活跃中且已有可用预扫描缓存 (%zu 个)，直接复用", s_scan_cache_count);
         int count = (int)s_scan_cache_count;
         pthread_mutex_unlock(&s_scan_lock);
         return count;
@@ -1573,44 +1574,54 @@ int net_mgr_scan_wifi(net_wifi_ap_info_t *aps_out, size_t max_count)
     pthread_mutex_unlock(&s_lock);
 
     pthread_mutex_lock(&s_scan_lock);
-
-    /* 核心保护 1: 在 SoftAP 独立热点模式下，绝对禁止全信道跳频扫描！直接返回内存预扫描缓存 */
-    if (cur_mode == NET_MODE_SOFTAP_CONFIG) {
-        if (s_scan_cache_count > 0) {
-            size_t copy_cnt = (s_scan_cache_count < max_count) ? s_scan_cache_count : max_count;
-            memcpy(aps_out, s_scan_cache, sizeof(net_wifi_ap_info_t) * copy_cnt);
-            pthread_mutex_unlock(&s_scan_lock);
-            LOG_I(TAG, "⚡ [SoftAP保护] 命中内存预扫描缓存，极速返回 %zu 个周边热点 (零射频冲突，手机不掉线)", copy_cnt);
-            return (int)copy_cnt;
-        }
-
-        /* 若特殊情况下缓存尚未填充，且在 SoftAP 活跃中，切勿粗暴跳频扫描导致脱网掉线 */
-        LOG_W(TAG, "⚠️ [SoftAP保护] 当前处于 SoftAP 热点模式且预扫描缓存为空，拒绝全信道跳频扫描以保护热点连接");
-        pthread_mutex_unlock(&s_scan_lock);
-        return 0;
-    }
-
-    /* 核心逻辑 2: 在非 SoftAP 模式下 (纯 STA / 未联网)，检查缓存是否在 TTL 内有效 */
     time_t now = time(NULL);
+
+    /* 1. 若已有缓存，且在缓存 TTL 内，极速返回缓存 (秒级响应，零射频开销) */
     if (s_scan_cache_count > 0 && (now - s_scan_cache_time) < NET_SCAN_CACHE_TTL_SEC) {
         size_t copy_cnt = (s_scan_cache_count < max_count) ? s_scan_cache_count : max_count;
         memcpy(aps_out, s_scan_cache, sizeof(net_wifi_ap_info_t) * copy_cnt);
         pthread_mutex_unlock(&s_scan_lock);
-        LOG_I(TAG, "⚡ 命中有效扫描缓存 (TTL内)，直接返回 %zu 个热点", copy_cnt);
+        LOG_I(TAG, "⚡ 命中有效扫描缓存 (%ld 秒前更新)，极速返回 %zu 个周边热点",
+              (long)(now - s_scan_cache_time), copy_cnt);
         return (int)copy_cnt;
     }
 
-    /* 核心逻辑 3: 缓存失效且处于纯 STA 状态，安全执行物理扫描并刷新缓存 */
+    /* 2. SoftAP 模式防抖保护：若在最小冷却时间内，复用旧缓存，避免短时间频繁跳频中断手机热点连接 */
+    if (cur_mode == NET_MODE_SOFTAP_CONFIG && s_scan_cache_count > 0 &&
+        (now - s_scan_cache_time) < NET_SOFTAP_SCAN_COOLDOWN_SEC) {
+        size_t copy_cnt = (s_scan_cache_count < max_count) ? s_scan_cache_count : max_count;
+        memcpy(aps_out, s_scan_cache, sizeof(net_wifi_ap_info_t) * copy_cnt);
+        pthread_mutex_unlock(&s_scan_lock);
+        LOG_I(TAG, "🛡️ [SoftAP防抖保护] 触发扫描冷却流控 (%ld/%ds)，复用缓存返回 %zu 个热点",
+              (long)(now - s_scan_cache_time), NET_SOFTAP_SCAN_COOLDOWN_SEC, copy_cnt);
+        return (int)copy_cnt;
+    }
+
+    /* 3. 执行硬件物理扫描 (实测 RTL8723FS Buddy Adapter 支持在 SoftAP 活跃状态下跳频抓包并自愈恢复 Beacon) */
+    if (cur_mode == NET_MODE_SOFTAP_CONFIG) {
+        LOG_I(TAG, "📡 [SoftAP并发扫描] 执行空中跳频主动探针扫描 (驱动自动维护 Beacon，耗时约3.5s)...");
+    } else {
+        LOG_I(TAG, "📡 正在执行空中 Wi-Fi 硬件扫描...");
+    }
+
     net_wifi_ap_info_t temp_aps[NET_SCAN_CACHE_MAX_APS];
     int count = net_mgr_do_hardware_scan_unlocked(temp_aps, NET_SCAN_CACHE_MAX_APS);
     if (count > 0) {
         s_scan_cache_count = (size_t)count;
         memcpy(s_scan_cache, temp_aps, sizeof(net_wifi_ap_info_t) * s_scan_cache_count);
-        s_scan_cache_time = now;
+        s_scan_cache_time = time(NULL);
 
         size_t copy_cnt = (s_scan_cache_count < max_count) ? s_scan_cache_count : max_count;
         memcpy(aps_out, s_scan_cache, sizeof(net_wifi_ap_info_t) * copy_cnt);
         pthread_mutex_unlock(&s_scan_lock);
+        LOG_I(TAG, "✅ 物理扫描成功完成，已刷新全局缓存 (%zu 个热点)", s_scan_cache_count);
+        return (int)copy_cnt;
+    } else if (s_scan_cache_count > 0) {
+        /* 若偶发物理扫描未抓到信号，降级返回历史缓存，避免前端列表空白 */
+        size_t copy_cnt = (s_scan_cache_count < max_count) ? s_scan_cache_count : max_count;
+        memcpy(aps_out, s_scan_cache, sizeof(net_wifi_ap_info_t) * copy_cnt);
+        pthread_mutex_unlock(&s_scan_lock);
+        LOG_W(TAG, "⚠️ 本次硬件扫描未捕获信号，降级返回上一轮缓存 (%zu 个热点)", copy_cnt);
         return (int)copy_cnt;
     }
 
