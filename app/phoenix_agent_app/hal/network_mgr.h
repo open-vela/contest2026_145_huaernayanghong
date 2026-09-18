@@ -79,6 +79,18 @@ int net_mgr_start_softap(const char *custom_ssid);
 int net_mgr_stop_softap(void);
 
 /**
+ * @brief 在 BLE 配网握手期间挂起 SoftAP 射频广播，避免单天线同频干扰 (Coex 仲裁)
+ * @return 0 成功
+ */
+int net_mgr_suspend_softap(void);
+
+/**
+ * @brief 当 BLE 配网中断或需要热点备用时恢复 SoftAP 热点广播
+ * @return 0 成功
+ */
+int net_mgr_resume_softap(void);
+
+/**
  * @brief 连接指定 Wi-Fi 路由热点 (STA 模式)
  * @param ssid Wi-Fi 名称
  * @param psk 密码 (可为空)
@@ -96,6 +108,14 @@ void net_mgr_disconnect(void);
  * @return 0 成功
  */
 int net_mgr_reset_to_softap(void);
+
+/**
+ * @brief 校验 IP 是否为真实有效的路由器分配 STA 局域网 IP
+ *        (自动过滤 0.0.0.0, 127.0.0.1, 192.168.4.1 热点以及内核默认静态占位 10.0.0.2, 10.0.2.15 等)
+ * @param ip IP 字符串
+ * @return true 真实有效, false 属于占位/未联网/热点网段
+ */
+bool net_is_valid_sta_ip(const char *ip);
 
 /**
  * @brief 获取当前网络模式

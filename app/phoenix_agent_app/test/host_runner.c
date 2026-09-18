@@ -1976,6 +1976,98 @@ static void run_test_log_mgr_persistence_and_multichannel(void)
     printf("  -> Multi-channel Persistent FileLog & Flash Blackbox PASSED!\n");
 }
 
+/* ---- 29. Architecture Evolution & Subsystem Hardening Test ---- */
+static int s_reentrant_cb_invoked = 0;
+static void on_test_reentrant_cb(const phoenix_event_data_t *evt, void *user_data)
+{
+    (void)evt;
+    (void)user_data;
+    s_reentrant_cb_invoked++;
+    /* 验证快照派发安全：在回调执行期间进行 unsubscribe 不会导致死锁或崩溃 */
+    phoenix_event_unsubscribe(PHOENIX_EVT_STATE_CHANGED, on_test_reentrant_cb, NULL);
+}
+
+static void run_test_architecture_evolution(void)
+{
+    printf("\n[TEST 29] Testing Architecture Evolution (Thread-Safe EventBus, Two-Tier Memory, Coex Arbiter & Dynamic Cartridge)...\n");
+
+    /* 1. Thread-Safe EventBus Snapshot & Self-Unsubscribe Safety */
+    s_reentrant_cb_invoked = 0;
+    phoenix_event_bus_init();
+    phoenix_event_subscribe(PHOENIX_EVT_STATE_CHANGED, on_test_reentrant_cb, NULL);
+
+    phoenix_event_data_t evt;
+    memset(&evt, 0, sizeof(evt));
+    evt.type = PHOENIX_EVT_STATE_CHANGED;
+    phoenix_event_publish(&evt);
+    assert(s_reentrant_cb_invoked == 1);
+
+    /* Second publish should not invoke the unsubscribed callback */
+    phoenix_event_publish(&evt);
+    assert(s_reentrant_cb_invoked == 1);
+    phoenix_event_bus_deinit();
+    printf("  -> Thread-safe EventBus & Re-entrant Snapshot Dispatch PASSED\n");
+
+    /* 2. Two-Tier Memory & Context Summary Compaction */
+    phoenix_event_bus_init();
+    phoenix_agent_ctx_t *agent = phoenix_agent_core_init();
+    assert(agent != NULL);
+    assert(agent->context_summary == NULL);
+
+    /* 连续发送对话填满历史窗口触发两级记忆压缩 */
+    for (int i = 0; i < 15; i++) {
+        char prompt[64];
+        snprintf(prompt, sizeof(prompt), "请问第 %d 次敲击木鱼的赛博功德是多少？", i + 1);
+        phoenix_agent_chat(agent, prompt);
+    }
+    assert(agent->history_count <= PHOENIX_MAX_MESSAGES);
+    /* 验证两级长程记忆已生成并提炼出摘要卡片 */
+    assert(agent->context_summary != NULL);
+    assert(strlen(agent->context_summary) > 0);
+    printf("  -> Two-Tier Memory Compactor & Watermark PASSED (Summary: %.40s...)\n", agent->context_summary);
+
+    phoenix_agent_core_destroy(agent);
+    phoenix_event_bus_deinit();
+
+    /* 3. BLE vs SoftAP Coex RF Arbiter Test */
+    assert(net_mgr_init() == 0);
+    assert(net_mgr_get_mode() == NET_MODE_SOFTAP_CONFIG);
+
+    /* BLE 连接建立 -> 挂起 SoftAP 广播 */
+    assert(net_mgr_suspend_softap() == 0);
+    /* BLE 断开降级 -> 恢复唤醒 SoftAP 热点 */
+    assert(net_mgr_resume_softap() == 0);
+    net_mgr_deinit();
+    printf("  -> BLE vs SoftAP Coex RF Arbiter PASSED\n");
+
+    /* 4. External Cartridge Package Scanner & Dynamic Loading */
+    cartridge_mgr_init(NULL);
+    system("mkdir -p /tmp/phoenix_test_cartridges/weather");
+    FILE *mf = fopen("/tmp/phoenix_test_cartridges/weather/manifest.json", "w");
+    assert(mf != NULL);
+    fputs("{\"id\":\"weather\",\"name\":\"极客天气\",\"icon\":\"🌤️\"}", mf);
+    fclose(mf);
+
+    int loaded = cartridge_mgr_scan_external("/tmp/phoenix_test_cartridges");
+    assert(loaded == 1);
+    cartridge_t *dyn_c = cartridge_mgr_get_by_id("weather");
+    assert(dyn_c != NULL);
+    assert(strcmp(dyn_c->ops.name, "极客天气") == 0);
+    assert(strcmp(dyn_c->ops.icon, "🌤️") == 0);
+
+    /* Switch into dynamic cartridge */
+    assert(cartridge_mgr_switch_to("weather") == 0);
+    assert(cartridge_mgr_get_current() == dyn_c);
+
+    cartridge_mgr_deinit();
+    unlink("/tmp/phoenix_test_cartridges/weather/manifest.json");
+    rmdir("/tmp/phoenix_test_cartridges/weather");
+    rmdir("/tmp/phoenix_test_cartridges");
+    printf("  -> Dynamic Cartridge Scanner & Hot-Mounting PASSED\n");
+
+    printf("  -> Architecture Evolution Subsystem Hardening PASSED!\n");
+}
+
 int main(int argc, char *argv[])
 {
     printf("====================================================\n");
@@ -2017,8 +2109,9 @@ int main(int argc, char *argv[])
     run_test_familiar_and_gestures();
     run_test_ble_prov_service();
     run_test_log_mgr_persistence_and_multichannel();
+    run_test_architecture_evolution();
 
-    printf("\n🎉 ALL 28 UNIT TESTS PASSED SUCCESSFULLY!\n");
+    printf("\n🎉 ALL 29 UNIT TESTS PASSED SUCCESSFULLY!\n");
 
     /* If --repl or -i passed, enter interactive mode */
     if (argc > 1 && (strcmp(argv[1], "-i") == 0 || strcmp(argv[1], "--repl") == 0)) {

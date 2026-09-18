@@ -199,6 +199,19 @@ static int save_wapi_conf(const char *ssid, const char *psk)
     return 0;
 }
 
+bool net_is_valid_sta_ip(const char *ip)
+{
+    if (!ip || ip[0] == '\0') return false;
+    if (strcmp(ip, "0.0.0.0") == 0) return false;
+    if (strcmp(ip, "127.0.0.1") == 0) return false;
+    if (strncmp(ip, "192.168.4.", 10) == 0) return false; /* 排除 SoftAP 独立热点网段 */
+    if (strcmp(ip, "10.0.0.2") == 0) return false;        /* 排除 OpenVela 内核 netinit 默认静态占位 IP */
+    if (strcmp(ip, "10.0.0.1") == 0) return false;        /* 排除内核默认网关占位 IP */
+    if (strcmp(ip, "10.0.2.15") == 0) return false;       /* 排除 QEMU 模拟器虚拟网卡占位 IP */
+    if (strncmp(ip, "169.254.", 8) == 0) return false;    /* 排除 APIPA 链路本地未获取到 DHCP 的临时 IP */
+    return true;
+}
+
 #if !defined(HOST_TEST_RUNNER)
 /**
  * @brief 通过网络套接字与 ioctl 查询指定接口的 IPv4 地址
@@ -246,9 +259,10 @@ static void* sta_connect_worker_thread(void *arg)
 
     LOG_I(TAG, "[Worker] 开始向底层 WAPI 下发连接序列: SSID=[%s]", target_ssid);
 
-    /* 1. 先关闭 softap 并断开旧连接 */
+    /* 1. 先关闭 softap 并断开旧连接，清空残留伪 IP */
     net_mgr_stop_softap();
     system("wapi disconnect wlan0 > /dev/null 2>&1");
+    system("ifconfig wlan0 0.0.0.0 > /dev/null 2>&1");
     usleep(300000);
 
     pthread_mutex_lock(&s_lock);
@@ -299,7 +313,8 @@ static void* sta_connect_worker_thread(void *arg)
         system("renew wlan0 > /dev/null 2>&1");
         sleep(2);
 
-        if (query_interface_ip("wlan0", acquired_ip, sizeof(acquired_ip)) == 0) {
+        if (query_interface_ip("wlan0", acquired_ip, sizeof(acquired_ip)) == 0 &&
+            net_is_valid_sta_ip(acquired_ip)) {
             connected = true;
             break;
         }
@@ -348,36 +363,14 @@ int net_mgr_init(void)
     /* 读取 Web 服务偏好设置 (默认开启) */
     s_web_enabled = (phoenix_config_get_int("web_portal_en", 1) != 0);
 
-#if !defined(HOST_TEST_RUNNER)
-    /* 1. 优先检查网卡 wlan0 是否已经由系统脚本分配了 IP */
-    char existing_ip[NET_MAX_IP_LEN] = {0};
-    if (query_interface_ip("wlan0", existing_ip, sizeof(existing_ip)) == 0 &&
-        strcmp(existing_ip, NET_DEFAULT_SOFTAP_IP) != 0) {
-        s_mode = NET_MODE_STA_CONNECTED;
-        snprintf(s_current_ip, sizeof(s_current_ip), "%s", existing_ip);
-        phoenix_config_get_str(PHOENIX_CFG_WIFI_SSID, "Connected-WiFi", s_current_ssid, sizeof(s_current_ssid));
-        LOG_I(TAG, "检测到 wlan0 已经就绪并持有局域网 IP: [%s]", s_current_ip);
-        notify_state_changed_unlocked();
-
-        bool web_en = s_web_enabled;
-        pthread_mutex_unlock(&s_lock);
-
-        if (web_en) {
-            phoenix_web_portal_start(80, NULL);
-            LOG_I(TAG, "🌐 局域网 Web 伴侣已启动: http://%s/ (或 :8080)", existing_ip);
-        }
-        return 0;
-    }
-#endif
-
-    /* 2. 检查本地是否保存了 Wi-Fi SSID */
+    /* 1. 优先检查本地是否保存了 Wi-Fi SSID */
     char saved_ssid[NET_MAX_SSID_LEN] = {0};
     char saved_psk[NET_MAX_PSK_LEN] = {0};
     phoenix_config_get_str(PHOENIX_CFG_WIFI_SSID, "", saved_ssid, sizeof(saved_ssid));
     phoenix_config_get_str(PHOENIX_CFG_WIFI_PSK, "", saved_psk, sizeof(saved_psk));
 
 #if !defined(HOST_TEST_RUNNER)
-    /* 3. 若本地 config 无配置，尝试从全志持久化文件 /data/etc/wifi/wapi.conf 读取 */
+    /* 2. 若本地 config 无配置，尝试从全志持久化文件 /data/etc/wifi/wapi.conf 读取 */
     if (saved_ssid[0] == '\0') {
         FILE *fp = fopen(WAPI_CONF_FILE, "r");
         if (fp) {
@@ -401,6 +394,32 @@ int net_mgr_init(void)
                 }
             }
         }
+    }
+
+    /* 3. 若本地已有凭证，检查物理网卡 wlan0 是否已经由系统开机流程分配了合法局域网 IP */
+    if (saved_ssid[0] != '\0') {
+        char existing_ip[NET_MAX_IP_LEN] = {0};
+        if (query_interface_ip("wlan0", existing_ip, sizeof(existing_ip)) == 0 &&
+            net_is_valid_sta_ip(existing_ip)) {
+            s_mode = NET_MODE_STA_CONNECTED;
+            snprintf(s_current_ip, sizeof(s_current_ip), "%s", existing_ip);
+            snprintf(s_current_ssid, sizeof(s_current_ssid), "%s", saved_ssid);
+            LOG_I(TAG, "检测到 wlan0 已经就绪并持有局域网 IP: [%s], SSID: [%s]", s_current_ip, s_current_ssid);
+            notify_state_changed_unlocked();
+
+            bool web_en = s_web_enabled;
+            pthread_mutex_unlock(&s_lock);
+
+            if (web_en) {
+                phoenix_web_portal_start(80, NULL);
+                LOG_I(TAG, "🌐 局域网 Web 伴侣已启动: http://%s/ (或 :8080)", existing_ip);
+            }
+            return 0;
+        }
+    } else {
+        /* 本地无凭证，清除 NuttX netinit 默认赋给 wlan0 的 10.0.0.2 伪静态 IP */
+        system("ifconfig wlan0 0.0.0.0 down > /dev/null 2>&1");
+        system("ifconfig wlan0 up > /dev/null 2>&1");
     }
 #endif
 
@@ -805,6 +824,39 @@ int net_mgr_stop_softap(void)
     return 0;
 }
 
+static bool s_softap_suspended = false;
+
+int net_mgr_suspend_softap(void)
+{
+    pthread_mutex_lock(&s_lock);
+    if (s_mode == NET_MODE_SOFTAP_CONFIG) {
+        LOG_I(TAG, "📶 [Coex] BLE 建立 GATT 连接，主动挂起 SoftAP 广播以让出单天线射频...");
+        s_softap_suspended = true;
+        pthread_mutex_unlock(&s_lock);
+        net_mgr_stop_softap();
+        return 0;
+    }
+    pthread_mutex_unlock(&s_lock);
+    return 0;
+}
+
+int net_mgr_resume_softap(void)
+{
+    pthread_mutex_lock(&s_lock);
+    if (s_softap_suspended && s_mode == NET_MODE_SOFTAP_CONFIG) {
+        LOG_I(TAG, "📶 [Coex] 蓝牙连接关闭/降级，恢复 SoftAP 热点广播供备用配网...");
+        s_softap_suspended = false;
+        char ssid[NET_MAX_SSID_LEN];
+        strncpy(ssid, s_current_ssid, sizeof(ssid) - 1);
+        ssid[sizeof(ssid) - 1] = '\0';
+        pthread_mutex_unlock(&s_lock);
+        return net_mgr_start_softap(ssid);
+    }
+    s_softap_suspended = false;
+    pthread_mutex_unlock(&s_lock);
+    return 0;
+}
+
 #if !defined(HOST_TEST_RUNNER)
 static void* softap_worker_thread(void *arg)
 {
@@ -1000,6 +1052,7 @@ int net_mgr_reset_to_softap(void)
         close(sock);
     }
     system("wapi disconnect wlan0 > /dev/null 2>&1");
+    system("ifconfig wlan0 0.0.0.0 > /dev/null 2>&1");
 
     /* 2. 彻底清空全志板载持久化文件 /data/etc/wifi/wapi.conf 并刷盘 */
     unlink(WAPI_CONF_FILE);
@@ -1095,7 +1148,7 @@ int net_mgr_scan_wifi(net_wifi_ap_info_t *aps_out, size_t max_count)
     int sock = wapi_make_socket();
     if (sock >= 0) {
         LOG_I(TAG, "正在通过物理网卡 wlan0 发起实时空中 Wi-Fi 扫描...");
-        int ret = wapi_scan_init(sock, "wlan0", NULL);
+        int ret = wapi_scan_init(sock, "wlan0");
         if (ret >= 0) {
             /* 轮询等待驱动空中抓包完成 (通常耗时 300ms ~ 1.2s) */
             int tries = 15;

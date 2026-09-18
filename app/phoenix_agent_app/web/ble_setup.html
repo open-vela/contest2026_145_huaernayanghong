@@ -945,10 +945,18 @@
       }
     }
 
+    function isValidStaIp(ip) {
+      if (!ip || ip === '0.0.0.0' || ip === '127.0.0.1') return false;
+      if (ip.startsWith('192.168.4.')) return false;
+      if (ip === '10.0.0.2' || ip === '10.0.0.1' || ip === '10.0.2.15') return false;
+      if (ip.startsWith('169.254.')) return false;
+      return true;
+    }
+
     function handleNetStatus(data) {
       logMsg(`设备状态上报: state=${data.state}, ip=${data.ip}, msg=${data.msg}`);
 
-      if (data.state === 'connected' && data.ip && data.ip !== '0.0.0.0' && !data.ip.startsWith('192.168.4.')) {
+      if (data.state === 'connected' && isValidStaIp(data.ip)) {
         currentTargetIp = data.ip;
         document.getElementById('radarRing').style.animation = 'none';
         document.getElementById('radarRing').style.borderColor = 'var(--accent-sub)';

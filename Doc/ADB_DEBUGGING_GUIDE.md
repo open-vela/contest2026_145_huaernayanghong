@@ -154,6 +154,60 @@ adb shell "curl -I -s http://192.168.4.1/hotspot-detect.html"
 ```
 响应头包含 `HTTP/1.1 302 Found` 与 `Location: http://192.168.4.1/` 即表示强制门户弹窗机制完全就绪。
 
+### 3.4 手动执行 Wi-Fi 配网（多途径实战指南）
+
+开发板提供了针对不同应用场景的手动配网方案：
+
+#### 方案 A：SoftAP Web 门户配网（推荐，用户免接电脑）
+1. **连接热点**：手机/电脑连接板端热点 `Gemini-Agent-S1`（无密码，网关为 `192.168.4.1`）；
+2. **访问页面**：等待系统自动弹窗，或打开浏览器访问 `http://192.168.4.1/`；
+3. **提交凭证**：在网页的热点下拉列表中选择目标 Wi-Fi，输入密码，点击 **“保存凭证并连接 Wi-Fi”**。设备收到指令后会自动持久化配置并切换至 STA 模式连入路由器。
+
+#### 方案 B：ADB 命令行免界面一键配网（开发调试最快捷）
+无需连接热点或打开网页，通过 ADB 管道直接下发账密：
+
+```bash
+# 途径 1: 通过板载 HTTP REST 接口触发连接
+adb shell "curl -X POST http://127.0.0.1/api/wifi/connect -H 'Content-Type: application/json' -d '{\"ssid\":\"你的WiFi名称\",\"psk\":\"你的WiFi密码\"}'"
+
+# 途径 2: 通过配置管理工具 ble_prov 统一写入并持久化
+adb shell ble_prov set_config '{"wifi":{"ssid":"你的WiFi名称","psk":"你的WiFi密码"}}'
+
+# 途径 3: 直接写入底层持久化配置文件并重载
+adb shell "mkdir -p /data/etc/wifi && cat << 'EOF' > /data/etc/wifi/wapi.conf
+{
+  \"ssid\": \"你的WiFi名称\",
+  \"psk\": \"你的WiFi密码\",
+  \"bssid\": \"\"
+}
+EOF"
+```
+
+#### 方案 C：串口 / NSH 终端原生 `wapi` 命令行（底层极客模式）
+在板端 NSH 串口终端中，直接调用系统原生无线管理工具配置 STA 接口：
+```bash
+# 1. 断开并配置目标 SSID 与 WPA2 密码 (末尾 3 代表 WPA2-PSK 加密)
+wapi disconnect wlan0
+wapi essid wlan0 "你的WiFi名称" 1
+wapi psk wlan0 "你的WiFi密码" 1 3
+
+# 2. 保存配置并触发重连
+wapi save_config wlan0
+wapi reconnect wlan0
+
+# 3. 申请路由器分配局域网 IP
+renew wlan0
+```
+
+#### 3.5 验证配网结果与重置热点
+```bash
+# 验证当前网络状态与分配的内网 IP
+adb shell phoenix_agent_app wifi
+
+# 若需清除当前 Wi-Fi 配置重回 SoftAP 配网热点
+adb shell "curl -X POST http://127.0.0.1/api/wifi/reset"
+```
+
 ---
 
 ## 4. BLE 蓝牙全双工配网测试 (BLE Provisioning)

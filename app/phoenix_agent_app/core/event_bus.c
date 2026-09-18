@@ -28,14 +28,19 @@ static event_slot_t g_event_slots[PHOENIX_EVT_COUNT];
 static phoenix_event_data_t g_queue_storage[EVENT_QUEUE_CAPACITY];
 static ring_buffer_t g_async_ring_buffer;
 static pthread_mutex_t g_queue_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_bus_lock = PTHREAD_MUTEX_INITIALIZER;
 static bool g_bus_initialized = false;
 
 int phoenix_event_bus_init(void)
 {
+    pthread_mutex_lock(&g_bus_lock);
     memset(g_event_slots, 0, sizeof(g_event_slots));
+    pthread_mutex_unlock(&g_bus_lock);
+
     pthread_mutex_lock(&g_queue_lock);
     ring_buffer_init(&g_async_ring_buffer, g_queue_storage, sizeof(phoenix_event_data_t), EVENT_QUEUE_CAPACITY);
     pthread_mutex_unlock(&g_queue_lock);
+
     g_bus_initialized = true;
     return 0;
 }
@@ -46,14 +51,17 @@ int phoenix_event_subscribe(phoenix_event_type_t type, phoenix_event_cb_t cb, vo
         return -1;
     }
 
+    pthread_mutex_lock(&g_bus_lock);
     event_slot_t *slot = &g_event_slots[type];
     if (slot->count >= MAX_SUBSCRIBERS_PER_EVENT) {
+        pthread_mutex_unlock(&g_bus_lock);
         return -2; /* Capacity full */
     }
 
     /* Check duplicate */
     for (size_t i = 0; i < slot->count; i++) {
         if (slot->entries[i].cb == cb && slot->entries[i].user_data == user_data) {
+            pthread_mutex_unlock(&g_bus_lock);
             return 0; /* Already subscribed */
         }
     }
@@ -61,6 +69,7 @@ int phoenix_event_subscribe(phoenix_event_type_t type, phoenix_event_cb_t cb, vo
     slot->entries[slot->count].cb = cb;
     slot->entries[slot->count].user_data = user_data;
     slot->count++;
+    pthread_mutex_unlock(&g_bus_lock);
     return 0;
 }
 
@@ -70,6 +79,7 @@ void phoenix_event_unsubscribe(phoenix_event_type_t type, phoenix_event_cb_t cb,
         return;
     }
 
+    pthread_mutex_lock(&g_bus_lock);
     event_slot_t *slot = &g_event_slots[type];
     for (size_t i = 0; i < slot->count; i++) {
         if (slot->entries[i].cb == cb && slot->entries[i].user_data == user_data) {
@@ -81,6 +91,7 @@ void phoenix_event_unsubscribe(phoenix_event_type_t type, phoenix_event_cb_t cb,
             break;
         }
     }
+    pthread_mutex_unlock(&g_bus_lock);
 }
 
 void phoenix_event_publish(const phoenix_event_data_t *event)
@@ -89,11 +100,25 @@ void phoenix_event_publish(const phoenix_event_data_t *event)
         return;
     }
 
+    /*
+     * 快照派发机制：在持有 g_bus_lock 时将订阅者列表拷贝至线程局部栈中，
+     * 随后释放锁再依次执行回调，避免回调内部递归操作 EventBus 发生自死锁。
+     */
+    subscriber_entry_t snapshot[MAX_SUBSCRIBERS_PER_EVENT];
+    size_t count = 0;
+
+    pthread_mutex_lock(&g_bus_lock);
     event_slot_t *slot = &g_event_slots[event->type];
-    size_t cur_count = slot->count;
-    for (size_t i = 0; i < cur_count; i++) {
-        if (slot->entries[i].cb) {
-            slot->entries[i].cb(event, slot->entries[i].user_data);
+    count = slot->count;
+    if (count > MAX_SUBSCRIBERS_PER_EVENT) count = MAX_SUBSCRIBERS_PER_EVENT;
+    for (size_t i = 0; i < count; i++) {
+        snapshot[i] = slot->entries[i];
+    }
+    pthread_mutex_unlock(&g_bus_lock);
+
+    for (size_t i = 0; i < count; i++) {
+        if (snapshot[i].cb) {
+            snapshot[i].cb(event, snapshot[i].user_data);
         }
     }
 }
@@ -151,6 +176,9 @@ void phoenix_event_bus_deinit(void)
     pthread_mutex_lock(&g_queue_lock);
     ring_buffer_clear(&g_async_ring_buffer);
     pthread_mutex_unlock(&g_queue_lock);
+
+    pthread_mutex_lock(&g_bus_lock);
     memset(g_event_slots, 0, sizeof(g_event_slots));
     g_bus_initialized = false;
+    pthread_mutex_unlock(&g_bus_lock);
 }

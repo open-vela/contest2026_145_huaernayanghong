@@ -123,6 +123,13 @@ void cartridge_mgr_dispatch_knock(int intensity, int count);
  */
 void cartridge_mgr_dispatch_voice(const char *intent, const char *params_json);
 
+/**
+ * @brief 扫描外置存储或指定目录下的动态卡带描述包并动态注册 (SD 卡/Flash 扩展)
+ * @param cartridges_root 目标根目录 (如 "/sdcard/cartridges" 或 "/data/cartridges")
+ * @return 成功载入的新卡带数量
+ */
+int cartridge_mgr_scan_external(const char *cartridges_root);
+
 #ifdef __cplusplus
 }
 #endif

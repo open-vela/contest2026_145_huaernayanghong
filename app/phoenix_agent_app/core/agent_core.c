@@ -11,49 +11,97 @@
 #include "web_portal.h"
 #include "intent_router.h"
 #include "expression.h"
-#include "harness/llm_provider.h"
+#if defined(__has_include) && __has_include("../harness/llm_provider.h")
+#  include "../harness/llm_provider.h"
+#else
+#  include "harness/llm_provider.h"
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
 
 #define AGENT_MAX_TURNS 5
+#define AGENT_MAX_HISTORY_BYTES (32 * 1024)
 
 static phoenix_agent_ctx_t *s_agent_core_instance = NULL;
 
-static void history_free_entry(phoenix_chat_msg_t *m)
+static void history_free_entry(phoenix_agent_ctx_t *ctx, phoenix_chat_msg_t *m)
 {
     if (!m) return;
-    if (m->content) free(m->content);
-    if (m->tool_call_id) free(m->tool_call_id);
-    if (m->tool_name) free(m->tool_name);
-    if (m->reasoning_content) free(m->reasoning_content);
+    size_t freed_bytes = 0;
+    if (m->content) {
+        freed_bytes += strlen(m->content);
+        free(m->content);
+    }
+    if (m->tool_call_id) {
+        freed_bytes += strlen(m->tool_call_id);
+        free(m->tool_call_id);
+    }
+    if (m->tool_name) {
+        freed_bytes += strlen(m->tool_name);
+        free(m->tool_name);
+    }
+    if (m->reasoning_content) {
+        freed_bytes += strlen(m->reasoning_content);
+        free(m->reasoning_content);
+    }
+    if (ctx && ctx->total_history_bytes >= freed_bytes) {
+        ctx->total_history_bytes -= freed_bytes;
+    }
     memset(m, 0, sizeof(phoenix_chat_msg_t));
 }
 
+/**
+ * @brief 两级记忆压缩：将即将丢弃的历史消息提炼为摘要卡片回填至 context_summary
+ */
 static void history_compact(phoenix_agent_ctx_t *ctx)
 {
     size_t target_keep = PHOENIX_MAX_MESSAGES / 2;
-    size_t drop = ctx->history_count - target_keep;
+    size_t drop = ctx->history_count > target_keep ? (ctx->history_count - target_keep) : 1;
 
-    /* Ensure tool calls and responses remain paired.
-     * If the first kept message is a PHOENIX_ROLE_TOOL, its caller assistant
-     * would be dropped, which breaks OpenAI/MiMo tool calling protocol.
-     * In that case, back up drop by 1 to include the assistant message.
-     */
+    /* Ensure tool calls and responses remain paired */
     while (drop > 0 && ctx->history[drop].role == PHOENIX_ROLE_TOOL) {
         drop--;
     }
 
+    if (drop == 0) return;
+
+    /* 提取丢弃会话中的核心语义构建增量记忆摘要 */
+    char summary_buf[512] = {0};
+    size_t sum_len = 0;
+    for (size_t i = 0; i < drop && sum_len < sizeof(summary_buf) - 64; i++) {
+        if (ctx->history[i].role == PHOENIX_ROLE_USER && ctx->history[i].content) {
+            sum_len += snprintf(summary_buf + sum_len, sizeof(summary_buf) - sum_len,
+                                "问:%.32s; ", ctx->history[i].content);
+        } else if (ctx->history[i].role == PHOENIX_ROLE_ASSISTANT && ctx->history[i].content) {
+            sum_len += snprintf(summary_buf + sum_len, sizeof(summary_buf) - sum_len,
+                                "答:%.32s; ", ctx->history[i].content);
+        }
+    }
+
+    if (sum_len > 0) {
+        if (!ctx->context_summary) {
+            ctx->context_summary = strdup(summary_buf);
+        } else {
+            /* 追加更新前情记忆 (保持在 512 字节以内) */
+            char merged[512];
+            snprintf(merged, sizeof(merged), "%.240s | %.240s", ctx->context_summary, summary_buf);
+            free(ctx->context_summary);
+            ctx->context_summary = strdup(merged);
+        }
+        printf("[PhoenixCore] 🧠 两级记忆滚动更新: %s\n", ctx->context_summary);
+    }
+
     size_t keep = ctx->history_count - drop;
     for (size_t i = 0; i < drop; i++) {
-        history_free_entry(&ctx->history[i]);
+        history_free_entry(ctx, &ctx->history[i]);
     }
 
     memmove(ctx->history, ctx->history + drop, keep * sizeof(phoenix_chat_msg_t));
     ctx->history_count = keep;
-    printf("[PhoenixCore] Compacted history: dropped %zu, kept %zu messages (paired tools preserved)\n",
-           drop, keep);
+    printf("[PhoenixCore] Compacted history: dropped %zu, kept %zu messages (paired tools preserved, bytes: %zu)\n",
+           drop, keep, ctx->total_history_bytes);
 }
 
 static void history_add(phoenix_agent_ctx_t *ctx,
@@ -63,7 +111,7 @@ static void history_add(phoenix_agent_ctx_t *ctx,
                         const char *tool_name,
                         const char *reasoning_content)
 {
-    if (ctx->history_count >= PHOENIX_MAX_MESSAGES) {
+    if (ctx->history_count >= PHOENIX_MAX_MESSAGES || ctx->total_history_bytes >= AGENT_MAX_HISTORY_BYTES) {
         history_compact(ctx);
     }
 
@@ -73,6 +121,11 @@ static void history_add(phoenix_agent_ctx_t *ctx,
     m->tool_call_id = tool_call_id ? strdup(tool_call_id) : NULL;
     m->tool_name = tool_name ? strdup(tool_name) : NULL;
     m->reasoning_content = reasoning_content ? strdup(reasoning_content) : NULL;
+
+    if (m->content) ctx->total_history_bytes += strlen(m->content);
+    if (m->tool_call_id) ctx->total_history_bytes += strlen(m->tool_call_id);
+    if (m->tool_name) ctx->total_history_bytes += strlen(m->tool_name);
+    if (m->reasoning_content) ctx->total_history_bytes += strlen(m->reasoning_content);
 }
 
 static void on_event_bus_msg(const phoenix_event_data_t *event, void *user_data)
@@ -81,14 +134,20 @@ static void on_event_bus_msg(const phoenix_event_data_t *event, void *user_data)
     if (!ctx || !event) return;
 
     if (event->type == PHOENIX_EVT_MERIT_UPDATED) {
+        pthread_mutex_lock(&ctx->core_lock);
         uint32_t old_merit = ctx->stats.merit_count;
         ctx->stats.merit_count = event->data.stats.total_merit;
-        if (ctx->stats.merit_count > 0 && ctx->stats.merit_count % 10 == 0 && old_merit != ctx->stats.merit_count) {
+        bool trigger = (ctx->stats.merit_count > 0 && ctx->stats.merit_count % 10 == 0 && old_merit != ctx->stats.merit_count);
+        pthread_mutex_unlock(&ctx->core_lock);
+
+        if (trigger) {
             phoenix_agent_trigger_proactive(ctx, PROACTIVE_CONTEXT_MILESTONE, "功德突破新高度！灵眸为你闪耀祝贺！");
         }
     } else if (event->type == PHOENIX_EVT_POMODORO_TICK) {
+        pthread_mutex_lock(&ctx->core_lock);
         ctx->stats.pomodoro_active = event->data.stats.is_active;
         ctx->stats.pomodoro_remaining_s = event->data.stats.remaining_s;
+        pthread_mutex_unlock(&ctx->core_lock);
     }
 }
 
@@ -98,6 +157,7 @@ phoenix_agent_ctx_t* phoenix_agent_core_init(void)
     if (!ctx) return NULL;
     memset(ctx, 0, sizeof(phoenix_agent_ctx_t));
 
+    pthread_mutex_init(&ctx->core_lock, NULL);
     ctx->state = AGENT_STATE_IDLE;
     ctx->stats.merit_count = 0;
     ctx->stats.interaction_count = 0;
@@ -105,6 +165,8 @@ phoenix_agent_ctx_t* phoenix_agent_core_init(void)
     ctx->stats.pomodoro_remaining_s = 0;
     ctx->stats.pomodoro_active = false;
     ctx->history_count = 0;
+    ctx->context_summary = NULL;
+    ctx->total_history_bytes = 0;
 
     /* Subscribe to Event Bus */
     phoenix_event_subscribe(PHOENIX_EVT_MERIT_UPDATED, on_event_bus_msg, ctx);
@@ -115,15 +177,17 @@ phoenix_agent_ctx_t* phoenix_agent_core_init(void)
 
     s_agent_core_instance = ctx;
 
-    printf("[PhoenixCore] Master Agent Orchestrator initialized.\n");
+    printf("[PhoenixCore] Master Agent Orchestrator initialized with Two-Tier Memory & Core Mutex.\n");
     return ctx;
 }
 
 void phoenix_agent_set_state(phoenix_agent_ctx_t *ctx, phoenix_core_state_t new_state, const char *message)
 {
     if (!ctx) return;
+    pthread_mutex_lock(&ctx->core_lock);
     int old_state = ctx->state;
     ctx->state = new_state;
+    pthread_mutex_unlock(&ctx->core_lock);
 
     /* Broadcast State Change Event via Event Bus (UI & Eye observe this event) */
     phoenix_event_data_t evt;
@@ -205,7 +269,26 @@ int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input)
         phoenix_chat_resp_t resp;
         memset(&resp, 0, sizeof(resp));
 
-        int ret = phoenix_llm_provider_chat(ctx->history, ctx->history_count, tools_schema, &resp);
+        /* 构造注入两级前情记忆卡片的消息序列 */
+        phoenix_chat_msg_t send_msgs[PHOENIX_MAX_MESSAGES + 1];
+        size_t send_count = 0;
+        char summary_item_buf[600];
+
+        if (ctx->context_summary && ctx->context_summary[0]) {
+            snprintf(summary_item_buf, sizeof(summary_item_buf), "【前情长程记忆摘要】%s", ctx->context_summary);
+            send_msgs[0].role = PHOENIX_ROLE_SYSTEM;
+            send_msgs[0].content = summary_item_buf;
+            send_msgs[0].tool_call_id = NULL;
+            send_msgs[0].tool_name = NULL;
+            send_msgs[0].reasoning_content = NULL;
+            send_count = 1;
+        }
+
+        for (size_t i = 0; i < ctx->history_count && send_count < (PHOENIX_MAX_MESSAGES + 1); i++) {
+            send_msgs[send_count++] = ctx->history[i];
+        }
+
+        int ret = phoenix_llm_provider_chat(send_msgs, send_count, tools_schema, &resp);
         if (ret < 0) {
             phoenix_agent_set_state(ctx, AGENT_STATE_ALERT, "端云协同通信异常，请检查网络设置！");
             history_add(ctx, PHOENIX_ROLE_ASSISTANT, "抱歉，端云协同通信遇到问题。", NULL, NULL, NULL);
@@ -452,8 +535,13 @@ void phoenix_agent_core_destroy(phoenix_agent_ctx_t *ctx)
     }
     phoenix_web_portal_bind_agent(NULL);
     for (size_t i = 0; i < ctx->history_count; i++) {
-        history_free_entry(&ctx->history[i]);
+        history_free_entry(ctx, &ctx->history[i]);
     }
+    if (ctx->context_summary) {
+        free(ctx->context_summary);
+        ctx->context_summary = NULL;
+    }
+    pthread_mutex_destroy(&ctx->core_lock);
     free(ctx);
 }
 

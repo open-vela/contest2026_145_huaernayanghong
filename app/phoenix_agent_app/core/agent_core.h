@@ -54,12 +54,17 @@ typedef struct {
  */
 typedef struct phoenix_agent_ctx_s phoenix_agent_ctx_t;
 
+#include <pthread.h>
+
 struct phoenix_agent_ctx_s {
     phoenix_core_state_t state;
     phoenix_agent_stats_t stats;
     phoenix_chat_msg_t history[PHOENIX_MAX_MESSAGES];
     size_t history_count;
+    char *context_summary;          /**< 两级记忆模型：滚入后台的历史上下文摘要卡片 */
+    size_t total_history_bytes;     /**< 动态堆内存水位监测 (字节计数) */
     uint32_t proactive_threshold_s; /**< Focus threshold seconds before intervention */
+    pthread_mutex_t core_lock;      /**< 核心上下文与状态机互斥锁 */
 };
 
 /**

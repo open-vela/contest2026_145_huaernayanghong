@@ -79,6 +79,7 @@ static uint16_t prov_notify_ccc_changed(void *srv_handle, bt_address_t *addr,
             memcpy(&s_connected_addr, addr, sizeof(bt_address_t));
             s_has_connected_client = true;
             s_ble_state = BLE_PROV_STATE_CONNECTED;
+            net_mgr_suspend_softap(); /* Coex 射频仲裁：挂起 SoftAP 广播 */
         }
     }
     return length;
@@ -95,6 +96,7 @@ static uint16_t prov_write_callback(void *srv_handle, bt_address_t *addr,
         memcpy(&s_connected_addr, addr, sizeof(bt_address_t));
         s_has_connected_client = true;
         s_ble_state = BLE_PROV_STATE_CONNECTED;
+        net_mgr_suspend_softap(); /* Coex 射频仲裁：挂起 SoftAP 广播 */
     }
 
     if (value && length > 0) {
@@ -313,6 +315,7 @@ int ble_prov_service_handle_command(const char *cmd_json_str)
     return 0;
 }
 
+static void handle_rx_payload(const uint8_t *payload, uint16_t length) __attribute__((unused));
 static void handle_rx_payload(const uint8_t *payload, uint16_t length)
 {
     if (!payload || length == 0) return;
@@ -428,11 +431,12 @@ int ble_prov_service_notify_net_status(const char *state, const char *ssid, cons
     cJSON_AddStringToObject(root, "ip", ip ? ip : "");
     cJSON_AddStringToObject(root, "msg", msg ? msg : "");
 
-    if (ip && strlen(ip) > 0 && strcmp(ip, "0.0.0.0") != 0 && strncmp(ip, "192.168.4.", 10) != 0) {
+    if (ip && net_is_valid_sta_ip(ip)) {
         char dash_url[64];
         snprintf(dash_url, sizeof(dash_url), "http://%s:8080/", ip);
         cJSON_AddStringToObject(root, "dashboard_url", dash_url);
         s_ble_state = BLE_PROV_STATE_PROVISIONED;
+        net_mgr_stop_softap(); /* 成功入网，关闭热点发射以省电防干扰 */
     }
 
     char *out = cJSON_PrintUnformatted(root);

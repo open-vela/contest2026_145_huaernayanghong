@@ -11,7 +11,28 @@
 #include "../utils/time_utils.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <pthread.h>
+#include <dirent.h>
+#include <sys/stat.h>
+
+#if defined(__has_include)
+#  if __has_include(<netutils/cJSON.h>)
+#    include <netutils/cJSON.h>
+#  elif __has_include(<cJSON/cJSON.h>)
+#    include <cJSON/cJSON.h>
+#  elif __has_include(<cjson/cJSON.h>)
+#    include <cjson/cJSON.h>
+#  elif __has_include(<cJSON.h>)
+#    include <cJSON.h>
+#  elif __has_include("../../../../apps/netutils/cjson/cJSON/cJSON.h")
+#    include "../../../../apps/netutils/cjson/cJSON/cJSON.h"
+#  else
+#    include <cJSON.h>
+#  endif
+#else
+#  include <netutils/cJSON.h>
+#endif
 
 #define TAG "CartridgeMgr"
 #define CARTRIDGE_SWITCH_COOLDOWN_MS 500
@@ -409,4 +430,106 @@ void cartridge_mgr_dispatch_voice(const char *intent, const char *params_json)
         }
     }
     pthread_mutex_unlock(&s_lock);
+}
+
+static int dynamic_cartridge_init(cartridge_t *self, void *user_data)
+{
+    (void)user_data;
+    LOG_I(TAG, "动态扩展卡带 [%s] 初始化成功", self ? self->ops.name : "");
+    return 0;
+}
+
+static void dynamic_cartridge_enter(cartridge_t *self, void *stage_view)
+{
+    (void)stage_view;
+    if (!self) return;
+    LOG_I(TAG, "进入动态扩展卡带视窗: [%s]", self->ops.name);
+    phoenix_event_data_t fly_evt;
+    memset(&fly_evt, 0, sizeof(fly_evt));
+    fly_evt.type = PHOENIX_EVT_FLYING_TEXT;
+    fly_evt.data.flying_text.text = self->ops.name;
+    fly_evt.data.flying_text.color_rgb = 0x00e5ff;
+    phoenix_event_publish(&fly_evt);
+}
+
+static void dynamic_cartridge_exit(cartridge_t *self)
+{
+    if (!self) return;
+    LOG_I(TAG, "离开动态扩展卡带视窗: [%s]", self->ops.name);
+}
+
+int cartridge_mgr_scan_external(const char *cartridges_root)
+{
+    if (!cartridges_root || !cartridges_root[0]) {
+        cartridges_root = "/sdcard/cartridges";
+    }
+
+    DIR *dir = opendir(cartridges_root);
+    if (!dir) {
+        LOG_D(TAG, "未发现外部卡带目录或未插入 SD 卡: %s", cartridges_root);
+        return 0;
+    }
+
+    int loaded_count = 0;
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_name[0] == '.') continue;
+
+        char manifest_path[512];
+        snprintf(manifest_path, sizeof(manifest_path), "%s/%s/manifest.json", cartridges_root, entry->d_name);
+
+        FILE *f = fopen(manifest_path, "rb");
+        if (!f) {
+            snprintf(manifest_path, sizeof(manifest_path), "%s/%s", cartridges_root, entry->d_name);
+            if (strstr(entry->d_name, ".json") == NULL) {
+                continue;
+            }
+            f = fopen(manifest_path, "rb");
+            if (!f) continue;
+        }
+
+        fseek(f, 0, SEEK_END);
+        long len = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        if (len <= 0 || len > 16384) {
+            fclose(f);
+            continue;
+        }
+
+        char *content = (char *)malloc(len + 1);
+        if (!content) {
+            fclose(f);
+            continue;
+        }
+        size_t read_bytes = fread(content, 1, len, f);
+        content[read_bytes] = '\0';
+        fclose(f);
+
+        cJSON *root = cJSON_Parse(content);
+        free(content);
+        if (!root) continue;
+
+        cJSON *id_item = cJSON_GetObjectItem(root, "id");
+        cJSON *name_item = cJSON_GetObjectItem(root, "name");
+        cJSON *icon_item = cJSON_GetObjectItem(root, "icon");
+
+        if (id_item && id_item->valuestring && name_item && name_item->valuestring) {
+            cartridge_ops_t ops;
+            memset(&ops, 0, sizeof(ops));
+            strncpy(ops.id, id_item->valuestring, sizeof(ops.id) - 1);
+            strncpy(ops.name, name_item->valuestring, sizeof(ops.name) - 1);
+            strncpy(ops.icon, icon_item && icon_item->valuestring ? icon_item->valuestring : "📦", sizeof(ops.icon) - 1);
+            ops.init = dynamic_cartridge_init;
+            ops.enter = dynamic_cartridge_enter;
+            ops.exit = dynamic_cartridge_exit;
+
+            if (cartridge_mgr_register(&ops, NULL, NULL) == 0) {
+                loaded_count++;
+                LOG_I(TAG, "✨ 成功热加载外部卡带: [%s - %s %s]", ops.id, ops.icon, ops.name);
+            }
+        }
+        cJSON_Delete(root);
+    }
+    closedir(dir);
+    return loaded_count;
 }
