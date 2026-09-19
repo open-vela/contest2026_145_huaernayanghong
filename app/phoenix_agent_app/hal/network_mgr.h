@@ -111,6 +111,12 @@ int net_mgr_connect_sta(const char *ssid, const char *psk);
 void net_mgr_disconnect(void);
 
 /**
+ * @brief 清空本地 Wi-Fi 配置并重置为断开态 (不自动拉起热点)
+ * @return 0 成功
+ */
+int net_mgr_clear_config(void);
+
+/**
  * @brief 一键清除 Wi-Fi 配置并重置切回 SoftAP 配网热点
  * @return 0 成功
  */

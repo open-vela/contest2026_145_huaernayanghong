@@ -51,6 +51,18 @@ int handle_agent_chat(const http_req_t *req, http_resp_t *resp)
         return 0;
     }
 
+    /* 护城河 2: 前置忙闲互斥闸门，0ms 快速返回 HTTP 429，防止打爆 TCP 连接池与 Socket 堆积 */
+    if (phoenix_agent_is_busy(agent)) {
+        LOG_W(TAG, "⚠️ 灵眸正处于思考/执行忙碌状态，快速返回 HTTP 429 拒绝重入");
+        cJSON *root = cJSON_CreateObject();
+        cJSON_AddBoolToObject(root, "success", false);
+        cJSON_AddStringToObject(root, "error", "灵眸正在深度思考中，请稍候...");
+        cJSON_AddStringToObject(root, "answer", "⚠️ 灵眸正在深度思考上一条指令，请稍候再试...");
+        cJSON_AddStringToObject(root, "state", "THINKING");
+        http_resp_json_obj(resp, 429, root);
+        return 0;
+    }
+
     LOG_I(TAG, "💬 收到 Web 伴侣对话请求: \"%s\"", prompt);
 
     /* 关键栈保护：trace 结构体占用 ~5.5KB，改由堆动态分配彻底杜绝工作线程栈溢出与 TCB 损坏 */
@@ -62,6 +74,17 @@ int handle_agent_chat(const http_req_t *req, http_resp_t *resp)
     }
 
     int ret = phoenix_agent_chat_with_trace(agent, prompt, trace);
+    if (ret == -2) {
+        LOG_W(TAG, "⚠️ Agent 核心返回 -EBUSY，返回 HTTP 429");
+        cJSON *root = cJSON_CreateObject();
+        cJSON_AddBoolToObject(root, "success", false);
+        cJSON_AddStringToObject(root, "error", "灵眸正在深度思考中，请稍候...");
+        cJSON_AddStringToObject(root, "answer", trace->final_answer[0] ? trace->final_answer : "⚠️ 灵眸正在深度思考上一条指令，请稍候再试...");
+        cJSON_AddStringToObject(root, "state", "THINKING");
+        free(trace);
+        http_resp_json_obj(resp, 429, root);
+        return 0;
+    }
 
     const char *state_str = "IDLE";
     switch (trace->end_state) {

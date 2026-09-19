@@ -29,9 +29,29 @@
 #define TAG "PhoenixCore"
 
 #define AGENT_MAX_TURNS 5
-#define AGENT_MAX_HISTORY_BYTES (32 * 1024)
+#define AGENT_MAX_HISTORY_BYTES (4 * 1024)
+#define PHOENIX_EMBEDDED_MAX_HISTORY 8 /* 4 轮问答硬上限，避免长思考链与多轮历史撑爆平坦内存 (护城河 3) */
+#define PHOENIX_MAX_MSG_CONTENT_LEN 256 /* 单条消息文本硬上限 (字符截断长城) */
 
 static phoenix_agent_ctx_t *s_agent_core_instance = NULL;
+static pthread_mutex_t s_agent_busy_lock = PTHREAD_MUTEX_INITIALIZER;
+static bool s_agent_busy = false;
+
+bool phoenix_agent_is_busy(const phoenix_agent_ctx_t *ctx)
+{
+    pthread_mutex_lock(&s_agent_busy_lock);
+    if (s_agent_busy) {
+        pthread_mutex_unlock(&s_agent_busy_lock);
+        return true;
+    }
+    pthread_mutex_unlock(&s_agent_busy_lock);
+
+    const phoenix_agent_ctx_t *effective = ctx ? ctx : s_agent_core_instance;
+    if (effective) {
+        return (effective->state == AGENT_STATE_THINKING || effective->state == AGENT_STATE_EXECUTING);
+    }
+    return false;
+}
 
 static void history_free_entry(phoenix_agent_ctx_t *ctx, phoenix_chat_msg_t *m)
 {
@@ -64,7 +84,7 @@ static void history_free_entry(phoenix_agent_ctx_t *ctx, phoenix_chat_msg_t *m)
  */
 static void history_compact(phoenix_agent_ctx_t *ctx)
 {
-    size_t target_keep = PHOENIX_MAX_MESSAGES / 2;
+    size_t target_keep = PHOENIX_EMBEDDED_MAX_HISTORY / 2;
     size_t drop = ctx->history_count > target_keep ? (ctx->history_count - target_keep) : 1;
 
     /* Ensure tool calls and responses remain paired */
@@ -118,21 +138,32 @@ static void history_add(phoenix_agent_ctx_t *ctx,
                         const char *tool_name,
                         const char *reasoning_content)
 {
-    if (ctx->history_count >= PHOENIX_MAX_MESSAGES || ctx->total_history_bytes >= AGENT_MAX_HISTORY_BYTES) {
+    (void)reasoning_content; /* 护城河 3 (Thinking Strip): 历史消息严禁常驻堆内存，杜绝长思考链引发堆碎片化 */
+
+    if (ctx->history_count >= PHOENIX_EMBEDDED_MAX_HISTORY || ctx->total_history_bytes >= AGENT_MAX_HISTORY_BYTES) {
         history_compact(ctx);
+    }
+
+    /* 护城河 3 (Context Wall): 单条历史内容强制截断至 256 字符以内 */
+    char trunc_buf[PHOENIX_MAX_MSG_CONTENT_LEN + 1];
+    const char *final_content = content;
+    if (content && strlen(content) > PHOENIX_MAX_MSG_CONTENT_LEN) {
+        strncpy(trunc_buf, content, PHOENIX_MAX_MSG_CONTENT_LEN - 3);
+        trunc_buf[PHOENIX_MAX_MSG_CONTENT_LEN - 3] = '\0';
+        strcat(trunc_buf, "...");
+        final_content = trunc_buf;
     }
 
     phoenix_chat_msg_t *m = &ctx->history[ctx->history_count++];
     m->role = role;
-    m->content = content ? strdup(content) : NULL;
+    m->content = final_content ? strdup(final_content) : NULL;
     m->tool_call_id = tool_call_id ? strdup(tool_call_id) : NULL;
     m->tool_name = tool_name ? strdup(tool_name) : NULL;
-    m->reasoning_content = reasoning_content ? strdup(reasoning_content) : NULL;
+    m->reasoning_content = NULL; /* Thinking Strip: 历史消息严禁携带思考链 */
 
     if (m->content) ctx->total_history_bytes += strlen(m->content);
     if (m->tool_call_id) ctx->total_history_bytes += strlen(m->tool_call_id);
     if (m->tool_name) ctx->total_history_bytes += strlen(m->tool_name);
-    if (m->reasoning_content) ctx->total_history_bytes += strlen(m->reasoning_content);
 }
 
 static void on_event_bus_msg(const phoenix_event_data_t *event, void *user_data)
@@ -211,6 +242,24 @@ int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_inp
     if (!ctx || !user_input || strlen(user_input) == 0) {
         return -1;
     }
+
+    /* 护城河 1: Agent 忙闲互斥闸门 (CAS State Guard) 彻底杜绝并发重入与上下文撕裂 */
+    pthread_mutex_lock(&s_agent_busy_lock);
+    if (s_agent_busy || ctx->state == AGENT_STATE_THINKING || ctx->state == AGENT_STATE_EXECUTING) {
+        pthread_mutex_unlock(&s_agent_busy_lock);
+        LOG_W(TAG, "⚠️ 智能体正处于思考/执行忙碌状态，拒绝并发重入 (BUSY)");
+        if (trace_out) {
+            memset(trace_out, 0, sizeof(phoenix_agent_trace_t));
+            strncpy(trace_out->user_prompt, user_input, sizeof(trace_out->user_prompt) - 1);
+            strncpy(trace_out->final_answer, "⚠️ 灵眸正在深度思考中，请稍候...", sizeof(trace_out->final_answer) - 1);
+            trace_out->success = false;
+            trace_out->end_state = ctx->state;
+        }
+        return -2; /* -EBUSY */
+    }
+    s_agent_busy = true;
+    pthread_mutex_unlock(&s_agent_busy_lock);
+
     ctx->stats.interaction_count++;
 
     if (trace_out) {
@@ -258,6 +307,9 @@ int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_inp
             trace_out->success = true;
             trace_out->end_state = ctx->state;
         }
+        pthread_mutex_lock(&s_agent_busy_lock);
+        s_agent_busy = false;
+        pthread_mutex_unlock(&s_agent_busy_lock);
         return 0;
     }
 
@@ -296,6 +348,9 @@ int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_inp
             trace_out->success = true;
             trace_out->end_state = ctx->state;
         }
+        pthread_mutex_lock(&s_agent_busy_lock);
+        s_agent_busy = false;
+        pthread_mutex_unlock(&s_agent_busy_lock);
         return 0;
     }
 
@@ -444,6 +499,10 @@ int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_inp
     if (trace_out) {
         trace_out->end_state = ctx->state;
     }
+
+    pthread_mutex_lock(&s_agent_busy_lock);
+    s_agent_busy = false;
+    pthread_mutex_unlock(&s_agent_busy_lock);
     return 0;
 }
 
@@ -646,6 +705,10 @@ void phoenix_agent_get_stats(const phoenix_agent_ctx_t *ctx, phoenix_agent_stats
 void phoenix_agent_core_destroy(phoenix_agent_ctx_t *ctx)
 {
     if (!ctx) return;
+    pthread_mutex_lock(&s_agent_busy_lock);
+    s_agent_busy = false;
+    pthread_mutex_unlock(&s_agent_busy_lock);
+
     if (s_agent_core_instance == ctx) {
         s_agent_core_instance = NULL;
     }

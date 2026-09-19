@@ -144,8 +144,19 @@ static void refresh_status_capsule(phoenix_ui_t *ui)
     if (!ui) return;
 
     if (ui->capsule) {
-        /* 左侧：环境温湿度 (动态读取板载传感器感知缓存) */
-        ui_capsule_update_env(ui->capsule, ui->cached_temp_c, ui->cached_humi_pct);
+        /* 左侧：环境温湿度或 R528 核心芯片温度 (动态感知，杜绝假固定数据) */
+        float display_temp = ui->cached_temp_c;
+        uint8_t display_humi = ui->cached_humi_pct;
+        bool is_valid = ui->cached_env_valid;
+
+        if (!is_valid) {
+            /* 若无外接环境传感器，优雅 fallback 到全志 R528 芯片真实核心温度 */
+            hal_system_telemetry_t telem;
+            if (hal_system_get_telemetry(&telem) == 0 && telem.cpu_temperature_c > 0.0f) {
+                display_temp = telem.cpu_temperature_c;
+            }
+        }
+        ui_capsule_update_env(ui->capsule, display_temp, display_humi, is_valid);
 
         /* 右侧：真实网络感知与电池电量 (直接从 UI 只读缓存中读取，杜绝锁竞争) */
         int mode = ui->cached_net_mode;
@@ -497,6 +508,11 @@ static void heartbeat_timer_cb(lv_timer_t *timer)
     if (ui->agent_core) {
         phoenix_agent_tick_1s(ui->agent_core);
     }
+
+    /* 当板载环境传感器未就绪时，随芯片工作负载每秒平滑同步真实核心温度，呈现数字生命感知力 */
+    if (!ui->cached_env_valid && ui->capsule) {
+        refresh_status_capsule(ui);
+    }
 }
 
 phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
@@ -510,8 +526,8 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
     ui->uptime_sec = 0;
     ui->merit_count = 0;
     ui->battery_pct = 85; /* 默认电量 */
-    ui->cached_temp_c = 26.0f;
-    ui->cached_humi_pct = 60;
+    ui->cached_temp_c = 0.0f;
+    ui->cached_humi_pct = 0;
     ui->cached_env_valid = false;
     ui->pomodoro_active = false;
     ui->pomodoro_remain_s = 0;
@@ -611,9 +627,9 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
     ui->merit_count = stats.total_merit;
     refresh_status_capsule(ui);
 
-    /* 首次开机若处于未连网的 SoftAP 配网模式，主动弹出显性引导气泡 (视觉飞字由 EventBus 统一驱动) */
+    /* 若当前手动拉起或处于 SoftAP 配网模式，主动弹出显性引导气泡 (视觉飞字由 EventBus 统一驱动) */
     if (net_mgr_get_mode() == NET_MODE_SOFTAP_CONFIG) {
-        phoenix_ui_show_bubble(ui, "未连网: 请手机连热点 [Gemini-Agent-Setup] 极速配网", 8000);
+        phoenix_ui_show_bubble(ui, "热点已开启: 请连热点 [Gemini-Agent-Setup] 极速配网", 8000);
     }
 
     return ui;

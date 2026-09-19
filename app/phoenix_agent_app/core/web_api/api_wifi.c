@@ -130,3 +130,19 @@ int handle_wifi_reset(const http_req_t *req, http_resp_t *resp)
     http_resp_json(resp, 200, "{\"success\":true,\"message\":\"reset to softap\"}");
     return 0;
 }
+
+int handle_wifi_softap_start(const http_req_t *req, http_resp_t *resp)
+{
+    (void)req;
+    net_mgr_start_softap("Gemini-Agent-Setup");
+    http_resp_json(resp, 200, "{\"success\":true,\"message\":\"softap started\"}");
+    return 0;
+}
+
+int handle_wifi_softap_stop(const http_req_t *req, http_resp_t *resp)
+{
+    (void)req;
+    net_mgr_stop_softap();
+    http_resp_json(resp, 200, "{\"success\":true,\"message\":\"softap stopped\"}");
+    return 0;
+}

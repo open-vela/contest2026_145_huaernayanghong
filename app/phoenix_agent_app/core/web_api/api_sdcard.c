@@ -293,6 +293,8 @@ static const http_route_t g_web_api_routes[] = {
     { HTTP_METHOD_GET,  "/api/wifi/status",              false, handle_wifi_status },
     { HTTP_METHOD_POST, "/api/wifi/connect",             false, handle_wifi_connect },
     { HTTP_METHOD_POST, "/api/wifi/reset",               false, handle_wifi_reset },
+    { HTTP_METHOD_POST, "/api/wifi/softap/start",        false, handle_wifi_softap_start },
+    { HTTP_METHOD_POST, "/api/wifi/softap/stop",         false, handle_wifi_softap_stop },
 
     /* 3. 卡带调度与动作 */
     { HTTP_METHOD_POST, "/api/cartridge/switch",         false, handle_cartridge_switch },

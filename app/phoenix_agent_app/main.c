@@ -189,10 +189,16 @@ static int run_cli_mode(int argc, char *argv[])
         return 0;
     }
 
-    /* 1. Initialize all core subsystems via Unified Application Facade */
-    if (phoenix_app_init(NULL) != 0) {
-        printf("[CLI] Failed to initialize Phoenix Application subsystems.\n");
-        return -1;
+    /* 护城河 4: 平坦内存多实例防踩隔离 (Flat Memory Multi-instance Guard) */
+    bool app_was_already_init = phoenix_app_is_initialized();
+    if (!app_was_already_init) {
+        /* 1. Initialize all core subsystems via Unified Application Facade */
+        if (phoenix_app_init(NULL) != 0) {
+            printf("[CLI] Failed to initialize Phoenix Application subsystems.\n");
+            return -1;
+        }
+    } else {
+        printf("[CLI] ⚡ 检测到 Phoenix 后台主服务已常驻运行，启用平坦内存安全共享模式\n");
     }
 
     /* 2. Subscribe to console logger events */
@@ -202,7 +208,12 @@ static int run_cli_mode(int argc, char *argv[])
     phoenix_event_subscribe(PHOENIX_EVT_TOOL_TRIGGERED, on_cli_event_logger, NULL);
     phoenix_event_subscribe(PHOENIX_EVT_LLM_FINISHED, on_cli_event_logger, NULL);
 
-    phoenix_agent_ctx_t *agent = phoenix_agent_core_init();
+    phoenix_agent_ctx_t *agent = phoenix_agent_get_instance();
+    bool created_own_agent = false;
+    if (!agent) {
+        agent = phoenix_agent_core_init();
+        created_own_agent = true;
+    }
 
     if (strcmp(cmd, "config") == 0) {
         if (argc >= 4 && strcmp(argv[2], "set") == 0) {
@@ -394,12 +405,17 @@ static int run_cli_mode(int argc, char *argv[])
         phoenix_app_tick();
     }
 
-    if (agent) {
+    /* 护城河 4: 若系统处于常驻运行模式，严禁释放全局 Agent 单例及抽空后台底层驱动 */
+    if (created_own_agent && agent) {
         phoenix_agent_core_destroy(agent);
     }
 
-    /* 3. Clean teardown via Unified Facade */
-    phoenix_app_deinit();
+    if (!app_was_already_init) {
+        /* 3. Clean teardown via Unified Facade */
+        phoenix_app_deinit();
+    } else {
+        printf("[CLI] ✅ CLI 任务结束，已安全保留后台常驻 GUI 与外设驱动底座\n");
+    }
     return 0;
 }
 

@@ -39,6 +39,8 @@ int handle_wifi_scan(const http_req_t *req, http_resp_t *resp);
 int handle_wifi_status(const http_req_t *req, http_resp_t *resp);
 int handle_wifi_connect(const http_req_t *req, http_resp_t *resp);
 int handle_wifi_reset(const http_req_t *req, http_resp_t *resp);
+int handle_wifi_softap_start(const http_req_t *req, http_resp_t *resp);
+int handle_wifi_softap_stop(const http_req_t *req, http_resp_t *resp);
 
 /* =========================================================================
  * 模块 3: 卡带调度、灵感外脑与桌面动作 (api_cartridge.c)

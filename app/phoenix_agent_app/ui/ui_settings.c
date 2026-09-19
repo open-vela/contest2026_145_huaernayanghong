@@ -242,22 +242,22 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     s->lbl_hotspot_ssid = lv_label_create(s->card_hotspot_info);
     lv_obj_align(s->lbl_hotspot_ssid, LV_ALIGN_TOP_LEFT, 4, 2);
     if (s->font) lv_obj_set_style_text_font(s->lbl_hotspot_ssid, s->font, 0);
-    lv_label_set_text(s->lbl_hotspot_ssid, "热点: Gemini-Agent-Setup");
-    lv_obj_set_style_text_color(s->lbl_hotspot_ssid, lv_color_hex(0x00FF88), 0);
+    lv_label_set_text(s->lbl_hotspot_ssid, "热点状态: 未开启 (点击启动)");
+    lv_obj_set_style_text_color(s->lbl_hotspot_ssid, lv_color_hex(0x7E92AD), 0);
 
     s->lbl_hotspot_ip = lv_label_create(s->card_hotspot_info);
     lv_obj_align(s->lbl_hotspot_ip, LV_ALIGN_TOP_LEFT, 4, 24);
     if (s->font) lv_obj_set_style_text_font(s->lbl_hotspot_ip, s->font, 0);
-    lv_label_set_text(s->lbl_hotspot_ip, "网址: http://192.168.4.1/");
-    lv_obj_set_style_text_color(s->lbl_hotspot_ip, lv_color_hex(0x00E5FF), 0);
+    lv_label_set_text(s->lbl_hotspot_ip, "配网网址: 开启后访问 192.168.4.1");
+    lv_obj_set_style_text_color(s->lbl_hotspot_ip, lv_color_hex(0x7E92AD), 0);
 
     s->lbl_hotspot_hint = lv_label_create(s->card_hotspot_info);
     lv_obj_align(s->lbl_hotspot_hint, LV_ALIGN_TOP_LEFT, 4, 46);
     if (s->font) lv_obj_set_style_text_font(s->lbl_hotspot_hint, s->font, 0);
-    lv_label_set_text(s->lbl_hotspot_hint, "● 手机连此热点进入网页配网 (BLE广播已并行)\n内嵌 MiniDHCP 服务已就绪");
+    lv_label_set_text(s->lbl_hotspot_hint, "● 热点配网默认关闭\n点击下方按钮即可手动拉起热点");
     lv_obj_set_style_text_color(s->lbl_hotspot_hint, lv_color_hex(0x8B9EB5), 0);
 
-    /* 重启热点按钮 */
+    /* 重启/开启热点按钮 */
     s->btn_hotspot_action = lv_btn_create(s->box_hotspot_idle);
     lv_obj_set_size(s->btn_hotspot_action, 260, 34);
     lv_obj_align(s->btn_hotspot_action, LV_ALIGN_TOP_MID, 0, 98);
@@ -270,7 +270,7 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     s->lbl_hotspot_action = lv_label_create(s->btn_hotspot_action);
     lv_obj_center(s->lbl_hotspot_action);
     if (s->font) lv_obj_set_style_text_font(s->lbl_hotspot_action, s->font, 0);
-    lv_label_set_text(s->lbl_hotspot_action, "[● 重启热点广播]");
+    lv_label_set_text(s->lbl_hotspot_action, "[📡 开启热点配网]");
     lv_obj_set_style_text_color(s->lbl_hotspot_action, lv_color_hex(0x00E5FF), 0);
 
     /* 重置网络配置按钮 */
@@ -387,8 +387,8 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     s->lbl_ble_status = lv_label_create(s->card_ble_info);
     lv_obj_align(s->lbl_ble_status, LV_ALIGN_TOP_LEFT, 4, 2);
     if (s->font) lv_obj_set_style_text_font(s->lbl_ble_status, s->font, 0);
-    lv_label_set_text(s->lbl_ble_status, "● 蓝牙状态: 广播中");
-    lv_obj_set_style_text_color(s->lbl_ble_status, lv_color_hex(0x00FF88), 0);
+    lv_label_set_text(s->lbl_ble_status, "● 蓝牙状态: 未开启 (点击启动)");
+    lv_obj_set_style_text_color(s->lbl_ble_status, lv_color_hex(0x7E92AD), 0);
 
     s->lbl_ble_dev_name = lv_label_create(s->card_ble_info);
     lv_obj_align(s->lbl_ble_dev_name, LV_ALIGN_TOP_LEFT, 4, 24);
@@ -415,7 +415,7 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     s->lbl_ble_toggle = lv_label_create(s->btn_ble_toggle);
     lv_obj_center(s->lbl_ble_toggle);
     if (s->font) lv_obj_set_style_text_font(s->lbl_ble_toggle, s->font, 0);
-    lv_label_set_text(s->lbl_ble_toggle, "[● 重启蓝牙配网广播]");
+    lv_label_set_text(s->lbl_ble_toggle, "[⚡ 启动蓝牙极速配网]");
     lv_obj_set_style_text_color(s->lbl_ble_toggle, lv_color_hex(0x00E5FF), 0);
 
     /* 蓝牙操作指引卡片 */
@@ -949,7 +949,6 @@ void ui_settings_refresh_data(ui_settings_t *settings)
         ui_settings_update_net_progress(settings, NET_MODE_STA_CONNECTING, ssid_buf, ip_buf, NULL);
     } else if (mode == NET_MODE_STA_CONNECTED) {
         ui_settings_update_net_progress(settings, NET_MODE_STA_CONNECTED, ssid_buf, ip_buf, NULL);
-        /* 仅在非配网进度展示阶段，才呈现常规待配网/热点广播卡片 */
         if (!settings->box_hotspot_progress || lv_obj_has_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN)) {
             if (settings->box_hotspot_idle) lv_obj_clear_flag(settings->box_hotspot_idle, LV_OBJ_FLAG_HIDDEN);
             if (settings->box_hotspot_progress) lv_obj_add_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN);
@@ -957,22 +956,77 @@ void ui_settings_refresh_data(ui_settings_t *settings)
 
         if (settings->lbl_hotspot_ssid) {
             char buf[64];
-            snprintf(buf, sizeof(buf), "热点: %s", ssid_buf[0] ? ssid_buf : "Gemini-Agent-Setup");
+            snprintf(buf, sizeof(buf), "已连网络: %s", ssid_buf[0] ? ssid_buf : "已连网");
             lv_label_set_text(settings->lbl_hotspot_ssid, buf);
+            lv_obj_set_style_text_color(settings->lbl_hotspot_ssid, lv_color_hex(0x00FF88), 0);
+        }
+        if (settings->lbl_hotspot_ip) {
+            char buf[64];
+            snprintf(buf, sizeof(buf), "本机 IP: %s", ip_buf[0] ? ip_buf : "127.0.0.1");
+            lv_label_set_text(settings->lbl_hotspot_ip, buf);
+            lv_obj_set_style_text_color(settings->lbl_hotspot_ip, lv_color_hex(0x00E5FF), 0);
+        }
+        if (settings->lbl_hotspot_hint) {
+            lv_label_set_text(settings->lbl_hotspot_hint, "● 网络已连通；若需更换 Wi-Fi 可开启热点\n或在伴侣看板中直接配置");
+            lv_obj_set_style_text_color(settings->lbl_hotspot_hint, lv_color_hex(0x8B9EB5), 0);
+        }
+        if (settings->lbl_hotspot_action) {
+            lv_label_set_text(settings->lbl_hotspot_action, "[📡 开启热点配网]");
+            lv_obj_set_style_text_color(settings->lbl_hotspot_action, lv_color_hex(0x00E5FF), 0);
+        }
+        if (settings->btn_hotspot_action) {
+            lv_obj_set_style_border_color(settings->btn_hotspot_action, lv_color_hex(0x00E5FF), 0);
         }
     } else if (mode == NET_MODE_SOFTAP_CONFIG) {
-        /* SoftAP 广播就绪后，按钮立即自动恢复为 [● 重启热点广播]，消除卡死 */
         if (settings->box_hotspot_idle) lv_obj_clear_flag(settings->box_hotspot_idle, LV_OBJ_FLAG_HIDDEN);
         if (settings->box_hotspot_progress) lv_obj_add_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN);
 
         if (settings->lbl_hotspot_ssid) {
             char buf[64];
-            snprintf(buf, sizeof(buf), "热点: %s", ssid_buf[0] ? ssid_buf : "Gemini-Agent-Setup");
+            snprintf(buf, sizeof(buf), "热点: %s (广播中)", ssid_buf[0] ? ssid_buf : "Gemini-Agent-Setup");
             lv_label_set_text(settings->lbl_hotspot_ssid, buf);
+            lv_obj_set_style_text_color(settings->lbl_hotspot_ssid, lv_color_hex(0x00FF88), 0);
+        }
+        if (settings->lbl_hotspot_ip) {
+            lv_label_set_text(settings->lbl_hotspot_ip, "配网网址: http://192.168.4.1/");
+            lv_obj_set_style_text_color(settings->lbl_hotspot_ip, lv_color_hex(0x00E5FF), 0);
+        }
+        if (settings->lbl_hotspot_hint) {
+            lv_label_set_text(settings->lbl_hotspot_hint, "● 手机连此热点进入网页配网\n内嵌 MiniDHCP 服务已就绪");
+            lv_obj_set_style_text_color(settings->lbl_hotspot_hint, lv_color_hex(0x8B9EB5), 0);
         }
         if (settings->lbl_hotspot_action) {
-            lv_label_set_text(settings->lbl_hotspot_action, "[● 重启热点广播]");
+            lv_label_set_text(settings->lbl_hotspot_action, "[🛑 关闭热点配网]");
+            lv_obj_set_style_text_color(settings->lbl_hotspot_action, lv_color_hex(0xFF7043), 0);
+        }
+        if (settings->btn_hotspot_action) {
+            lv_obj_set_style_border_color(settings->btn_hotspot_action, lv_color_hex(0xFF7043), 0);
+        }
+    } else {
+        /* NET_MODE_DISCONNECTED 未开启热点态 */
+        if (!settings->box_hotspot_progress || lv_obj_has_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN)) {
+            if (settings->box_hotspot_idle) lv_obj_clear_flag(settings->box_hotspot_idle, LV_OBJ_FLAG_HIDDEN);
+            if (settings->box_hotspot_progress) lv_obj_add_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN);
+        }
+
+        if (settings->lbl_hotspot_ssid) {
+            lv_label_set_text(settings->lbl_hotspot_ssid, "热点状态: 未开启 (点击启动)");
+            lv_obj_set_style_text_color(settings->lbl_hotspot_ssid, lv_color_hex(0x7E92AD), 0);
+        }
+        if (settings->lbl_hotspot_ip) {
+            lv_label_set_text(settings->lbl_hotspot_ip, "配网网址: 开启后访问 192.168.4.1");
+            lv_obj_set_style_text_color(settings->lbl_hotspot_ip, lv_color_hex(0x7E92AD), 0);
+        }
+        if (settings->lbl_hotspot_hint) {
+            lv_label_set_text(settings->lbl_hotspot_hint, "● 热点配网默认关闭\n点击下方按钮即可手动拉起热点");
+            lv_obj_set_style_text_color(settings->lbl_hotspot_hint, lv_color_hex(0x8B9EB5), 0);
+        }
+        if (settings->lbl_hotspot_action) {
+            lv_label_set_text(settings->lbl_hotspot_action, "[📡 开启热点配网]");
             lv_obj_set_style_text_color(settings->lbl_hotspot_action, lv_color_hex(0x00E5FF), 0);
+        }
+        if (settings->btn_hotspot_action) {
+            lv_obj_set_style_border_color(settings->btn_hotspot_action, lv_color_hex(0x00E5FF), 0);
         }
     }
 
@@ -1324,12 +1378,21 @@ static void on_hotspot_action_clicked(lv_event_t *e)
     ui_settings_t *s = (ui_settings_t *)lv_event_get_user_data(e);
     if (!s) return;
 
-    LOG_I(TAG, "用户点击重启 SoftAP 独立热点");
-    net_mgr_start_softap("Gemini-Agent-Setup");
-
-    if (s->lbl_hotspot_action) {
-        lv_label_set_text(s->lbl_hotspot_action, "[✓ 热点广播已重置]");
-        lv_obj_set_style_text_color(s->lbl_hotspot_action, lv_color_hex(0x00FF88), 0);
+    net_mode_t mode = net_mgr_get_mode();
+    if (mode == NET_MODE_SOFTAP_CONFIG) {
+        LOG_I(TAG, "用户在设置面板手动关闭 SoftAP 独立热点");
+        net_mgr_stop_softap();
+        if (s->lbl_hotspot_action) {
+            lv_label_set_text(s->lbl_hotspot_action, "[✓ 热点已关闭]");
+            lv_obj_set_style_text_color(s->lbl_hotspot_action, lv_color_hex(0x7E92AD), 0);
+        }
+    } else {
+        LOG_I(TAG, "用户在设置面板手动开启 SoftAP 独立热点");
+        net_mgr_start_softap("Gemini-Agent-Setup");
+        if (s->lbl_hotspot_action) {
+            lv_label_set_text(s->lbl_hotspot_action, "[✓ 热点启动中...]");
+            lv_obj_set_style_text_color(s->lbl_hotspot_action, lv_color_hex(0x00FF88), 0);
+        }
     }
     ui_settings_refresh_data(s);
 }
@@ -1339,8 +1402,8 @@ static void on_hotspot_reset_clicked(lv_event_t *e)
     ui_settings_t *s = (ui_settings_t *)lv_event_get_user_data(e);
     if (!s) return;
 
-    LOG_I(TAG, "用户点击重置网络配置");
-    net_mgr_reset_to_softap();
+    LOG_I(TAG, "用户在设置面板点击清空网络配置");
+    net_mgr_clear_config();
 
     if (s->lbl_hotspot_reset) {
         lv_label_set_text(s->lbl_hotspot_reset, "[✓ 网络配置已清空]");
@@ -1382,10 +1445,7 @@ static void on_prog_done_clicked(lv_event_t *e)
             ui_settings_close(s);
         }
     } else {
-        /* 处于断网、失败或已恢复 SoftAP 状态，点击统统切回热点就绪待机卡片 */
-        if (mode == NET_MODE_DISCONNECTED) {
-            net_mgr_start_softap(NULL);
-        }
+        /* 处于断网、失败或 SoftAP 状态，点击切回待机卡片 */
         if (s->box_hotspot_idle) lv_obj_clear_flag(s->box_hotspot_idle, LV_OBJ_FLAG_HIDDEN);
         if (s->box_hotspot_progress) lv_obj_add_flag(s->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN);
         ui_settings_refresh_data(s);

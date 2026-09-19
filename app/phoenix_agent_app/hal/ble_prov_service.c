@@ -336,6 +336,14 @@ static bt_instance_t *s_bt_ins = NULL;
 int ble_prov_service_init(const char *custom_dev_name)
 {
     pthread_mutex_lock(&s_lock);
+    if (s_ble_state == BLE_PROV_STATE_ADVERTISING ||
+        s_ble_state == BLE_PROV_STATE_CONNECTED ||
+        s_ble_state == BLE_PROV_STATE_PROVISIONING) {
+        LOG_I(TAG, "BLE Provisioning service is already active");
+        pthread_mutex_unlock(&s_lock);
+        return 0;
+    }
+
     if (custom_dev_name && strlen(custom_dev_name) > 0) {
         strncpy(s_dev_name, custom_dev_name, sizeof(s_dev_name) - 1);
     }
@@ -343,16 +351,50 @@ int ble_prov_service_init(const char *custom_dev_name)
 #if (defined(CONFIG_BLUETOOTH_SERVER) || defined(CONFIG_BLUETOOTH)) && !defined(HOST_TEST_RUNNER)
     if (!s_bt_ins) {
         s_bt_ins = bluetooth_create_instance();
-    }
-    if (s_bt_ins) {
-        bt_adapter_enable(s_bt_ins);
-        bt_adapter_set_name(s_bt_ins, s_dev_name);
-        bt_adapter_set_scan_mode(s_bt_ins, BT_SCAN_MODE_CONNECTABLE_DISCOVERABLE, false);
+        if (!s_bt_ins) {
+            LOG_E(TAG, "bluetooth_create_instance failed");
+            pthread_mutex_unlock(&s_lock);
+            return -1;
+        }
     }
 
+    /* 1. 检查并确保适配器处于开启状态 */
+    bt_adapter_state_t state = bt_adapter_get_state(s_bt_ins);
+    if (state != BT_ADAPTER_STATE_ON) {
+        LOG_I(TAG, "蓝牙适配器尚未开启 (state=%d)，正在使能...", state);
+        bt_adapter_enable(s_bt_ins);
+
+        /* 轮询等待底层固件加载与控制器就绪 (最多等待 3 秒) */
+        int wait_count = 0;
+        while (wait_count < 60) {
+            usleep(50000); /* 50ms */
+            state = bt_adapter_get_state(s_bt_ins);
+            if (state == BT_ADAPTER_STATE_ON) {
+                LOG_I(TAG, "蓝牙适配器已就绪 (耗时 %d ms)", (wait_count + 1) * 50);
+                break;
+            }
+            wait_count++;
+        }
+
+        if (state != BT_ADAPTER_STATE_ON) {
+            LOG_E(TAG, "蓝牙适配器使能超时 (最终状态: %d)，底层驱动可能未就绪", state);
+            bluetooth_delete_instance(s_bt_ins);
+            s_bt_ins = NULL;
+            pthread_mutex_unlock(&s_lock);
+            return -1;
+        }
+    }
+
+    /* 2. 配置广播参数与可见性 (duration 传入 180 秒) */
+    bt_adapter_set_name(s_bt_ins, s_dev_name);
+    bt_adapter_set_scan_mode(s_bt_ins, BT_SCAN_MODE_CONNECTABLE_DISCOVERABLE, 180);
+
+    /* 3. 适配器就绪后再注册 GATT 服务 */
     bt_status_t ret = bt_gatts_register_service(s_bt_ins, &s_gatts_handle, &s_gatts_cbs);
     if (ret != BT_STATUS_SUCCESS) {
         LOG_E(TAG, "Failed to register GATT service, ret: %d", ret);
+        bluetooth_delete_instance(s_bt_ins);
+        s_bt_ins = NULL;
         pthread_mutex_unlock(&s_lock);
         return -1;
     }
@@ -362,6 +404,8 @@ int ble_prov_service_init(const char *custom_dev_name)
         LOG_E(TAG, "Failed to add GATT attribute table, ret: %d", ret);
         bt_gatts_unregister_service(s_gatts_handle);
         s_gatts_handle = NULL;
+        bluetooth_delete_instance(s_bt_ins);
+        s_bt_ins = NULL;
         pthread_mutex_unlock(&s_lock);
         return -1;
     }

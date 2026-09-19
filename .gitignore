@@ -12,3 +12,4 @@ Make.dep
 *.pyc
 ._*
 .DS_Store
+.depend

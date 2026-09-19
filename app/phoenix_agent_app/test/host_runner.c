@@ -1532,7 +1532,13 @@ static void run_test_network_mgr(void)
     net_mgr_register_state_cb(on_test_net_state_changed, NULL);
     assert(net_mgr_init() == 0);
 
-    /* By default with no saved Wi-Fi, it should enter SoftAP configuration mode */
+    /* 默认开机无配置时，保持断开态 (热点与蓝牙默认均不启动) */
+    assert(net_mgr_get_mode() == NET_MODE_DISCONNECTED);
+    assert(s_last_test_net_mode == NET_MODE_DISCONNECTED);
+    printf("  -> Default Boot State (Hotspot & BLE OFF, Disconnected) PASSED!\n");
+
+    /* 1.1 手动从设置中开启 SoftAP 热点配网 */
+    assert(net_mgr_start_softap(NULL) == 0);
     assert(net_mgr_get_mode() == NET_MODE_SOFTAP_CONFIG);
     char ip_buf[32] = {0};
     char ssid_buf[32] = {0};
@@ -1541,7 +1547,7 @@ static void run_test_network_mgr(void)
     assert(net_mgr_get_ssid(ssid_buf, sizeof(ssid_buf)) == 0);
     assert(strcmp(ssid_buf, NET_DEFAULT_SOFTAP_SSID) == 0);
     assert(s_last_test_net_mode == NET_MODE_SOFTAP_CONFIG);
-    printf("  -> SoftAP Default State PASSED (SSID: %s, IP: %s)\n", ssid_buf, ip_buf);
+    printf("  -> Manual SoftAP Start PASSED (SSID: %s, IP: %s)\n", ssid_buf, ip_buf);
 
     /* 2. Verify Captive Portal HTTP responses under SoftAP mode */
     char resp_buf[4096];
@@ -1652,6 +1658,16 @@ static void run_test_network_mgr(void)
     assert(net_mgr_get_ip(ip_buf, sizeof(ip_buf)) == 0);
     assert(strcmp(ip_buf, "192.168.4.1") == 0);
     printf("  -> One-click Reset to SoftAP PASSED!\n");
+
+    /* 6.1 Test Manual Stop SoftAP */
+    assert(net_mgr_stop_softap() == 0);
+    assert(net_mgr_get_mode() == NET_MODE_DISCONNECTED);
+    printf("  -> Manual Stop SoftAP to Disconnected PASSED!\n");
+
+    /* 6.2 Test Clear Config without auto hotspot */
+    assert(net_mgr_clear_config() == 0);
+    assert(net_mgr_get_mode() == NET_MODE_DISCONNECTED);
+    printf("  -> Clear Config without auto Hotspot PASSED!\n");
 
     /* 7. Disconnect and Deinit */
     net_mgr_disconnect();
@@ -2124,6 +2140,7 @@ static void run_test_architecture_evolution(void)
 
     /* 3. BLE vs SoftAP Coex RF Arbiter Test */
     assert(net_mgr_init() == 0);
+    assert(net_mgr_start_softap(NULL) == 0);
     assert(net_mgr_get_mode() == NET_MODE_SOFTAP_CONFIG);
 
     /* BLE 连接建立 -> 挂起 SoftAP 广播 */
@@ -2375,6 +2392,91 @@ static void run_test_env_sensor_subsystem(void)
     printf("  -> Ambient Temperature & Humidity Sensor Subsystem PASSED!\n");
 }
 
+static void run_test_four_moats_hardening(void)
+{
+    printf("\n[TEST 33] Testing Four-Moat Anti-Hang Architecture Hardening (CAS State Guard, 429 Wall, Context Wall & Isolation)...\n");
+
+    /* 1. 初始化核心环境 */
+    phoenix_event_bus_init();
+    phoenix_tool_registry_init();
+    phoenix_register_builtin_tools();
+    phoenix_llm_provider_init(NULL);
+    phoenix_llm_provider_set_backend(phoenix_llm_mock_backend_create());
+
+    phoenix_agent_ctx_t *agent = phoenix_agent_core_init();
+    assert(agent != NULL);
+    web_api_set_bound_agent(agent);
+
+    /* ------------------------------------------------------------------------
+     * 护城河 1: Agent 忙闲互斥闸门 (CAS State Guard)
+     * ------------------------------------------------------------------------ */
+    assert(phoenix_agent_is_busy(agent) == false);
+    assert(phoenix_agent_is_busy(NULL) == false);
+
+    /* 模拟 Agent 处于 THINKING 状态 */
+    phoenix_agent_set_state(agent, AGENT_STATE_THINKING, "测试模拟深度思考中");
+    assert(phoenix_agent_is_busy(agent) == true);
+    assert(phoenix_agent_is_busy(NULL) == true);
+
+    /* 并发调用应当被 0ms 快速拦截并返回 -2 (EBUSY) */
+    phoenix_agent_trace_t busy_trace;
+    memset(&busy_trace, 0, sizeof(busy_trace));
+    int chat_ret = phoenix_agent_chat_with_trace(agent, "并发测试指令", &busy_trace);
+    assert(chat_ret == -2);
+    assert(busy_trace.success == false);
+    assert(strstr(busy_trace.final_answer, "思考中") != NULL);
+    printf("  -> Moat 1: CAS Busy Guard & Concurrent Chat Interception (-EBUSY) PASSED\n");
+
+    /* ------------------------------------------------------------------------
+     * 护城河 2: Web API 429 忙碌快速拒绝机制
+     * ------------------------------------------------------------------------ */
+    char resp_buf[2048];
+    char req_chat[] = "POST /api/v1/agent/chat HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 35\r\n\r\n{\"prompt\":\"敲一下赛博木鱼\"}";
+    int resp_len = phoenix_web_portal_handle_request(req_chat, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "429") != NULL);
+    assert(strstr(resp_buf, "灵眸正在深度思考中") != NULL);
+    assert(strstr(resp_buf, "\"success\":false") != NULL);
+    printf("  -> Moat 2: Web API HTTP 429 Fast Rejection under Heavy Load PASSED\n");
+
+    /* 恢复为 IDLE 状态 */
+    phoenix_agent_set_state(agent, AGENT_STATE_IDLE, "恢复就绪");
+    assert(phoenix_agent_is_busy(agent) == false);
+
+    /* ------------------------------------------------------------------------
+     * 护城河 3: 嵌入式上下文长城 (256 字符截断 & Thinking Strip 堆碎片防护)
+     * ------------------------------------------------------------------------ */
+    char long_prompt[400];
+    memset(long_prompt, 'A', sizeof(long_prompt) - 1);
+    long_prompt[sizeof(long_prompt) - 1] = '\0';
+
+    chat_ret = phoenix_agent_chat(agent, long_prompt);
+    assert(chat_ret == 0);
+    assert(agent->history_count >= 2);
+
+    /* 验证 User 消息单条内容被硬截断至 256 字符且以 ... 结尾 */
+    assert(strlen(agent->history[0].content) <= 256);
+    assert(strstr(agent->history[0].content, "...") != NULL);
+    assert(agent->history[0].reasoning_content == NULL);
+
+    /* 验证 Assistant 历史中思考链被剥离 (Thinking Strip)，杜绝堆碎片化 */
+    assert(agent->history[1].reasoning_content == NULL);
+    printf("  -> Moat 3: Context Wall (256B Truncation) & Thinking Strip Heap Guard PASSED\n");
+
+    /* ------------------------------------------------------------------------
+     * 护城河 4: 平坦内存多实例防踩隔离
+     * ------------------------------------------------------------------------ */
+    assert(phoenix_agent_get_instance() == agent);
+    phoenix_agent_ctx_t *reused = phoenix_agent_get_instance();
+    assert(reused == agent);
+    printf("  -> Moat 4: Flat Memory Agent Singleton Safe Reuse PASSED\n");
+
+    phoenix_agent_core_destroy(agent);
+    web_api_set_bound_agent(NULL);
+    phoenix_event_bus_deinit();
+    printf("  -> Four-Moat Anti-Hang Architecture Hardening PASSED!\n");
+}
+
 int main(int argc, char *argv[])
 {
     printf("====================================================\n");
@@ -2420,8 +2522,9 @@ int main(int argc, char *argv[])
     run_test_time_synchronization();
     run_test_agent_web_api();
     run_test_env_sensor_subsystem();
+    run_test_four_moats_hardening();
 
-    printf("\n🎉 ALL 32 UNIT TESTS PASSED SUCCESSFULLY!\n");
+    printf("\n🎉 ALL 33 UNIT TESTS PASSED SUCCESSFULLY!\n");
 
     /* If --repl or -i passed, enter interactive mode */
     if (argc > 1 && (strcmp(argv[1], "-i") == 0 || strcmp(argv[1], "--repl") == 0)) {

@@ -1439,16 +1439,48 @@
       appendUserChatBubble(prompt);
       showAgentThinkingCard();
 
+      // 护城河 2: 推理期间避让高频后台轮询，保护板端微内核 TCP listen backlog 与连接池
+      let pausedLogPoll = false;
+      let pausedStatusPoll = false;
+      if (logPollTimer) {
+        clearInterval(logPollTimer);
+        logPollTimer = null;
+        pausedLogPoll = true;
+      }
+      if (statusPollTimer) {
+        clearInterval(statusPollTimer);
+        statusPollTimer = null;
+        pausedStatusPoll = true;
+      }
+
+      const restorePolling = () => {
+        if (pausedLogPoll && !logPollTimer) {
+          logPollTimer = setInterval(fetchLogs, 900);
+        }
+        if (pausedStatusPoll && !statusPollTimer) {
+          statusPollTimer = setInterval(refreshStatus, 2000);
+        }
+      };
+
       fetch('/api/v1/agent/chat', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({prompt: prompt})
       })
-      .then(r => r.json())
-      .then(d => {
+      .then(async r => {
+        const d = await r.json().catch(() => ({}));
         btn.disabled = false;
         btn.innerText = '🚀 调度 Agent';
         removeAgentThinkingCard();
+        restorePolling();
+
+        if (r.status === 429 || (!d.success && d.error && d.error.indexOf('思考中') !== -1)) {
+          showToast(d.error || '灵眸正在深度思考中，请稍候...');
+          stateBadge.innerText = '⏳ THINKING';
+          stateBadge.style.color = '#f1fa8c';
+          appendAgentResponseBubble(d);
+          return;
+        }
 
         stateBadge.innerText = '● ' + (d.state || 'IDLE');
         stateBadge.style.color = 'var(--accent-sub)';
@@ -1461,6 +1493,7 @@
         btn.disabled = false;
         btn.innerText = '🚀 调度 Agent';
         removeAgentThinkingCard();
+        restorePolling();
         stateBadge.innerText = '❌ 请求异常';
         stateBadge.style.color = '#ff5555';
         showToast('Agent 调度异常: ' + e);

@@ -54,8 +54,8 @@ ui_capsule_t* ui_capsule_create(lv_obj_t *parent, const lv_font_t *font)
     if (!capsule) return NULL;
 
     capsule->font = font;
-    capsule->current_temp_c = 26.0f;
-    capsule->current_humi_pct = 60;
+    capsule->current_temp_c = 0.0f;
+    capsule->current_humi_pct = 0;
     capsule->current_battery = 85;
     strncpy(capsule->current_net_str, "Wi-Fi", sizeof(capsule->current_net_str) - 1);
     capsule->breath_val = 255;
@@ -75,14 +75,14 @@ ui_capsule_t* ui_capsule_create(lv_obj_t *parent, const lv_font_t *font)
     lv_obj_set_style_pad_hor(capsule->container, 6, LV_PART_MAIN);
     lv_obj_clear_flag(capsule->container, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* 2. 左侧：温湿度微标签 (如 "26℃ 60%") */
+    /* 2. 左侧：温湿度微标签 (未接入环境传感器时平滑显示 CPU 温度) */
     capsule->lbl_env = lv_label_create(capsule->container);
     lv_obj_set_width(capsule->lbl_env, 80);
     lv_obj_set_style_text_align(capsule->lbl_env, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
     lv_obj_align(capsule->lbl_env, LV_ALIGN_LEFT_MID, 4, 0);
     if (font) lv_obj_set_style_text_font(capsule->lbl_env, font, LV_PART_MAIN);
-    lv_obj_set_style_text_color(capsule->lbl_env, lv_color_hex(0x00E5FF), LV_PART_MAIN);
-    lv_label_set_text(capsule->lbl_env, "26C 60%");
+    lv_obj_set_style_text_color(capsule->lbl_env, lv_color_hex(0x8397B2), LV_PART_MAIN);
+    lv_label_set_text(capsule->lbl_env, "--");
     capsule->lbl_cartridge = capsule->lbl_env; /* 兼容别名 */
 
     /* 3. 居中：全局 Agent 心智微胶囊 (低调科技感底色，不抢主屏视觉) */
@@ -160,7 +160,7 @@ void ui_capsule_wake(ui_capsule_t *capsule)
     }
 }
 
-void ui_capsule_update_env(ui_capsule_t *capsule, float temp_c, uint8_t humidity_pct)
+void ui_capsule_update_env(ui_capsule_t *capsule, float temp_c, uint8_t humidity_pct, bool is_valid)
 {
     if (!capsule || !capsule->lbl_env) return;
     ui_capsule_wake(capsule);
@@ -169,7 +169,18 @@ void ui_capsule_update_env(ui_capsule_t *capsule, float temp_c, uint8_t humidity
     capsule->current_humi_pct = humidity_pct;
 
     char buf[24];
-    snprintf(buf, sizeof(buf), "%dC %d%%", (int)(temp_c + 0.5f), (int)humidity_pct);
+    if (is_valid) {
+        /* 板载真实环境温湿度: 极客青色 */
+        snprintf(buf, sizeof(buf), "%dC %d%%", (int)(temp_c + 0.5f), (int)humidity_pct);
+        lv_obj_set_style_text_color(capsule->lbl_env, lv_color_hex(0x00E5FF), LV_PART_MAIN);
+    } else if (temp_c > 0.0f) {
+        /* 无物理温湿度传感器，优雅展示全志 R528 真实核心温度: 淡雅科技蓝灰 */
+        snprintf(buf, sizeof(buf), "CPU %d°C", (int)(temp_c + 0.5f));
+        lv_obj_set_style_text_color(capsule->lbl_env, lv_color_hex(0x8397B2), LV_PART_MAIN);
+    } else {
+        snprintf(buf, sizeof(buf), "--");
+        lv_obj_set_style_text_color(capsule->lbl_env, lv_color_hex(0x8397B2), LV_PART_MAIN);
+    }
     lv_label_set_text(capsule->lbl_env, buf);
 }
 

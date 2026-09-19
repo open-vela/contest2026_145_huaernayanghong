@@ -173,6 +173,13 @@ void phoenix_agent_core_destroy(phoenix_agent_ctx_t *ctx);
  */
 phoenix_agent_ctx_t* phoenix_agent_get_instance(void);
 
+/**
+ * @brief 校验 Agent 核心当前是否正处于推理或执行忙碌状态 (护城河 1: 忙闲闸门)
+ * @param ctx Agent 上下文，可为 NULL (自动退化为全局单例)
+ * @return true 处于忙碌中 (严禁并发重入)，false 空闲
+ */
+bool phoenix_agent_is_busy(const phoenix_agent_ctx_t *ctx);
+
 #ifdef __cplusplus
 }
 #endif

@@ -63,7 +63,8 @@ int hal_init(const hal_config_t *config)
     hal_sdcard_init();
     hal_actuator_init(sound_root);
     hal_sensor_init();
-    ble_prov_service_init(NULL);
+    /* 蓝牙配网广播默认保持关闭，需用户在设置中手动开启 */
+    /* ble_prov_service_init(NULL); */
 
     g_hal_initialized = true;
     LOG_I(TAG, "✅ HAL Subsystems Initialized Successfully.");

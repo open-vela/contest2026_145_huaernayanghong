@@ -614,18 +614,16 @@ static void* sta_connect_worker_thread(void *arg)
         time_sync_trigger_ntp();
         start_link_watchdog();
     } else {
-        LOG_W(TAG, "⚠️ [Worker] Wi-Fi 握手或 DHCP 超时，通知界面并自动恢复 SoftAP 独立热点");
+        LOG_W(TAG, "⚠️ [Worker] Wi-Fi 握手或 DHCP 超时，通知界面并保持未连网状态 (需在设置中手动开启热点配网)");
         s_mode = NET_MODE_DISCONNECTED;
         if (!associated) {
-            notify_state_changed_with_msg_unlocked("Wi-Fi 关联失败(无法连接AP或密码错误)，已恢复独立热点");
+            notify_state_changed_with_msg_unlocked("Wi-Fi 关联失败(无法连接AP或密码错误)");
         } else {
-            notify_state_changed_with_msg_unlocked("DHCP 协商超时(未能获取有效 IP)，已恢复独立热点");
+            notify_state_changed_with_msg_unlocked("DHCP 协商超时(未能获取有效 IP)");
         }
         pthread_mutex_unlock(&s_lock);
 
         stop_link_watchdog();
-        /* 自动恢复统一命名的独立热点供用户继续配网 */
-        net_mgr_start_softap(NET_DEFAULT_SOFTAP_SSID);
     }
 
     return NULL;
@@ -740,8 +738,14 @@ int net_mgr_init(void)
         LOG_I(TAG, "检测到已保存的 Wi-Fi 配置: [%s]，尝试连入局域网...", saved_ssid);
         return net_mgr_connect_sta(saved_ssid, saved_psk);
     } else {
-        LOG_I(TAG, "本地无 Wi-Fi 配置，启动 SoftAP 独立热点配网模式 (后台异步预扫描)...");
-        return net_mgr_start_softap(NULL);
+        LOG_I(TAG, "本地无 Wi-Fi 配置，默认关闭热点配网与蓝牙配网，保持未连网状态 (需在设置中手动开启)");
+        pthread_mutex_lock(&s_lock);
+        s_mode = NET_MODE_DISCONNECTED;
+        s_current_ip[0] = '\0';
+        s_current_ssid[0] = '\0';
+        notify_state_changed_with_msg_unlocked("未配置网络 (热点已关闭)");
+        pthread_mutex_unlock(&s_lock);
+        return 0;
     }
 }
 
@@ -1155,6 +1159,17 @@ int net_mgr_stop_softap(void)
         system("ifconfig wlan1 down > /dev/null");
     }
 #endif
+
+    pthread_mutex_lock(&s_lock);
+    if (s_mode == NET_MODE_SOFTAP_CONFIG) {
+        s_mode = NET_MODE_DISCONNECTED;
+        s_current_ip[0] = '\0';
+        s_current_ssid[0] = '\0';
+        notify_state_changed_with_msg_unlocked("热点已关闭");
+        phoenix_web_portal_stop();
+    }
+    pthread_mutex_unlock(&s_lock);
+
     return 0;
 }
 
@@ -1203,45 +1218,39 @@ static void* softap_worker_thread(void *arg)
 
     LOG_I(TAG, "[SoftAP:Worker] 正在后台配置 wlan1 SoftAP 物理网卡与射频 (SSID: %s)...", ssid);
 
-    /* 1. 后台异步预热周边 Wi-Fi 列表 (若缓存为空)，杜绝在主线程开机期间阻塞 LVGL 渲染 */
-    pthread_mutex_lock(&s_scan_lock);
-    bool need_prescan = (s_scan_cache_count == 0);
-    pthread_mutex_unlock(&s_scan_lock);
-    if (need_prescan) {
-        LOG_I(TAG, "[SoftAP:Worker] 后台执行空中 Wi-Fi 预扫描，填充配网列表...");
-        net_mgr_prescan_wifi();
-    }
-
-    /* 2. 先关闭旧的热点 (wlan1) 并保持 wlan0 监听态就绪 */
+    /* 1. 先关闭旧的热点 (wlan1) 并停止 DHCP 服务，重置网卡状态 */
     net_mgr_stop_softap();
 
+    /* 2. 原生 WAPI C API 配置 wlan1 Master 与固定 IP 192.168.4.1、信道 6 (2437MHz) */
     int sock = wapi_make_socket();
     if (sock >= 0) {
-        /* 2. 原生 WAPI C API 配置 wlan1 Master 与固定 IP 192.168.4.1、信道 6 (2437MHz) */
         struct in_addr ip, mask;
         inet_aton("192.168.4.1", &ip);
         inet_aton("255.255.255.0", &mask);
         wapi_set_ip(sock, "wlan1", &ip);
         wapi_set_netmask(sock, "wlan1", &mask);
         wapi_set_ifup(sock, "wlan1");
-        wapi_set_mode(sock, "wlan1", WAPI_MODE_MASTER);
-        wapi_set_freq(sock, "wlan1", 2437, 1);
-        wapi_set_essid(sock, "wlan1", ssid, WAPI_ESSID_ON);
+        int ret_m = wapi_set_mode(sock, "wlan1", WAPI_MODE_MASTER);
+        int ret_f = wapi_set_freq(sock, "wlan1", 2437, 1);
+        int ret_e = wapi_set_essid(sock, "wlan1", ssid, WAPI_ESSID_ON);
+        (void)ret_f;
         close(sock);
-        LOG_I(TAG, "⚡ [Native WAPI] SoftAP wlan1 (SSID: %s, Ch: 6, IP: 192.168.4.1, Mode: OPEN) 射频已就绪", ssid);
+        if (ret_m != 0 || ret_e != 0) {
+            LOG_W(TAG, "⚠️ [Native WAPI] 设置 wlan1 模式或 ESSID 异常(mode=%d, essid=%d)，由命令行补充兜底", ret_m, ret_e);
+        } else {
+            LOG_I(TAG, "⚡ [Native WAPI] SoftAP wlan1 (SSID: %s, Ch: 6, IP: 192.168.4.1, Mode: MASTER) 射频已就绪", ssid);
+        }
     }
 
-    /* 3. 补充标准命令行确保全志底层 Realtek wlan1 属性与路由生效 */
-    system("ifconfig wlan1 192.168.4.1 netmask 255.255.255.0 up > /dev/null");
+    /* 3. 补充标准命令行确保全志底层 Realtek wlan1 属性与路由生效
+     * 注意：NuttX NSH ifconfig 不支持末尾加 "up" 参数；
+     * 绝不在此修改 wlan0 省电/自适应参数，避免单天线芯片全局射频复位中断 wlan1 Beacon 广播 */
+    system("ifconfig wlan1 192.168.4.1 netmask 255.255.255.0 > /dev/null");
     system("wapi mode wlan1 3 > /dev/null");
     system("wapi freq wlan1 2437 1 > /dev/null");
     char cmd[256];
     snprintf(cmd, sizeof(cmd), "wapi essid wlan1 \"%s\" 1 > /dev/null", ssid);
     system(cmd);
-
-    /* 确保 wlan0 处于唤醒监听状态，关闭自适应与省电，为空中扫描留出稳定环境 */
-    system("wapi private wlan0 adaptivity 0 > /dev/null");
-    system("wapi power_save wlan0 off > /dev/null");
 
     /* 4. 启动内嵌 MiniDHCP+DNS 服务 (Web 服务在开机时已常驻监听 0.0.0.0:80，无需重启) */
     mini_dhcpd_start();
@@ -1403,6 +1412,34 @@ int net_mgr_reset_to_softap(void)
     net_mgr_prescan_wifi();
 
     return net_mgr_start_softap(NULL);
+}
+
+int net_mgr_clear_config(void)
+{
+    LOG_I(TAG, "🧹 清空本地 Wi-Fi 配置并重置为未联网状态 (不开启热点)...");
+    net_mgr_disconnect();
+
+    phoenix_config_set_str(PHOENIX_CFG_WIFI_SSID, "");
+    phoenix_config_set_str(PHOENIX_CFG_WIFI_PSK, "");
+    phoenix_config_save();
+
+#if !defined(HOST_TEST_RUNNER)
+    unlink(WAPI_CONF_FILE);
+    FILE *fp = fopen(WAPI_CONF_FILE, "w");
+    if (fp) {
+        fputs("{\n  \"ssid\": \"\",\n  \"psk\": \"\",\n  \"bssid\": \"\"\n}\n", fp);
+        fclose(fp);
+    }
+    sync();
+#endif
+
+    pthread_mutex_lock(&s_lock);
+    s_mode = NET_MODE_DISCONNECTED;
+    s_current_ip[0] = '\0';
+    s_current_ssid[0] = '\0';
+    notify_state_changed_with_msg_unlocked("网络配置已清空 (未联网)");
+    pthread_mutex_unlock(&s_lock);
+    return 0;
 }
 
 net_mode_t net_mgr_get_mode(void)

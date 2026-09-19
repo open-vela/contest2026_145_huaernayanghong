@@ -62,12 +62,13 @@ ui_capsule_t* ui_capsule_create(lv_obj_t *parent, const lv_font_t *font);
 void ui_capsule_destroy(ui_capsule_t *capsule);
 
 /**
- * @brief 更新温湿度环境数据 (左侧)
+ * @brief 更新环境温湿度或核心温度 (左侧)
  * @param capsule 胶囊上下文
- * @param temp_c 温度摄氏度 (如 26.5)
+ * @param temp_c 温度摄氏度 (物理环境温度或 R528 核心温度)
  * @param humidity_pct 相对湿度百分比 (0~100)
+ * @param is_valid 是否为板载物理环境温湿度 (若 false 则退化展示核心温度)
  */
-void ui_capsule_update_env(ui_capsule_t *capsule, float temp_c, uint8_t humidity_pct);
+void ui_capsule_update_env(ui_capsule_t *capsule, float temp_c, uint8_t humidity_pct, bool is_valid);
 
 /**
  * @brief 更新番茄钟专注流微标与倒计时

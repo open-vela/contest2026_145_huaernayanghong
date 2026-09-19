@@ -116,7 +116,9 @@ static const char* status_code_to_str(int code)
         case 400: return "400 Bad Request";
         case 403: return "403 Forbidden";
         case 404: return "404 Not Found";
+        case 429: return "429 Too Many Requests";
         case 500: return "500 Internal Server Error";
+        case 503: return "503 Service Unavailable";
         default:  return "200 OK";
     }
 }

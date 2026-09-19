@@ -161,8 +161,9 @@ static int execute_http_post(const char *url,
         /* 嵌入式设备网络稳定性适配：允许自签名或缺失本地 CA 根证书时安全连通 */
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+        /* 护城河 3: 注入网络硬看门狗，快速失败自愈，绝不长期霸占工作线程拖死系统 */
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 4L);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 12L);
 
         CURLcode res = curl_easy_perform(curl);
 
@@ -246,7 +247,7 @@ static int execute_http_post(const char *url,
         return -6;
     }
 
-    struct timeval tv = { .tv_sec = 10, .tv_usec = 0 };
+    struct timeval tv = { .tv_sec = 12, .tv_usec = 0 };
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 

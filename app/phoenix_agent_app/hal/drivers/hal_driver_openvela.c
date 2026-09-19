@@ -13,12 +13,26 @@
 #include <time.h>
 #include <sys/time.h>
 #include <sys/utsname.h>
+#include <sys/ioctl.h>
 #include <math.h>
 
 #ifdef __NUTTX__
 #include <nuttx/config.h>
 #include <malloc.h>
+#include <nuttx/sensors/sensor.h>
+#include <nuttx/sensors/ioctl.h>
 #endif
+
+#ifndef SNIOC_ACTIVATE
+#define SNIOC_ACTIVATE 0x0001
+#endif
+#ifndef SNIOC_SET_INTERVAL
+#define SNIOC_SET_INTERVAL 0x0002
+#endif
+
+static int s_board_fd_temp = -1;
+static int s_board_fd_humi = -1;
+static bool s_board_sensor_probed = false;
 
 #ifdef CONFIG_AUDIOUTILS_NXAUDIO
 #include <audioutils/nxaudio.h>
@@ -45,6 +59,21 @@ static int openvela_sensor_init(void)
 
 static int openvela_sensor_deinit(void)
 {
+    if (s_board_fd_temp >= 0) {
+#if defined(__NUTTX__) && defined(SNIOC_ACTIVATE)
+        ioctl(s_board_fd_temp, SNIOC_ACTIVATE, 0);
+#endif
+        close(s_board_fd_temp);
+        s_board_fd_temp = -1;
+    }
+    if (s_board_fd_humi >= 0) {
+#if defined(__NUTTX__) && defined(SNIOC_ACTIVATE)
+        ioctl(s_board_fd_humi, SNIOC_ACTIVATE, 0);
+#endif
+        close(s_board_fd_humi);
+        s_board_fd_humi = -1;
+    }
+    s_board_sensor_probed = false;
     return 0;
 }
 
@@ -122,69 +151,58 @@ static int openvela_sensor_read_env(hal_env_data_t *out_env)
 {
     if (!out_env) return -1;
 
-    /* 默认安全基准值 (室内桌面 26.0℃ / 60% 相对湿度) */
+    out_env->timestamp_us = board_get_time_ms() * 1000;
     out_env->temperature_c = 26.0f;
     out_env->humidity_pct = 60.0f;
-    out_env->timestamp_us = board_get_time_ms() * 1000;
     out_env->is_valid = false;
 
     /* 
-     * 关键性能与防卡死优化：
-     * 仅在开机首次探测底层硬件传感器节点是否存在；若不存在（如开发板未贴片 SHTC3），
-     * 立即标记不支持并极速返回默认值，彻底杜绝主事件循环以 20Hz 极高频重复调用 open/close
-     * 冲击内核 VFS 甚至导致 I2C 硬件总线超时挂起。
+     * 遵循 OpenVela Sensor IIO 框架规范：
+     * 首次开机探测节点并在存在时激活 (SNIOC_ACTIVATE)，保持持久句柄杜绝重复 open/close 冲击 VFS
      */
-    static bool s_probed = false;
-    static bool s_temp_node_exists = false;
-    static bool s_humi_node_exists = false;
-
-    if (!s_probed) {
-        int fd_t = open("/dev/sensor/temp0", O_RDONLY | O_NONBLOCK);
-        if (fd_t >= 0) {
-            s_temp_node_exists = true;
-            close(fd_t);
+    if (!s_board_sensor_probed) {
+        s_board_fd_temp = open("/dev/sensor/temp0", O_RDONLY | O_NONBLOCK);
+        if (s_board_fd_temp >= 0) {
+#if defined(__NUTTX__) && defined(SNIOC_ACTIVATE)
+            ioctl(s_board_fd_temp, SNIOC_ACTIVATE, 1);
+            ioctl(s_board_fd_temp, SNIOC_SET_INTERVAL, 1000000);
+#endif
         }
-        int fd_h = open("/dev/sensor/humi0", O_RDONLY | O_NONBLOCK);
-        if (fd_h >= 0) {
-            s_humi_node_exists = true;
-            close(fd_h);
+        s_board_fd_humi = open("/dev/sensor/humi0", O_RDONLY | O_NONBLOCK);
+        if (s_board_fd_humi >= 0) {
+#if defined(__NUTTX__) && defined(SNIOC_ACTIVATE)
+            ioctl(s_board_fd_humi, SNIOC_ACTIVATE, 1);
+            ioctl(s_board_fd_humi, SNIOC_SET_INTERVAL, 1000000);
+#endif
         }
-        s_probed = true;
+        s_board_sensor_probed = true;
     }
 
-    if (!s_temp_node_exists && !s_humi_node_exists) {
+    if (s_board_fd_temp < 0 && s_board_fd_humi < 0) {
+        /* 板载未贴片/未外接 SHTC3 温湿度传感器，标记 is_valid = false */
         return 0;
     }
 
-    /* 仅在硬件节点确凿存在时执行非阻塞读取 */
-    if (s_temp_node_exists) {
-        int fd_t = open("/dev/sensor/temp0", O_RDONLY | O_NONBLOCK);
-        if (fd_t >= 0) {
-            struct {
-                uint64_t timestamp;
-                float temperature;
-            } evt_t;
-            if (read(fd_t, &evt_t, sizeof(evt_t)) == sizeof(evt_t)) {
-                out_env->temperature_c = evt_t.temperature;
-                out_env->timestamp_us = evt_t.timestamp;
-                out_env->is_valid = true;
-            }
-            close(fd_t);
+    if (s_board_fd_temp >= 0) {
+        struct {
+            uint64_t timestamp;
+            float temperature;
+        } evt_t;
+        if (read(s_board_fd_temp, &evt_t, sizeof(evt_t)) == sizeof(evt_t)) {
+            out_env->temperature_c = evt_t.temperature;
+            out_env->timestamp_us = evt_t.timestamp;
+            out_env->is_valid = true;
         }
     }
 
-    if (s_humi_node_exists) {
-        int fd_h = open("/dev/sensor/humi0", O_RDONLY | O_NONBLOCK);
-        if (fd_h >= 0) {
-            struct {
-                uint64_t timestamp;
-                float humidity;
-            } evt_h;
-            if (read(fd_h, &evt_h, sizeof(evt_h)) == sizeof(evt_h)) {
-                out_env->humidity_pct = evt_h.humidity;
-                out_env->is_valid = true;
-            }
-            close(fd_h);
+    if (s_board_fd_humi >= 0) {
+        struct {
+            uint64_t timestamp;
+            float humidity;
+        } evt_h;
+        if (read(s_board_fd_humi, &evt_h, sizeof(evt_h)) == sizeof(evt_h)) {
+            out_env->humidity_pct = evt_h.humidity;
+            out_env->is_valid = true;
         }
     }
 
