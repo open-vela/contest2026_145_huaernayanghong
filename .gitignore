@@ -10,3 +10,5 @@ out/
 rebuild.sh
 Make.dep
 *.pyc
+._*
+.DS_Store
