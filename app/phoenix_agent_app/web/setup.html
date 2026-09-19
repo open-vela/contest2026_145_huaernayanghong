@@ -577,6 +577,20 @@
       document.getElementById('btnCloseModal').innerText = '已了解，查看设备正面屏幕';
     }
 
+    function syncClientTimeToDevice() {
+      const ts = Math.floor(Date.now() / 1000);
+      fetch('/api/system/time', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timestamp: ts })
+      }).then(r => r.json()).then(res => {
+        if (res.success) {
+          console.log('[TimeSync] 浏览器时间已成功注入设备:', res.datetime);
+        }
+      }).catch(e => console.warn('[TimeSync] 自动对时跳过:', e));
+    }
+
+    syncClientTimeToDevice();
     scanWifi();
   </script>
 </body>

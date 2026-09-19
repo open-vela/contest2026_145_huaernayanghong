@@ -77,12 +77,10 @@ static void update_clock_display(clock_ui_t *u)
             lv_bar_set_value(u->bar_pomo, u->pomo_remain_s, LV_ANIM_OFF);
         }
     } else {
-        uint64_t now_ms = time_utils_get_ms();
-        int64_t total_sec = (int64_t)(now_ms / 1000) + 8 * 3600; /* UTC+8 */
-        int cur_hour = (int)((total_sec / 3600) % 24);
-        int cur_min = (int)((total_sec / 60) % 60);
-        snprintf(h_str, sizeof(h_str), "%02d", cur_hour);
-        snprintf(m_str, sizeof(m_str), "%02d", cur_min);
+        struct tm ti;
+        time_utils_get_local_time(&ti);
+        snprintf(h_str, sizeof(h_str), "%02d", ti.tm_hour);
+        snprintf(m_str, sizeof(m_str), "%02d", ti.tm_min);
         if (u->lbl_status) {
             lv_label_set_text(u->lbl_status, "机械翻页 · 桌面质感");
             lv_obj_set_style_text_color(u->lbl_status, lv_color_hex(0x6E87A8), 0);

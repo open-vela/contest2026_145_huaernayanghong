@@ -93,14 +93,12 @@ static const char *const s_whispers_sleepy[] = {
 static void update_time_display(familiar_ui_t *u)
 {
     if (!u || !u->container || !u->lbl_time) return;
-    uint64_t now_ms = time_utils_get_ms();
-    int64_t total_sec = (int64_t)(now_ms / 1000) + 8 * 3600; /* UTC+8 */
-    int cur_hour = (int)((total_sec / 3600) % 24);
-    int cur_min = (int)((total_sec / 60) % 60);
+    struct tm ti;
+    time_utils_get_local_time(&ti);
 
     char tbuf[16];
     u->colon_blink = !u->colon_blink;
-    snprintf(tbuf, sizeof(tbuf), "%02d%c%02d", cur_hour, u->colon_blink ? ':' : ' ', cur_min);
+    snprintf(tbuf, sizeof(tbuf), "%02d%c%02d", ti.tm_hour, u->colon_blink ? ':' : ' ', ti.tm_min);
     lv_label_set_text(u->lbl_time, tbuf);
 }
 

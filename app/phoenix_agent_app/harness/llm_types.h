@@ -55,6 +55,8 @@ typedef struct {
     uint32_t completion_tokens;  /**< Tokens in completion */
     uint32_t total_tokens;       /**< Total tokens consumed */
     uint32_t latency_ms;         /**< LLM round-trip latency in milliseconds */
+    int      http_status;        /**< HTTP response status (200, 401, 500, etc.) */
+    char    *error_msg;          /**< Non-NULL if error occurred (heap allocated) */
 } phoenix_chat_resp_t;
 
 /**

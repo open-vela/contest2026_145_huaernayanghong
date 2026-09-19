@@ -285,6 +285,8 @@ static const http_route_t g_web_api_routes[] = {
     { HTTP_METHOD_GET,  "/library/test/success.html",     false, handle_system_captive_probe },
     { HTTP_METHOD_GET,  "/api/status",                   false, handle_system_status },
     { HTTP_METHOD_POST, "/api/proactive",                false, handle_system_proactive },
+    { HTTP_METHOD_GET,  "/api/system/time",              false, handle_system_get_time },
+    { HTTP_METHOD_POST, "/api/system/time",              false, handle_system_set_time },
 
     /* 2. Wi-Fi 配网 */
     { HTTP_METHOD_GET,  "/api/wifi/scan",                false, handle_wifi_scan },

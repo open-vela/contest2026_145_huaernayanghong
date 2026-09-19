@@ -145,7 +145,11 @@ static const char s_setup_html[] =
     "' +'<b>请直接观察设备正面屏幕：</b><br>' +'屏幕已自动切入【步进配网状态机】，实时展示：<br>' +'① 关闭独立热点 [✓] ➔ ② 关联路由器 [⟳] ➔ ③ 申请 DHCP "
     "IP [⟳]<br><br>' +'• <b>配网成功</b>：屏幕将展示分配到的局域网 IP 及伴侣看板入口；<br>' +'• <b>配网失败</b>：屏幕将弹出超时/密码错误警告，并自动恢复热点"
     "供重试。';document.getElementById('btnCloseModal').style.display = 'inline-block';document.getElementByI"
-    "d('btnCloseModal').innerText = '已了解，查看设备正面屏幕';}scanWifi();</script></body></html>";
+    "d('btnCloseModal').innerText = '已了解，查看设备正面屏幕';}function syncClientTimeToDevice() {const ts = Math.fl"
+    "oor(Date.now() / 1000);fetch('/api/system/time', {method: 'POST',headers: { 'Content-Type': 'applica"
+    "tion/json' },body: JSON.stringify({ timestamp: ts })}).then(r => r.json()).then(res => {if (res.succ"
+    "ess) {console.log('[TimeSync] 浏览器时间已成功注入设备:', res.datetime);}}).catch(e => console.warn('[TimeSync] "
+    "自动对时跳过:', e));}syncClientTimeToDevice();scanWifi();</script></body></html>";
 
 static const char s_ble_setup_html[] =
     "<!DOCTYPE html><html lang=\"zh-CN\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\""
@@ -676,8 +680,12 @@ static const char s_dashboard_html[] =
     "f = url;a.download = 'phoenix_logs_' + new Date().toISOString().replace(/[:.]/g, '-') + '.log';a.cli"
     "ck();URL.revokeObjectURL(url);}const termEl = document.getElementById('terminalWindow');termEl.addEv"
     "entListener('scroll', () => {const isAtBottom = termEl.scrollHeight - termEl.scrollTop - termEl.clie"
-    "ntHeight < 30;if (!isAtBottom && logAutoScroll) {toggleAutoScroll();}});setInterval(fetchLogs, 900);"
-    "fetchLogs();</script></body></html>";
+    "ntHeight < 30;if (!isAtBottom && logAutoScroll) {toggleAutoScroll();}});function syncClientTimeToDev"
+    "ice() {const ts = Math.floor(Date.now() / 1000);fetch('/api/system/time', {method: 'POST',headers: {"
+    " 'Content-Type': 'application/json' },body: JSON.stringify({ timestamp: ts })}).then(r => r.json())."
+    "then(res => {if (res.success) {console.log('[TimeSync] 浏览器时间已成功注入设备:', res.datetime);}}).catch(e => "
+    "console.warn('[TimeSync] 自动对时跳过:', e));}setInterval(fetchLogs, 900);fetchLogs();syncClientTimeToDevi"
+    "ce();</script></body></html>";
 
 const char *phoenix_web_asset_get_setup_html(void)
 {

@@ -152,6 +152,21 @@ static bool mock_backend_is_connected(phoenix_llm_backend_t *self)
     return false; /* 本地离线驱动无云端/系统级 IPC 连接 */
 }
 
+static int mock_backend_ping(phoenix_llm_backend_t *self,
+                            uint32_t *latency_ms,
+                            int *http_status,
+                            char *err_buf,
+                            size_t err_sz)
+{
+    (void)self;
+    if (latency_ms) *latency_ms = 0;
+    if (http_status) *http_status = 200;
+    if (err_buf && err_sz > 0) {
+        snprintf(err_buf, err_sz, "Mock backend offline loopback OK");
+    }
+    return 0;
+}
+
 static void mock_backend_deinit(phoenix_llm_backend_t *self)
 {
     (void)self;
@@ -162,6 +177,7 @@ static phoenix_llm_backend_t g_mock_backend_instance = {
     .init = mock_backend_init,
     .chat = mock_backend_chat,
     .is_connected = mock_backend_is_connected,
+    .ping = mock_backend_ping,
     .deinit = mock_backend_deinit,
     .user_data = NULL
 };

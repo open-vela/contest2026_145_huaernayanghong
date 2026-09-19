@@ -20,6 +20,7 @@ extern "C" {
 #define PHOENIX_CFG_WIFI_SSID         "wifi_ssid"
 #define PHOENIX_CFG_WIFI_PSK          "wifi_psk"
 #define PHOENIX_CFG_BACKEND           "llm_backend"
+#define PHOENIX_CFG_BASE_URL          "llm_base_url"
 #define PHOENIX_CFG_API_KEY           "llm_api_key"
 #define PHOENIX_CFG_MODEL             "llm_model"
 #define PHOENIX_CFG_PROACTIVE_EN      "proactive_en"
@@ -71,6 +72,22 @@ int phoenix_config_set_str(const char *key, const char *val);
  * @return 0 on success
  */
 int phoenix_config_save(void);
+
+/**
+ * @brief Dump all configuration entries to stdout (masking sensitive keys)
+ */
+void phoenix_config_dump(void);
+
+/**
+ * @brief Reset configuration back to factory defaults and save
+ */
+void phoenix_config_reset_defaults(void);
+
+/**
+ * @brief Get configuration file storage path
+ * @return Path string
+ */
+const char* phoenix_config_get_path(void);
 
 /**
  * @brief Close and de-initialize configuration subsystem

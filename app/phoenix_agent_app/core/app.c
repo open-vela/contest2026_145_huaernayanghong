@@ -133,8 +133,13 @@ int phoenix_app_init(const phoenix_app_config_t *config)
         char model_buf[64] = {0};
         phoenix_config_get_str(PHOENIX_CFG_MODEL, "deepseek-chat", model_buf, sizeof(model_buf));
         strncpy(llm_cfg.model_name, model_buf, sizeof(llm_cfg.model_name) - 1);
+        char url_buf[PHOENIX_MAX_URL_LEN] = {0};
+        phoenix_config_get_str(PHOENIX_CFG_BASE_URL, "https://api.deepseek.com/v1/chat/completions", url_buf, sizeof(url_buf));
+        strncpy(llm_cfg.base_url, url_buf, sizeof(llm_cfg.base_url) - 1);
+        llm_cfg.temperature = 70;
         phoenix_llm_provider_init(&llm_cfg);
-        LOG_I(TAG, "🔑 已从系统配置载入 DeepSeek API Key (%zu 字节), 模型: %s", strlen(saved_key), model_buf);
+        LOG_I(TAG, "🔑 已从配置载入 API Key (%zu 字节), 模型: %s, Endpoint: %s",
+              strlen(saved_key), model_buf, url_buf);
     } else {
         phoenix_llm_provider_init(NULL);
         LOG_I(TAG, "💡 本地未配置 API Key, 初始化离线具身仿真驱动模式");

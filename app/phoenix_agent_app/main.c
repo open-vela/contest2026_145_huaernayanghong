@@ -16,9 +16,11 @@
 #endif
 
 #include "core/app.h"
+#include "core/config.h"
 #include "core/event_bus.h"
 #include "core/tool_registry.h"
 #include "core/agent_core.h"
+#include "harness/llm_provider.h"
 #include "core/cartridge_mgr.h"
 #include "core/web_portal.h"
 #include "hal/network_mgr.h"
@@ -90,6 +92,75 @@ static void on_cli_event_logger(const phoenix_event_data_t *event, void *user_da
     }
 }
 
+static void run_agent_selftest(phoenix_agent_ctx_t *agent)
+{
+    printf("\n====================================================\n");
+    printf(" 🧪 Phoenix Agent 端侧具身闭环自动化巡检套件 (Self-Test)\n");
+    printf("====================================================\n");
+
+    int total = 0, passed = 0;
+
+    /* Step 1: Config Subsystem Check */
+    total++;
+    char key[128] = {0};
+    char url[256] = {0};
+    phoenix_config_get_str(PHOENIX_CFG_API_KEY, "", key, sizeof(key));
+    phoenix_config_get_str(PHOENIX_CFG_BASE_URL, "", url, sizeof(url));
+    bool cfg_ok = (url[0] != '\0');
+    printf("[Test 1/4] 系统与网络配置检查: %s (Endpoint: %s, Key已配: %s)\n",
+           cfg_ok ? "✅ PASS" : "❌ FAIL", url[0] ? url : "None", key[0] ? "是" : "否 (离线模式)");
+    if (cfg_ok) passed++;
+
+    /* Step 2: LLM Ping Check */
+    total++;
+    uint32_t lat_ms = 0;
+    int http_status = 0;
+    char err_diag[256] = {0};
+    printf("[Test 2/4] 云端模型心跳握手探测 (llm ping)...\n");
+    int ping_rc = phoenix_llm_ping(&lat_ms, &http_status, err_diag, sizeof(err_diag));
+    bool ping_ok = (ping_rc == 0 && http_status == 200);
+    printf("           状态: HTTP %d, 往返延迟: %u ms, 诊断: %s -> %s\n",
+           http_status, lat_ms, err_diag, ping_ok ? "✅ PASS" : "⚠️ FAIL (若无网请配Key/BaseURL)");
+    if (ping_ok) passed++;
+
+    /* Step 3: Tool Execution Unit Tests */
+    total++;
+    printf("[Test 3/4] 5 大内置具身工具独立单元测试:\n");
+    const char *test_tools[][2] = {
+        {"knock_wooden_fish", "{\"count\":2}"},
+        {"manage_pomodoro", "{\"action\":\"status\"}"},
+        {"set_eye_emotion", "{\"emotion\":\"happy\"}"},
+        {"system_health", "{}"},
+        {"launch_app", "{\"app_id\":\"zen\"}"}
+    };
+    bool tools_all_ok = true;
+    for (size_t i = 0; i < 5; i++) {
+        char out_buf[256] = {0};
+        int trc = phoenix_tool_execute(test_tools[i][0], test_tools[i][1], out_buf, sizeof(out_buf));
+        bool tok = (trc == 0 && strlen(out_buf) > 0);
+        printf("           - [%s] -> %s (输出: %.60s)\n",
+               test_tools[i][0], tok ? "OK" : "FAIL", out_buf);
+        if (!tok) tools_all_ok = false;
+    }
+    printf("           工具集执行结果: %s\n", tools_all_ok ? "✅ PASS" : "❌ FAIL");
+    if (tools_all_ok) passed++;
+
+    /* Step 4: End-to-End Agent ReAct Tool Calling Test */
+    total++;
+    printf("[Test 4/4] 端到端 ReAct 意图决策与工具调用闭环测试:\n");
+    printf("           发送意图: \"帮我敲一下木鱼积累功德\"\n");
+    int chat_rc = phoenix_agent_chat(agent, "帮我敲一下木鱼积累功德");
+    phoenix_app_tick();
+    bool chat_ok = (chat_rc == 0);
+    printf("           智能体 ReAct 回环结果: %s\n", chat_ok ? "✅ PASS" : "❌ FAIL");
+    if (chat_ok) passed++;
+
+    printf("====================================================\n");
+    printf(" 🏁 自动化巡检结果汇总: %d / %d 项测试通过 (通过率 %d%%)\n",
+           passed, total, (passed * 100) / total);
+    printf("====================================================\n");
+}
+
 static int run_cli_mode(int argc, char *argv[])
 {
     printf("====================================================\n");
@@ -102,14 +173,18 @@ static int run_cli_mode(int argc, char *argv[])
     if (strcmp(cmd, "help") == 0 || strcmp(cmd, "--help") == 0 || strcmp(cmd, "-h") == 0) {
         printf("Usage: phoenix_agent_app <command> [args...]\n\n");
         printf("Available Commands (ADB Debug & Test Suites):\n");
-        printf("  log [level <val>] / [dump] / [clear]   : 动态查询/设置日志级别或转储黑匣子\n");
-        printf("  wifi [status] / [scan]                 : 查询当前 Wi-Fi 工作模式或扫描热点\n");
-        printf("  sensor [status] / [knock]              : 查询传感器数据或模拟敲击事件\n");
-        printf("  cartridge [list] / [switch <name>]     : 巡检全部业务卡带或动态切换\n");
-        printf("  tools                                  : 列出已注册具身外设工具及 Schema\n");
-        printf("  tool <name> [json_args]                : 独立执行指定的具身技能插件\n");
-        printf("  ask <prompt>                           : 向大模型发送意图并触发交互\n");
-        printf("  --autotest-cli                         : 运行全量自动化无头回归测试\n");
+        printf("  config [get [key]] / [set <k> <v>] / [reset] : 查看/修改系统与大模型配置并持久化\n");
+        printf("  llm ping                                     : 快速测试云端大模型网络握手与 API Key\n");
+        printf("  llm chat <prompt>                            : 直接向大模型发起单轮问答 (跳过工具)\n");
+        printf("  agent ask <prompt>                           : 启动 ReAct 智能体问答 (端侧决策与工具调用)\n");
+        printf("  agent selftest                               : 一键运行大模型与工具链全流程自检\n");
+        printf("  tools                                        : 列出已注册具身外设工具及 JSON Schema\n");
+        printf("  tool <name> [json_args]                      : 独立单步执行指定的具身技能插件\n");
+        printf("  cartridge [list] / [switch <name>]           : 巡检全部业务卡带或动态切换\n");
+        printf("  sensor [status] / [knock]                    : 查询传感器数据或模拟敲击事件\n");
+        printf("  wifi [status] / [scan]                       : 查询当前 Wi-Fi 工作模式或扫描热点\n");
+        printf("  log [level <val>] / [dump] / [clear]         : 动态查询/设置日志级别或转储黑匣子\n");
+        printf("  --autotest-cli                               : 运行全量无头回归测试套件\n");
         printf("====================================================\n");
         return 0;
     }
@@ -129,7 +204,96 @@ static int run_cli_mode(int argc, char *argv[])
 
     phoenix_agent_ctx_t *agent = phoenix_agent_core_init();
 
-    if (strcmp(cmd, "log") == 0) {
+    if (strcmp(cmd, "config") == 0) {
+        if (argc >= 4 && strcmp(argv[2], "set") == 0) {
+            const char *k = argv[3];
+            const char *v = (argc >= 5) ? argv[4] : "";
+            phoenix_config_set_str(k, v);
+            phoenix_config_save();
+
+            /* 动态同步至大模型 Harness */
+            if (strcmp(k, PHOENIX_CFG_API_KEY) == 0 || strcmp(k, "api_key") == 0) {
+                phoenix_llm_set_api_key(v);
+            } else if (strcmp(k, PHOENIX_CFG_BASE_URL) == 0 || strcmp(k, "base_url") == 0) {
+                phoenix_llm_set_base_url(v);
+            } else if (strcmp(k, PHOENIX_CFG_MODEL) == 0 || strcmp(k, "model") == 0) {
+                phoenix_llm_set_model(v);
+            }
+            printf("[CLI:Config] ✅ 配置 [%s] 已更新并持久化至 Flash: %s\n", k, v);
+        } else if (argc >= 3 && strcmp(argv[2], "reset") == 0) {
+            phoenix_config_reset_defaults();
+            phoenix_config_save();
+            printf("[CLI:Config] ✅ 配置已恢复出厂默认值。\n");
+        } else if (argc >= 4 && strcmp(argv[2], "get") == 0) {
+            char val_buf[256] = {0};
+            phoenix_config_get_str(argv[3], "(not found)", val_buf, sizeof(val_buf));
+            printf("[CLI:Config] %s = %s\n", argv[3], val_buf);
+        } else {
+            /* 默认 dump 全部配置并脱敏显示敏感密钥 */
+            phoenix_config_dump();
+        }
+    } else if (strcmp(cmd, "llm") == 0) {
+        if (argc >= 3 && strcmp(argv[2], "ping") == 0) {
+            char url[256] = {0};
+            phoenix_config_get_str(PHOENIX_CFG_BASE_URL, "", url, sizeof(url));
+            printf("[CLI:LLM] 📡 正在探测云端大模型服务连通性...\n");
+            printf("[CLI:LLM] 目标 Endpoint: %s\n", url[0] ? url : "Default");
+
+            uint32_t lat_ms = 0;
+            int status = 0;
+            char diag[256] = {0};
+            int rc = phoenix_llm_ping(&lat_ms, &status, diag, sizeof(diag));
+            if (rc == 0 && status == 200) {
+                printf("[CLI:LLM] ✅ 探测成功! HTTP %d (OK), 往返耗时: %u ms\n", status, lat_ms);
+            } else {
+                printf("[CLI:LLM] ❌ 探测失败! HTTP %d, 往返耗时: %u ms\n", status, lat_ms);
+                printf("[CLI:LLM] 诊断原因: %s\n", diag[0] ? diag : "连接异常");
+                printf("[CLI:LLM] 提示: 请确认 Wi-Fi 是否连网，或使用以下命令配置正确的 Key:\n"
+                       "  phoenix_agent_app config set api_key <你的DeepSeek-API-Key>\n");
+            }
+        } else if (argc >= 3 && strcmp(argv[2], "chat") == 0) {
+            const char *prompt = (argc >= 4) ? argv[3] : "你好";
+            printf("[CLI:LLM] 💬 直接向大模型发起单轮问答: \"%s\"\n", prompt);
+
+            phoenix_chat_msg_t send_msg;
+            memset(&send_msg, 0, sizeof(send_msg));
+            send_msg.role = PHOENIX_ROLE_USER;
+            send_msg.content = (char *)prompt;
+
+            phoenix_chat_resp_t resp;
+            memset(&resp, 0, sizeof(resp));
+
+            int rc = phoenix_llm_provider_chat(&send_msg, 1, NULL, &resp);
+            if (rc == 0 && resp.content) {
+                if (resp.reasoning_content && strlen(resp.reasoning_content) > 0) {
+                    printf("[CLI:LLM:Thinking] 🧠 %s\n", resp.reasoning_content);
+                }
+                printf("[CLI:LLM:Answer] 🤖 %s\n", resp.content);
+                printf("[CLI:LLM:Metrics] 耗时: %u ms, Tokens: [Prompt %u, Completion %u, Total %u]\n",
+                       resp.latency_ms, resp.prompt_tokens, resp.completion_tokens, resp.total_tokens);
+            } else {
+                printf("[CLI:LLM] ❌ 请求失败 (HTTP %d): %s\n",
+                       resp.http_status, resp.content ? resp.content : "网络握手或鉴权错误");
+            }
+            phoenix_llm_resp_free(&resp);
+        } else {
+            printf("Usage: phoenix_agent_app llm [ping | chat <prompt>]\n");
+        }
+    } else if (strcmp(cmd, "agent") == 0) {
+        if (argc >= 3 && strcmp(argv[2], "selftest") == 0) {
+            run_agent_selftest(agent);
+        } else if (argc >= 4 && strcmp(argv[2], "ask") == 0) {
+            printf("[CLI:Agent] 🚀 发送智能体意图: \"%s\"\n", argv[3]);
+            phoenix_agent_chat(agent, argv[3]);
+            phoenix_app_tick();
+        } else if (argc >= 3) {
+            printf("[CLI:Agent] 🚀 发送智能体意图: \"%s\"\n", argv[2]);
+            phoenix_agent_chat(agent, argv[2]);
+            phoenix_app_tick();
+        } else {
+            printf("Usage: phoenix_agent_app agent [ask <prompt> | selftest]\n");
+        }
+    } else if (strcmp(cmd, "log") == 0) {
         if (argc >= 4 && strcmp(argv[2], "level") == 0) {
             int lvl = phoenix_log_level_from_str(argv[3]);
             phoenix_log_set_level(lvl);
@@ -216,14 +380,18 @@ static int run_cli_mode(int argc, char *argv[])
         char result_buf[512] = {0};
         printf("[CLI] 执行工具: %s, 参数: %s\n", tool_name, tool_args);
         phoenix_tool_execute(tool_name, tool_args, result_buf, sizeof(result_buf));
+        phoenix_app_tick();
         printf("[CLI] 输出结果: %s\n", result_buf);
     } else if (strcmp(cmd, "ask") == 0 && argc >= 3) {
-        printf("[CLI] 发送提问: \"%s\"\n", argv[2]);
+        /* 向后兼容命令: 等同于 agent ask */
+        printf("[CLI] 发送智能体提问: \"%s\"\n", argv[2]);
         phoenix_agent_chat(agent, argv[2]);
+        phoenix_app_tick();
     } else {
         /* Treat full string as prompt */
-        printf("[CLI] 发送提问: \"%s\"\n", argv[1]);
+        printf("[CLI] 发送智能体提问: \"%s\"\n", argv[1]);
         phoenix_agent_chat(agent, argv[1]);
+        phoenix_app_tick();
     }
 
     if (agent) {

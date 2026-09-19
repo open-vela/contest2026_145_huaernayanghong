@@ -206,29 +206,13 @@ static void update_clock_and_calendar(home_ui_t *u)
 {
     if (!u || !u->container) return;
 
-    uint64_t now_ms = time_utils_get_ms();
-    int64_t total_sec = (int64_t)(now_ms / 1000) + 8 * 3600; /* UTC+8 */
-    int cur_hour = (int)((total_sec / 3600) % 24);
-    int cur_min = (int)((total_sec / 60) % 60);
-
-    /* 日期估算或系统当前时间 */
-    time_t raw_time = time(NULL);
     struct tm ti;
-    if (raw_time > 1600000000) {
-        localtime_r(&raw_time, &ti);
-    } else {
-        /* 默认 2026-09-08 (周二) */
-        memset(&ti, 0, sizeof(ti));
-        ti.tm_year = 2026 - 1900;
-        ti.tm_mon = 8; /* 9月 (0-11) */
-        ti.tm_mday = 8;
-        ti.tm_wday = 2; /* 2: 周二 */
-    }
+    time_utils_get_local_time(&ti);
 
     /* 1. 更新大字时间 (支持冒号闪烁) */
     if (u->lbl_time) {
         char tbuf[16];
-        snprintf(tbuf, sizeof(tbuf), "%02d%c%02d", cur_hour, u->colon_blink ? ':' : ' ', cur_min);
+        snprintf(tbuf, sizeof(tbuf), "%02d%c%02d", ti.tm_hour, u->colon_blink ? ':' : ' ', ti.tm_min);
         lv_label_set_text(u->lbl_time, tbuf);
     }
 

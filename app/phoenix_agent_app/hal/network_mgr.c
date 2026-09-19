@@ -21,6 +21,7 @@
 #  include "../core/event_bus.h"
 #endif
 #include "ble_prov_service.h"
+#include "../utils/time_sync.h"
 
 #if defined(__has_include)
 #  if __has_include(<netutils/cJSON.h>)
@@ -430,6 +431,8 @@ static void* net_link_watchdog_thread(void *arg)
                     phoenix_web_portal_start(80, NULL);
                     LOG_I(TAG, "🌐 局域网 Web 伴侣已启动: http://%s/ (或 :8080)", check_ip);
                 }
+                /* 触发网络时间自动校准 */
+                time_sync_trigger_ntp();
             }
         }
     }
@@ -585,6 +588,8 @@ static void* sta_connect_worker_thread(void *arg)
             phoenix_web_portal_start(80, NULL);
             LOG_I(TAG, "🌐 局域网 Web 伴侣已启动: http://%s/ (或 :8080)", acquired_ip);
         }
+        /* 触发网络时间自动校准 */
+        time_sync_trigger_ntp();
         start_link_watchdog();
     } else {
         LOG_W(TAG, "⚠️ [Worker] Wi-Fi 握手或 DHCP 超时，通知界面并自动恢复 SoftAP 独立热点");
@@ -633,6 +638,7 @@ int net_mgr_init(void)
     }
 
     s_initialized = true;
+    time_sync_init();
 
     /* 读取 Web 服务偏好设置 (默认开启) */
     s_web_enabled = (phoenix_config_get_int("web_portal_en", 1) != 0);
@@ -1295,6 +1301,7 @@ int net_mgr_connect_sta(const char *ssid, const char *psk)
     if (web_en) {
         phoenix_web_portal_start(8080, NULL);
     }
+    time_sync_trigger_ntp();
     return 0;
 #else
     /* 真机模式：启动后台异步工作线程下发 WAPI 序列，防止阻塞 LVGL 界面 */

@@ -30,6 +30,7 @@ void phoenix_llm_resp_free(phoenix_chat_resp_t *resp)
     if (resp->tool_name) free(resp->tool_name);
     if (resp->tool_input) free(resp->tool_input);
     if (resp->reasoning_content) free(resp->reasoning_content);
+    if (resp->error_msg) free(resp->error_msg);
     memset(resp, 0, sizeof(phoenix_chat_resp_t));
 }
 
@@ -76,8 +77,9 @@ int phoenix_llm_provider_init(const phoenix_llm_config_t *config)
     }
 
     g_provider_initialized = true;
-    LOG_I(TAG, "✅ Harness Facade initialized. Active backend: [%s]",
-          g_active_backend ? g_active_backend->name : "None");
+    LOG_I(TAG, "✅ Harness Facade initialized. Active backend: [%s], Model: %s, URL: %s",
+          g_active_backend ? g_active_backend->name : "None",
+          g_config.model_name, g_config.base_url);
     return 0;
 }
 
@@ -112,6 +114,41 @@ void phoenix_llm_set_api_key(const char *api_key)
         strcmp(g_active_backend->name, "MockOfflineBackend") == 0) {
         phoenix_llm_provider_set_backend(phoenix_llm_cloud_backend_create());
     }
+}
+
+void phoenix_llm_set_base_url(const char *base_url)
+{
+    if (!base_url || !base_url[0]) return;
+    snprintf(g_config.base_url, sizeof(g_config.base_url), "%s", base_url);
+    if (g_active_backend && g_active_backend->init) {
+        g_active_backend->init(g_active_backend, &g_config);
+    }
+    LOG_I(TAG, "Base URL updated -> %s", g_config.base_url);
+}
+
+void phoenix_llm_set_model(const char *model_name)
+{
+    if (!model_name || !model_name[0]) return;
+    snprintf(g_config.model_name, sizeof(g_config.model_name), "%s", model_name);
+    if (g_active_backend && g_active_backend->init) {
+        g_active_backend->init(g_active_backend, &g_config);
+    }
+    LOG_I(TAG, "Model updated -> %s", g_config.model_name);
+}
+
+int phoenix_llm_ping(uint32_t *latency_ms, int *http_status, char *err_buf, size_t err_sz)
+{
+    if (!g_provider_initialized || !g_active_backend) {
+        if (err_buf && err_sz > 0) snprintf(err_buf, err_sz, "LLM provider not initialized");
+        return -1;
+    }
+
+    if (g_active_backend->ping) {
+        return g_active_backend->ping(g_active_backend, latency_ms, http_status, err_buf, err_sz);
+    }
+
+    if (err_buf && err_sz > 0) snprintf(err_buf, err_sz, "Backend does not implement ping");
+    return -2;
 }
 
 bool phoenix_llm_is_agent_connected(void)

@@ -54,6 +54,28 @@ phoenix_llm_backend_t *phoenix_llm_provider_get_backend(void);
 void phoenix_llm_set_api_key(const char *api_key);
 
 /**
+ * @brief Update Base URL endpoint dynamically
+ * @param base_url New Base URL endpoint
+ */
+void phoenix_llm_set_base_url(const char *base_url);
+
+/**
+ * @brief Update Model name dynamically
+ * @param model_name New model name (e.g. deepseek-chat)
+ */
+void phoenix_llm_set_model(const char *model_name);
+
+/**
+ * @brief Send lightweight ping to test backend connectivity and auth
+ * @param latency_ms Output roundtrip latency in ms
+ * @param http_status Output HTTP status code
+ * @param err_buf Output error description buffer
+ * @param err_sz Buffer size
+ * @return 0 on success (HTTP 200)
+ */
+int phoenix_llm_ping(uint32_t *latency_ms, int *http_status, char *err_buf, size_t err_sz);
+
+/**
  * @brief Check if currently connected to system-level VelaClaw Agent or active network
  */
 bool phoenix_llm_is_agent_connected(void);

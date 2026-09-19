@@ -41,6 +41,15 @@ struct phoenix_llm_backend_s {
     bool (*is_connected)(phoenix_llm_backend_t *self);
 
     /**
+     * @brief Send lightweight ping to test backend connectivity and auth
+     */
+    int (*ping)(phoenix_llm_backend_t *self,
+                uint32_t *latency_ms,
+                int *http_status,
+                char *err_buf,
+                size_t err_sz);
+
+    /**
      * @brief De-initialize backend resources
      */
     void (*deinit)(phoenix_llm_backend_t *self);

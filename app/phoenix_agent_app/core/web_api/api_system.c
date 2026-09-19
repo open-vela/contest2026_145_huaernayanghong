@@ -11,7 +11,9 @@
 #include "../../hal/network_mgr.h"
 #include "../../hal/hal_system.h"
 #include "../../hal/hal_sdcard.h"
+#include "../../utils/time_utils.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static phoenix_agent_ctx_t *g_bound_agent = NULL;
@@ -166,5 +168,57 @@ int handle_system_proactive(const http_req_t *req, http_resp_t *resp)
         phoenix_agent_trigger_proactive(g_bound_agent, PROACTIVE_THRESHOLD_FATIGUE, "Web控制台远程演示触发");
     }
     http_resp_json(resp, 200, "{\"success\":true,\"status\":\"triggered\",\"message\":\"proactive triggered\"}");
+    return 0;
+}
+
+int handle_system_get_time(const http_req_t *req, http_resp_t *resp)
+{
+    (void)req;
+    char dt_str[32] = {0};
+    time_utils_get_datetime_str(dt_str, sizeof(dt_str));
+    bool synced = time_utils_is_synced();
+    time_t now = time_utils_get_epoch();
+
+    char json[128];
+    snprintf(json, sizeof(json), "{\"synced\":%s,\"datetime\":\"%s\",\"timestamp\":%lld}",
+             synced ? "true" : "false", dt_str, (long long)now);
+    http_resp_json(resp, 200, json);
+    return 0;
+}
+
+int handle_system_set_time(const http_req_t *req, http_resp_t *resp)
+{
+    if (!req || !req->body || req->body_len == 0) {
+        http_resp_json(resp, 400, "{\"error\":\"Empty request body\"}");
+        return -1;
+    }
+
+    int64_t ts = 0;
+    const char *p = strstr(req->body, "\"timestamp_ms\"");
+    if (p) {
+        p = strchr(p, ':');
+        if (p) ts = atoll(p + 1) / 1000;
+    } else {
+        p = strstr(req->body, "\"timestamp\"");
+        if (p) {
+            p = strchr(p, ':');
+            if (p) ts = atoll(p + 1);
+        }
+    }
+
+    if (ts < 1704067200) {
+        http_resp_json(resp, 400, "{\"error\":\"Invalid timestamp\"}");
+        return -1;
+    }
+
+    time_utils_set_time((time_t)ts);
+
+    char dt_str[32] = {0};
+    time_utils_get_datetime_str(dt_str, sizeof(dt_str));
+
+    char json[128];
+    snprintf(json, sizeof(json), "{\"success\":true,\"datetime\":\"%s\",\"timestamp\":%lld}",
+             dt_str, (long long)ts);
+    http_resp_json(resp, 200, json);
     return 0;
 }

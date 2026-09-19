@@ -40,6 +40,7 @@ $COMPILER -O2 -Wall -Wextra -std=gnu99 \
     "$APP_DIR/utils/log_mgr.c" \
     "$APP_DIR/utils/ring_buffer.c" \
     "$APP_DIR/utils/time_utils.c" \
+    "$APP_DIR/utils/time_sync.c" \
     "$APP_DIR/core/event_bus.c" \
     "$APP_DIR/core/tool_registry.c" \
     "$APP_DIR/core/store.c" \
@@ -87,7 +88,7 @@ $COMPILER -O2 -Wall -Wextra -std=gnu99 \
     "$APP_DIR/harness/llm_cloud_backend.c" \
     "$APP_DIR/harness/llm_provider.c" \
     "$CJSON_DIR/cJSON.c" \
-    -o "$BIN_OUT" -lpthread -lm
+    -o "$BIN_OUT" -lpthread -lm -lcurl
 
 echo "✅ Compilation Succeeded! Binary: $BIN_OUT"
 echo ""

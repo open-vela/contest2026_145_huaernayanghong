@@ -42,6 +42,7 @@
 #  include "../voice/voice_pipeline.h"
 #  include "../utils/ring_buffer.h"
 #  include "../utils/time_utils.h"
+#  include "../utils/time_sync.h"
 #  include "../utils/log_utils.h"
 #  include "../hal/hal_system.h"
 #  include "../hal/hal_sdcard.h"
@@ -2091,6 +2092,71 @@ static void run_test_architecture_evolution(void)
     printf("  -> Architecture Evolution Subsystem Hardening PASSED!\n");
 }
 
+static void run_test_time_synchronization(void)
+{
+    printf("\n[TEST 30] Testing Time Synchronization Subsystem (NTP, LocalTime, Web API & UI Fallback)...\n");
+
+    /* 1. 初始化时区与时钟底座 */
+    time_utils_init();
+
+    /* 2. 测试对时前状态与优雅降级 */
+    struct tm ti;
+    memset(&ti, 0, sizeof(ti));
+    assert(time_utils_get_local_time(&ti) == 0);
+    assert(ti.tm_year >= (2024 - 1900));
+    printf("  -> Local Time Fallback / Initial Read: %04d-%02d-%02d %02d:%02d:%02d\n",
+           ti.tm_year + 1900, ti.tm_mon + 1, ti.tm_mday, ti.tm_hour, ti.tm_min, ti.tm_sec);
+
+    /* 3. 主动授时测试 (模拟 2026-09-19 12:30:00 UTC+8) */
+    /* 2026-09-19 12:30:00 北京时间 = 2026-09-19 04:30:00 UTC */
+    struct tm set_tm;
+    memset(&set_tm, 0, sizeof(set_tm));
+    set_tm.tm_year = 2026 - 1900;
+    set_tm.tm_mon  = 8; /* 9月 */
+    set_tm.tm_mday = 19;
+    set_tm.tm_hour = 4;
+    set_tm.tm_min  = 30;
+    set_tm.tm_sec  = 0;
+    time_t mock_epoch = timegm(&set_tm);
+
+    assert(time_utils_set_time(mock_epoch) == 0);
+    assert(time_utils_is_synced() == true);
+
+    struct tm check_tm;
+    assert(time_utils_get_local_time(&check_tm) == 0);
+    assert(check_tm.tm_year == 2026 - 1900);
+    assert(check_tm.tm_mon == 8);
+    assert(check_tm.tm_mday == 19);
+    assert(check_tm.tm_hour == 12);
+    assert(check_tm.tm_min == 30);
+    printf("  -> Precise UTC+8 Local Time Decoding PASSED (%04d-%02d-%02d %02d:%02d)\n",
+           check_tm.tm_year + 1900, check_tm.tm_mon + 1, check_tm.tm_mday, check_tm.tm_hour, check_tm.tm_min);
+
+    /* 4. 测试 Web API: GET /api/system/time 与 POST /api/system/time */
+    char req_get[] = "GET /api/system/time HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+    char resp_buf[2048];
+    int resp_len = phoenix_web_portal_handle_request(req_get, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "200 OK") != NULL);
+    assert(strstr(resp_buf, "\"synced\":true") != NULL);
+    printf("  -> Web API GET /api/system/time PASSED\n");
+
+    /* 测试 POST 授时 */
+    char req_post[] = "POST /api/system/time HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 26\r\n\r\n{\"timestamp\":1789785600}";
+    resp_len = phoenix_web_portal_handle_request(req_post, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "200 OK") != NULL);
+    assert(strstr(resp_buf, "\"success\":true") != NULL);
+    printf("  -> Web API POST /api/system/time Injection PASSED\n");
+
+    /* 5. 触发异步 NTP 同步线程测试 */
+    assert(time_sync_init() == 0);
+    assert(time_sync_trigger_ntp() == 0);
+    printf("  -> Asynchronous NTP Sync Trigger PASSED\n");
+
+    printf("  -> Time Synchronization Subsystem PASSED!\n");
+}
+
 int main(int argc, char *argv[])
 {
     printf("====================================================\n");
@@ -2133,8 +2199,9 @@ int main(int argc, char *argv[])
     run_test_ble_prov_service();
     run_test_log_mgr_persistence_and_multichannel();
     run_test_architecture_evolution();
+    run_test_time_synchronization();
 
-    printf("\n🎉 ALL 29 UNIT TESTS PASSED SUCCESSFULLY!\n");
+    printf("\n🎉 ALL 30 UNIT TESTS PASSED SUCCESSFULLY!\n");
 
     /* If --repl or -i passed, enter interactive mode */
     if (argc > 1 && (strcmp(argv[1], "-i") == 0 || strcmp(argv[1], "--repl") == 0)) {

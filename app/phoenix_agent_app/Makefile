@@ -22,6 +22,9 @@ CSRCS += $(wildcard test/test_autodrive.c)
 MAINSRC = main.c
 
 CFLAGS += -I$(CURDIR) -I$(CURDIR)/utils -I$(CURDIR)/core -I$(CURDIR)/core/web_api -I$(CURDIR)/hal -I$(CURDIR)/perception -I$(CURDIR)/tools -I$(CURDIR)/harness -I$(CURDIR)/voice -I$(CURDIR)/ui -I$(CURDIR)/cartridges
+ifneq ($(CONFIG_LIB_CURL),)
+CFLAGS += -I$(APPDIR)/external/curl/curl/include
+endif
 endif
 
 include $(APPDIR)/Application.mk

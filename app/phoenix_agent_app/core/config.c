@@ -11,7 +11,10 @@
 
 #define MAX_CONFIG_ENTRIES 32
 #define MAX_KEY_LEN        32
-#define MAX_VAL_LEN        128
+#define MAX_VAL_LEN        256
+
+#include <sys/stat.h>
+#include <sys/types.h>
 
 typedef struct {
     char key[MAX_KEY_LEN];
@@ -50,31 +53,44 @@ static config_entry_t* alloc_entry(const char *key)
     return NULL;
 }
 
+void phoenix_config_reset_defaults(void)
+{
+    phoenix_config_set_int(PHOENIX_CFG_VOLUME, 80);
+    phoenix_config_set_int(PHOENIX_CFG_BRIGHTNESS, 90);
+    phoenix_config_set_int(PHOENIX_CFG_PROACTIVE_EN, 1);
+    phoenix_config_set_int(PHOENIX_CFG_PROACTIVE_TIMEOUT, 2700);
+    phoenix_config_set_str(PHOENIX_CFG_BACKEND, "mock");
+    phoenix_config_set_str(PHOENIX_CFG_BASE_URL, "https://api.deepseek.com/v1/chat/completions");
+    phoenix_config_set_str(PHOENIX_CFG_MODEL, "deepseek-chat");
+    phoenix_config_set_str(PHOENIX_CFG_API_KEY, "");
+}
+
+const char* phoenix_config_get_path(void)
+{
+    return g_config_path;
+}
+
 int phoenix_config_init(const char *storage_dir)
 {
     memset(g_entries, 0, sizeof(g_entries));
     if (storage_dir && strlen(storage_dir) > 0) {
+        mkdir(storage_dir, 0755);
         snprintf(g_config_path, sizeof(g_config_path), "%s/phoenix_config.txt", storage_dir);
     } else {
         snprintf(g_config_path, sizeof(g_config_path), "/tmp/phoenix_config.txt");
     }
 
     /* Set sensible defaults */
-    phoenix_config_set_int(PHOENIX_CFG_VOLUME, 80);
-    phoenix_config_set_int(PHOENIX_CFG_BRIGHTNESS, 90);
-    phoenix_config_set_int(PHOENIX_CFG_PROACTIVE_EN, 1);
-    phoenix_config_set_int(PHOENIX_CFG_PROACTIVE_TIMEOUT, 2700);
-    phoenix_config_set_str(PHOENIX_CFG_BACKEND, "mock");
-    phoenix_config_set_str(PHOENIX_CFG_MODEL, "deepseek-chat");
+    phoenix_config_reset_defaults();
 
     /* Try loading existing config file */
     FILE *fp = fopen(g_config_path, "r");
     if (fp) {
-        char line[256];
+        char line[384];
         while (fgets(line, sizeof(line), fp)) {
             char k[MAX_KEY_LEN] = {0};
             char v[MAX_VAL_LEN] = {0};
-            if (sscanf(line, "%31[^=]=%127[^\r\n]", k, v) == 2) {
+            if (sscanf(line, "%31[^=]=%255[^\r\n]", k, v) == 2) {
                 phoenix_config_set_str(k, v);
             }
         }
@@ -149,6 +165,29 @@ int phoenix_config_save(void)
     }
     fclose(fp);
     return 0;
+}
+
+void phoenix_config_dump(void)
+{
+    printf("--- Phoenix Configuration [%s] ---\n", g_config_path[0] ? g_config_path : "RAM");
+    for (size_t i = 0; i < MAX_CONFIG_ENTRIES; i++) {
+        if (g_entries[i].used) {
+            if (strcmp(g_entries[i].key, PHOENIX_CFG_API_KEY) == 0) {
+                /* Mask secret key for security: sk-1234****5678 */
+                size_t len = strlen(g_entries[i].val);
+                if (len <= 8) {
+                    printf("  %-20s = %s\n", g_entries[i].key, len > 0 ? "********" : "(unset)");
+                } else {
+                    char masked[64] = {0};
+                    snprintf(masked, sizeof(masked), "%.6s****%.4s (%zu chars)",
+                             g_entries[i].val, g_entries[i].val + len - 4, len);
+                    printf("  %-20s = %s\n", g_entries[i].key, masked);
+                }
+            } else {
+                printf("  %-20s = %s\n", g_entries[i].key, g_entries[i].val[0] ? g_entries[i].val : "(empty)");
+            }
+        }
+    }
 }
 
 void phoenix_config_deinit(void)

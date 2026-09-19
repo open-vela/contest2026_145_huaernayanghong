@@ -290,15 +290,17 @@ int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input)
 
         int ret = phoenix_llm_provider_chat(send_msgs, send_count, tools_schema, &resp);
         if (ret < 0) {
+            printf("[PhoenixCore] ❌ 云端通信异常: %s (HTTP %d, 耗时 %ums)\n",
+                   resp.content ? resp.content : "未知网络错误", resp.http_status, resp.latency_ms);
             phoenix_agent_set_state(ctx, AGENT_STATE_ALERT, "端云协同通信异常，请检查网络设置！");
-            history_add(ctx, PHOENIX_ROLE_ASSISTANT, "抱歉，端云协同通信遇到问题。", NULL, NULL, NULL);
+            history_add(ctx, PHOENIX_ROLE_ASSISTANT, resp.content ? resp.content : "抱歉，端云协同通信遇到问题。", NULL, NULL, NULL);
             phoenix_llm_resp_free(&resp);
             break;
         }
 
         /* Broadcast thinking process if reasoning_content is available */
         if (resp.reasoning_content && strlen(resp.reasoning_content) > 0) {
-            printf("[PhoenixCore] 🧠 Thinking: %s\n", resp.reasoning_content);
+            printf("[PhoenixCore] 🧠 [Turn %d Thinking] %s\n", turn + 1, resp.reasoning_content);
 
             phoenix_event_data_t think_evt;
             memset(&think_evt, 0, sizeof(think_evt));
@@ -312,8 +314,8 @@ int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input)
 
         if (resp.is_tool_use && resp.tool_name) {
             /* Assistant requested Tool Call */
-            printf("[PhoenixCore] 🛠️ Tool Invocation: %s, Args: %s\n",
-                   resp.tool_name, resp.tool_input ? resp.tool_input : "{}");
+            printf("[PhoenixCore] 🛠️ [Turn %d Tool Call] %s(args: %s)\n",
+                   turn + 1, resp.tool_name, resp.tool_input ? resp.tool_input : "{}");
 
             phoenix_agent_set_state(ctx, AGENT_STATE_EXECUTING, "正在调度具身工具执行...");
 
@@ -322,6 +324,10 @@ int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input)
             /* Execute Tool */
             char tool_result[512] = {0};
             phoenix_tool_execute(resp.tool_name, resp.tool_input, tool_result, sizeof(tool_result));
+            printf("[PhoenixCore] 📥 [Turn %d Tool Result] %s\n", turn + 1, tool_result);
+
+            /* 同步排空事件总线并触发消费，确保音效/动效/功德事件被即时派发 */
+            phoenix_event_bus_drain();
 
             /* Add Tool result back to history */
             history_add(ctx, PHOENIX_ROLE_TOOL, tool_result, resp.tool_call_id, NULL, NULL);
@@ -332,17 +338,22 @@ int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input)
 
         /* Final Assistant Answer */
         if (resp.content) {
+            printf("[PhoenixCore] 🤖 [Turn %d Final Answer] %s (HTTP %d, 耗时 %ums, Tokens %u)\n",
+                   turn + 1, resp.content, resp.http_status, resp.latency_ms, resp.total_tokens);
             history_add(ctx, PHOENIX_ROLE_ASSISTANT, resp.content, NULL, NULL, resp.reasoning_content);
             const char *saved_content = (ctx->history_count > 0 && ctx->history[ctx->history_count - 1].content) ?
                                          ctx->history[ctx->history_count - 1].content : resp.content;
 
-            /* Broadcast final text (使用持久化副本，避免异步消费时被 phoenix_llm_resp_free 提前释放) */
+            /* Broadcast final text */
             phoenix_event_data_t text_evt;
             memset(&text_evt, 0, sizeof(text_evt));
             text_evt.type = PHOENIX_EVT_LLM_FINISHED;
             text_evt.data.llm_text.text = saved_content;
             text_evt.data.llm_text.is_final = true;
             phoenix_event_publish(&text_evt);
+
+            /* 同步排空事件 */
+            phoenix_event_bus_drain();
 
             phoenix_agent_set_state(ctx, AGENT_STATE_IDLE, saved_content);
         }
