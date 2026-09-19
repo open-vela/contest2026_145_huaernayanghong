@@ -93,8 +93,8 @@ bttool> help
 # 1. 打开/使能蓝牙适配器
 bttool> enable
 
-# 2. 查询当前适配器状态 (0:关闭, 1:开启, 2:正在开启, 3:正在关闭)
-bttool> get_state
+# 2. 查询当前适配器状态 (bttool 命令为 state；状态码：0=OFF, 1=BLE_TURNING_ON, 2=BLE_ON, 3=TURNING_ON, 4=ON, 5=TURNING_OFF, 6=BLE_TURNING_OFF)
+bttool> state
 
 # 3. 获取本地蓝牙 MAC 地址
 bttool> get_local_addr
@@ -353,7 +353,8 @@ bt_driver_register(coexdrv);
    * 检查 `CONFIG_FRAMEWORKS_CONNECTIVITY_BLUETOOTH=y` 是否使能；
    * 确认后台 `bt_service` 守护进程是否已随系统引导启动，IPC 通信管道权限是否正确。
 2. **`bt_adapter_enable()` 失败或超时卡死**：
-   * **固件未加载成功**：全志 R528 依赖 Realtek 专有蓝牙 Patch 固件。检查串口波特率切换过程日志，若卡在 `hci_load_firmware()`，通常是串口 RTS/CTS 硬件流控接线错误或引脚配置失步。
+   * **状态机停留在 `state=1`**：`state=1` 对应 `BT_ADAPTER_STATE_BLE_TURNING_ON`（开启中过渡态），并非开启就绪。若 3 秒内未跳转为 `BLE_ON(2)` 或 `ON(4)`，需检查 `dmesg` 是否出现 `ZEPHYR FATAL ERROR 3: Kernel oops` 或 `HCI_RESET` 响应超时。
+   * **Realtek 专有固件未加载**：全志 R528 (RTL8723FS) 必须由底半部 `rtk_hci` 将 `/etc/bt/8723fs_fw_C-cut.bin` 下载至芯片并协商波特率至 1.5Mbps。若系统绕过固件注入直接裸连 `/dev/ttyHCI0`，芯片处于 ROM 态时收到 0x1003 命令会回复 `status 0x03 (BT_HCI_ERR_UNKNOWN_CMD)`，进而触发协议栈命令队列错位断言崩溃。
    * **电源复位时序不对**：查看 `rtkbt_board_poweron()`，确保拉高 BT_EN 引脚后有充足的毫秒级时延（通常至少延时 100ms）再发送第一个 HCI 命令。
 3. **Wi-Fi 与蓝牙同时开启时，蓝牙音乐 (A2DP) 卡顿或 Wi-Fi 丢包**：
    * 全志 RTL8723FS 为 2.4GHz 单天线/单射频 Combo 芯片。必须在内核配置中启用 `CONFIG_R528_BT_RTK_COEX=y`。

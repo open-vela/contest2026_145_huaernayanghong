@@ -358,9 +358,9 @@ int ble_prov_service_init(const char *custom_dev_name)
         }
     }
 
-    /* 1. 检查并确保适配器处于开启状态 */
+    /* 1. 检查并确保适配器处于开启状态 (兼容全局就绪 ON 与 BLE 单模就绪 BLE_ON) */
     bt_adapter_state_t state = bt_adapter_get_state(s_bt_ins);
-    if (state != BT_ADAPTER_STATE_ON) {
+    if (state != BT_ADAPTER_STATE_ON && state != BT_ADAPTER_STATE_BLE_ON) {
         LOG_I(TAG, "蓝牙适配器尚未开启 (state=%d)，正在使能...", state);
         bt_adapter_enable(s_bt_ins);
 
@@ -369,14 +369,14 @@ int ble_prov_service_init(const char *custom_dev_name)
         while (wait_count < 60) {
             usleep(50000); /* 50ms */
             state = bt_adapter_get_state(s_bt_ins);
-            if (state == BT_ADAPTER_STATE_ON) {
-                LOG_I(TAG, "蓝牙适配器已就绪 (耗时 %d ms)", (wait_count + 1) * 50);
+            if (state == BT_ADAPTER_STATE_ON || state == BT_ADAPTER_STATE_BLE_ON) {
+                LOG_I(TAG, "蓝牙适配器已就绪 (耗时 %d ms, state=%d)", (wait_count + 1) * 50, state);
                 break;
             }
             wait_count++;
         }
 
-        if (state != BT_ADAPTER_STATE_ON) {
+        if (state != BT_ADAPTER_STATE_ON && state != BT_ADAPTER_STATE_BLE_ON) {
             LOG_E(TAG, "蓝牙适配器使能超时 (最终状态: %d)，底层驱动可能未就绪", state);
             bluetooth_delete_instance(s_bt_ins);
             s_bt_ins = NULL;
