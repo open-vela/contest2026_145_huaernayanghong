@@ -21,9 +21,14 @@ SOURCE_OUT = os.path.join(CORE_DIR, "web_assets.c")
 def minify_html(html_str):
     # Remove HTML comments (except conditional comments if any)
     html_str = re.sub(r'<!--(?!\s*\[if).*?-->', '', html_str, flags=re.S)
-    # Collapse consecutive whitespace within tags / text carefully
-    lines = [line.strip() for line in html_str.splitlines() if line.strip()]
-    return ''.join(lines)
+    # Safely collapse lines while preserving newline delimiters to protect JS statements and comments
+    processed = []
+    for line in html_str.splitlines():
+        s = line.strip()
+        if not s or s.startswith('//'):
+            continue
+        processed.append(s)
+    return '\n'.join(processed)
 
 def to_c_string_literal(minified):
     lines = []

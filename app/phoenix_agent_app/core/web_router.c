@@ -135,7 +135,11 @@ void http_resp_json(http_resp_t *resp, int status_code, const char *json_str)
                            "Connection: close\r\n\r\n%s",
                            status_code_to_str(status_code), content_len, json_str);
     resp->status_code = status_code;
-    resp->written_len = (written > 0) ? (size_t)written : 0;
+    if (written > 0) {
+        resp->written_len = ((size_t)written < resp->max_len) ? (size_t)written : (resp->max_len - 1);
+    } else {
+        resp->written_len = 0;
+    }
 }
 
 void http_resp_json_obj(http_resp_t *resp, int status_code, cJSON *root)
@@ -175,7 +179,11 @@ void http_resp_html(http_resp_t *resp, int status_code, const char *html_str, si
                            "Connection: close\r\n\r\n%s",
                            status_code_to_str(status_code), html_len, html_str);
     resp->status_code = status_code;
-    resp->written_len = (written > 0) ? (size_t)written : 0;
+    if (written > 0) {
+        resp->written_len = ((size_t)written < resp->max_len) ? (size_t)written : (resp->max_len - 1);
+    } else {
+        resp->written_len = 0;
+    }
 }
 
 void http_resp_file_stream(http_resp_t *resp, int status_code, const char *content_type,

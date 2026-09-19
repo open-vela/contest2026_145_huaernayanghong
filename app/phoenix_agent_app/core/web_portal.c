@@ -27,6 +27,9 @@ static int g_server_fd_alt = -1; /* 辅助端口 socket (80/8080 双端口并发
 static uint16_t g_server_port = PHOENIX_STANDARD_HTTP_PORT;
 static pthread_t g_server_thread;
 
+#define PHOENIX_WEB_MAX_REQ_SIZE  16384
+#define PHOENIX_WEB_MAX_RESP_SIZE (128 * 1024)
+
 /* =========================================================================
  * 跨线程 Web 远程交互命令安全队列
  * ========================================================================= */
@@ -246,7 +249,7 @@ static void handle_single_client(int client_fd, char *req_buf, char *resp_buf)
         printf("[PhoenixWeb] 📥 Client connected: %s (Total: %zu bytes, Body: %d bytes)\n",
                req_summary, total_read, content_length > 0 ? content_length : 0);
 
-        int resp_len = phoenix_web_portal_handle_request(req_buf, resp_buf, 32768);
+        int resp_len = phoenix_web_portal_handle_request(req_buf, resp_buf, PHOENIX_WEB_MAX_RESP_SIZE);
         if (resp_len > 0) {
             ssize_t total_sent = 0;
             while (total_sent < resp_len) {
@@ -272,8 +275,8 @@ static void *server_thread_worker(void *arg)
     struct sockaddr_in client_addr;
     socklen_t client_len;
 
-    char *req_buf = (char *)malloc(16384);
-    char *resp_buf = (char *)malloc(32768);
+    char *req_buf = (char *)malloc(PHOENIX_WEB_MAX_REQ_SIZE);
+    char *resp_buf = (char *)malloc(PHOENIX_WEB_MAX_RESP_SIZE);
     if (!req_buf || !resp_buf) {
         printf("[PhoenixWeb] Error: failed to allocate buffers for server worker\n");
         if (req_buf) free(req_buf);

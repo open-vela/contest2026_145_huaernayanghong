@@ -9,3 +9,4 @@ build/
 out/
 rebuild.sh
 Make.dep
+*.pyc

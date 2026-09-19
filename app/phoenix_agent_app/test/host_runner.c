@@ -628,20 +628,23 @@ static void run_test_web_portal(void)
     phoenix_agent_ctx_t *agent = phoenix_agent_core_init();
     assert(agent != NULL);
 
-    char resp_buf[16384];
+    char *resp_buf = (char *)malloc(131072);
+    assert(resp_buf != NULL);
 
     /* 11.1 Test GET / (Geek Web Portal HTML page) */
     const char *req_root = "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n";
-    int resp_len = phoenix_web_portal_handle_request(req_root, resp_buf, sizeof(resp_buf));
+    int resp_len = phoenix_web_portal_handle_request(req_root, resp_buf, 131072);
     assert(resp_len > 0);
     assert(strstr(resp_buf, "HTTP/1.1 200 OK") != NULL);
     assert(strstr(resp_buf, "Phoenix HoloDesk-S1 Geek Dashboard") != NULL);
     assert(strstr(resp_buf, "极客伴侣看板") != NULL);
+    assert(strstr(resp_buf, "switchView") != NULL);
+    assert(strstr(resp_buf, "</html>") != NULL);
     printf("  -> GET / (Static Geek Dashboard) PASSED! (Length: %d bytes)\n", resp_len);
 
     /* 11.2 Test GET /api/status */
     const char *req_status = "GET /api/status HTTP/1.1\r\nHost: localhost\r\n\r\n";
-    resp_len = phoenix_web_portal_handle_request(req_status, resp_buf, sizeof(resp_buf));
+    resp_len = phoenix_web_portal_handle_request(req_status, resp_buf, 131072);
     assert(resp_len > 0);
     assert(strstr(resp_buf, "HTTP/1.1 200 OK") != NULL);
     assert(strstr(resp_buf, "\"device\":\"Gemini-S1\"") != NULL);
@@ -651,7 +654,7 @@ static void run_test_web_portal(void)
 
     /* 11.3 Test POST /api/cartridge/switch (Remote Switch to Clock) */
     const char *req_sw = "POST /api/cartridge/switch HTTP/1.1\r\nHost: localhost\r\nContent-Length: 14\r\n\r\n{\"id\":\"clock\"}";
-    resp_len = phoenix_web_portal_handle_request(req_sw, resp_buf, sizeof(resp_buf));
+    resp_len = phoenix_web_portal_handle_request(req_sw, resp_buf, 131072);
     assert(resp_len > 0);
     assert(strstr(resp_buf, "cartridge switched") != NULL);
     assert(strcmp(cartridge_mgr_get_current()->ops.id, "clock") == 0);
@@ -659,26 +662,26 @@ static void run_test_web_portal(void)
 
     /* 11.4 Test POST /api/memo/add (Push Idea Capsule from Web) */
     const char *req_memo = "POST /api/memo/add HTTP/1.1\r\nHost: localhost\r\nContent-Length: 35\r\n\r\n{\"content\":\"Web伴侣看板远程录入灵感\"}";
-    resp_len = phoenix_web_portal_handle_request(req_memo, resp_buf, sizeof(resp_buf));
+    resp_len = phoenix_web_portal_handle_request(req_memo, resp_buf, 131072);
     assert(resp_len > 0);
     assert(strstr(resp_buf, "memo entry added") != NULL);
     printf("  -> POST /api/memo/add (Web Idea Capsule Injection) PASSED!\n");
 
     /* 11.5 Test POST /api/action (Remote Pet & Knock Actions) */
     const char *req_act_pet = "POST /api/action HTTP/1.1\r\nHost: localhost\r\nContent-Length: 16\r\n\r\n{\"action\":\"pet\"}";
-    resp_len = phoenix_web_portal_handle_request(req_act_pet, resp_buf, sizeof(resp_buf));
+    resp_len = phoenix_web_portal_handle_request(req_act_pet, resp_buf, 131072);
     assert(resp_len > 0);
     assert(strstr(resp_buf, "action dispatched") != NULL);
 
     const char *req_act_fish = "POST /api/action HTTP/1.1\r\nHost: localhost\r\nContent-Length: 23\r\n\r\n{\"action\":\"knock_fish\"}";
-    resp_len = phoenix_web_portal_handle_request(req_act_fish, resp_buf, sizeof(resp_buf));
+    resp_len = phoenix_web_portal_handle_request(req_act_fish, resp_buf, 131072);
     assert(resp_len > 0);
     assert(strstr(resp_buf, "action dispatched") != NULL);
     printf("  -> POST /api/action (Remote Pet & Knock Actions) PASSED!\n");
 
     /* 11.6 Test GET /api/config (Query current configuration) */
     const char *req_get_cfg = "GET /api/config HTTP/1.1\r\nHost: localhost\r\n\r\n";
-    resp_len = phoenix_web_portal_handle_request(req_get_cfg, resp_buf, sizeof(resp_buf));
+    resp_len = phoenix_web_portal_handle_request(req_get_cfg, resp_buf, 131072);
     assert(resp_len > 0);
     assert(strstr(resp_buf, "HTTP/1.1 200 OK") != NULL);
     assert(strstr(resp_buf, "\"success\":true") != NULL);
@@ -689,7 +692,7 @@ static void run_test_web_portal(void)
 
     /* 11.7 Test POST /api/config (Dynamic API Key & Base URL Configuration) */
     const char *req_config = "POST /api/config HTTP/1.1\r\nHost: localhost\r\nContent-Length: 110\r\n\r\n{\"api_key\":\"sk-test-live-key-from-web\",\"base_url\":\"https://api.siliconflow.cn/v1/chat/completions\",\"model\":\"deepseek-v3\"}";
-    resp_len = phoenix_web_portal_handle_request(req_config, resp_buf, sizeof(resp_buf));
+    resp_len = phoenix_web_portal_handle_request(req_config, resp_buf, 131072);
     assert(resp_len > 0);
     assert(strstr(resp_buf, "HTTP/1.1 200 OK") != NULL);
     assert(strstr(resp_buf, "\"success\":true") != NULL);
@@ -701,7 +704,7 @@ static void run_test_web_portal(void)
 
     /* 11.7.1 Test POST /api/config/test (LLM Connectivity Ping API) */
     const char *req_cfg_test = "POST /api/config/test HTTP/1.1\r\nHost: localhost\r\nContent-Length: 48\r\n\r\n{\"base_url\":\"https://api.deepseek.com/v1/ping\"}";
-    resp_len = phoenix_web_portal_handle_request(req_cfg_test, resp_buf, sizeof(resp_buf));
+    resp_len = phoenix_web_portal_handle_request(req_cfg_test, resp_buf, 131072);
     assert(resp_len > 0);
     assert(strstr(resp_buf, "HTTP/1.1 200 OK") != NULL);
     assert(strstr(resp_buf, "\"latency_ms\"") != NULL);
@@ -710,7 +713,7 @@ static void run_test_web_portal(void)
 
     /* 11.7 Test POST /api/proactive (Remote trigger proactive drill) */
     const char *req_proactive = "POST /api/proactive HTTP/1.1\r\nHost: localhost\r\nContent-Length: 120\r\n\r\n{\"type\":\"fatigue\",\"title\":\"远程演练\",\"suggestion\":\"来自Web控制台的主动提醒\"}";
-    resp_len = phoenix_web_portal_handle_request(req_proactive, resp_buf, sizeof(resp_buf));
+    resp_len = phoenix_web_portal_handle_request(req_proactive, resp_buf, 131072);
     assert(resp_len > 0);
     assert(strstr(resp_buf, "HTTP/1.1 200 OK") != NULL);
     assert(strstr(resp_buf, "\"status\":\"triggered\"") != NULL);
@@ -718,18 +721,19 @@ static void run_test_web_portal(void)
 
     /* 11.8 Test POST /api/wifi/reset */
     const char *req_reset = "POST /api/wifi/reset HTTP/1.1\r\nHost: localhost\r\n\r\n";
-    resp_len = phoenix_web_portal_handle_request(req_reset, resp_buf, sizeof(resp_buf));
+    resp_len = phoenix_web_portal_handle_request(req_reset, resp_buf, 131072);
     assert(resp_len > 0);
     assert(strstr(resp_buf, "reset to softap") != NULL);
     printf("  -> POST /api/wifi/reset (Remote SoftAP Reset) PASSED!\n");
 
     /* 11.9 Test 404 Routing */
     const char *req_404 = "GET /api/invalid_path HTTP/1.1\r\nHost: localhost\r\n\r\n";
-    resp_len = phoenix_web_portal_handle_request(req_404, resp_buf, sizeof(resp_buf));
+    resp_len = phoenix_web_portal_handle_request(req_404, resp_buf, 131072);
     assert(resp_len > 0);
     assert(strstr(resp_buf, "HTTP/1.1 404 Not Found") != NULL);
     printf("  -> 404 Routing PASSED!\n");
 
+    free(resp_buf);
     phoenix_agent_core_destroy(agent);
     phoenix_app_deinit();
     printf("  -> Embedded Web Portal PASSED!\n");

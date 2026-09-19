@@ -406,14 +406,27 @@
       <!-- 4 大伴侣卡带联动控制台 -->
       <div style="font-size:13px; font-weight:bold; color:var(--muted); margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
         <span>🎮 桌面具身数字生命体卡带 (Cartridges)</span>
-        <span style="font-size:11px; color:var(--accent);" id="activeCartridgeHint">当前卡带: 使魔</span>
+        <span style="font-size:11px; color:var(--accent);" id="activeCartridgeHint">当前真机屏幕: 使魔</span>
       </div>
+
+      <!-- 真机屏幕卡带即时切换药丸栏 -->
+      <div style="display:flex; gap:8px; margin-bottom:16px; overflow-x:auto; padding-bottom:4px;">
+        <button class="chip active" id="pill-cartridge-familiar" style="padding:7px 14px; font-size:12px;" onclick="switchCartridge('familiar')">🐱 桌面使魔</button>
+        <button class="chip" id="pill-cartridge-memo" style="padding:7px 14px; font-size:12px;" onclick="switchCartridge('memo')">💡 灵感外脑</button>
+        <button class="chip" id="pill-cartridge-clock" style="padding:7px 14px; font-size:12px;" onclick="switchCartridge('clock')">⏰ 翻页时钟</button>
+        <button class="chip" id="pill-cartridge-zen" style="padding:7px 14px; font-size:12px;" onclick="switchCartridge('zen')">🪷 赛博木鱼</button>
+        <button class="chip" id="pill-cartridge-agent" style="padding:7px 14px; font-size:12px;" onclick="switchCartridge('agent')">🤖 灵眸AI</button>
+      </div>
+
       <div class="grid-2">
         <!-- 使魔 -->
         <div class="card" id="card-familiar">
           <div class="card-head">
             <div class="card-title">🐱 桌面使魔萌宠</div>
-            <span class="status-badge" id="moodTag">陪伴中</span>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <span class="status-badge" id="moodTag">陪伴中</span>
+              <button class="btn-secondary" style="padding:3px 8px; font-size:11px;" onclick="switchCartridge('familiar')">📺 投到屏幕</button>
+            </div>
           </div>
           <div class="metric-row">
             <div class="m-block"><div class="m-lbl">使魔亲密度</div><div class="m-val" id="affinityVal">88</div></div>
@@ -426,7 +439,10 @@
         <div class="card" id="card-memo">
           <div class="card-head">
             <div class="card-title">💡 灵感外脑速记</div>
-            <span class="status-badge" id="memoCountTag">0 条</span>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <span class="status-badge" id="memoCountTag">0 条</span>
+              <button class="btn-secondary" style="padding:3px 8px; font-size:11px;" onclick="switchCartridge('memo')">📺 投到屏幕</button>
+            </div>
           </div>
           <div id="lastMemoBox" style="background:var(--card-inner); padding:8px 12px; border-radius:6px; font-size:12px; margin-bottom:8px; border-left:2px solid var(--accent); color:#c0d2e8;">正在同步端侧备忘...</div>
           <div style="display:flex; gap:8px;">
@@ -439,7 +455,10 @@
         <div class="card" id="card-clock">
           <div class="card-head">
             <div class="card-title">⏰ 翻页时钟 & 番茄专注</div>
-            <span class="status-badge" id="pomoStatusTag">待命</span>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <span class="status-badge" id="pomoStatusTag">待命</span>
+              <button class="btn-secondary" style="padding:3px 8px; font-size:11px;" onclick="switchCartridge('clock')">📺 投到屏幕</button>
+            </div>
           </div>
           <div class="metric-row">
             <div class="m-block"><div class="m-lbl">专注倒计时</div><div class="m-val" id="pomoRemain">25:00</div></div>
@@ -452,7 +471,10 @@
         <div class="card" id="card-zen">
           <div class="card-head">
             <div class="card-title">🪷 极客禅意木鱼</div>
-            <span class="status-badge" style="color:var(--accent-sub);">消除焦虑</span>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <span class="status-badge" style="color:var(--accent-sub);">消除焦虑</span>
+              <button class="btn-secondary" style="padding:3px 8px; font-size:11px;" onclick="switchCartridge('zen')">📺 投到屏幕</button>
+            </div>
           </div>
           <div class="metric-row">
             <div class="m-block"><div class="m-lbl">累计功德数</div><div class="m-val" id="meritVal">0</div></div>
@@ -852,7 +874,10 @@
           // 当前卡带
           if (d.active_cartridge) {
             const names = { familiar: '使魔萌宠', memo: '灵感外脑', clock: '翻页时钟', zen: '赛博木鱼', home: '主页', agent: '灵眸AI' };
-            document.getElementById('activeCartridgeHint').innerText = '当前卡带: ' + (names[d.active_cartridge] || d.active_cartridge);
+            document.getElementById('activeCartridgeHint').innerText = '当前真机屏幕: ' + (names[d.active_cartridge] || d.active_cartridge);
+            document.querySelectorAll('[id^="pill-cartridge-"]').forEach(p => {
+              p.classList.toggle('active', p.id === 'pill-cartridge-' + d.active_cartridge);
+            });
           }
 
           // 卡带状态
@@ -880,6 +905,20 @@
           if (d.storage) updateStorageInfo(d.storage);
         })
         .catch(() => {});
+    }
+
+    function switchCartridge(id) {
+      fetch('/api/cartridge/switch', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id: id})
+      })
+      .then(r => r.json())
+      .then(d => {
+        showToast('📺 开发板真机屏幕已切换至: ' + id);
+        refreshStatus();
+      })
+      .catch(() => showToast('卡带切换失败'));
     }
 
     function doCartridgeAction(act) {
