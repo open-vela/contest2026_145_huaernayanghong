@@ -122,51 +122,71 @@ static int openvela_sensor_read_env(hal_env_data_t *out_env)
 {
     if (!out_env) return -1;
 
-    bool temp_ok = false;
-    bool humi_ok = false;
-    float temp_val = 26.0f;
-    float humi_val = 60.0f;
-    uint64_t ts_us = board_get_time_ms() * 1000;
+    /* 默认安全基准值 (室内桌面 26.0℃ / 60% 相对湿度) */
+    out_env->temperature_c = 26.0f;
+    out_env->humidity_pct = 60.0f;
+    out_env->timestamp_us = board_get_time_ms() * 1000;
+    out_env->is_valid = false;
 
-    /* 1. 尝试从 OpenVela IIO 标准环境温度节点 /dev/sensor/temp0 读取 */
-    int fd_t = open("/dev/sensor/temp0", O_RDONLY | O_NONBLOCK);
-    if (fd_t < 0) {
-        fd_t = open("/dev/uorb/sensor_temp0", O_RDONLY | O_NONBLOCK);
-    }
-    if (fd_t >= 0) {
-        struct {
-            uint64_t timestamp;
-            float temperature;
-        } evt_t;
-        if (read(fd_t, &evt_t, sizeof(evt_t)) == sizeof(evt_t)) {
-            temp_val = evt_t.temperature;
-            ts_us = evt_t.timestamp;
-            temp_ok = true;
+    /* 
+     * 关键性能与防卡死优化：
+     * 仅在开机首次探测底层硬件传感器节点是否存在；若不存在（如开发板未贴片 SHTC3），
+     * 立即标记不支持并极速返回默认值，彻底杜绝主事件循环以 20Hz 极高频重复调用 open/close
+     * 冲击内核 VFS 甚至导致 I2C 硬件总线超时挂起。
+     */
+    static bool s_probed = false;
+    static bool s_temp_node_exists = false;
+    static bool s_humi_node_exists = false;
+
+    if (!s_probed) {
+        int fd_t = open("/dev/sensor/temp0", O_RDONLY | O_NONBLOCK);
+        if (fd_t >= 0) {
+            s_temp_node_exists = true;
+            close(fd_t);
         }
-        close(fd_t);
-    }
-
-    /* 2. 尝试从 OpenVela IIO 标准相对湿度节点 /dev/sensor/humi0 读取 */
-    int fd_h = open("/dev/sensor/humi0", O_RDONLY | O_NONBLOCK);
-    if (fd_h < 0) {
-        fd_h = open("/dev/uorb/sensor_humi0", O_RDONLY | O_NONBLOCK);
-    }
-    if (fd_h >= 0) {
-        struct {
-            uint64_t timestamp;
-            float humidity;
-        } evt_h;
-        if (read(fd_h, &evt_h, sizeof(evt_h)) == sizeof(evt_h)) {
-            humi_val = evt_h.humidity;
-            humi_ok = true;
+        int fd_h = open("/dev/sensor/humi0", O_RDONLY | O_NONBLOCK);
+        if (fd_h >= 0) {
+            s_humi_node_exists = true;
+            close(fd_h);
         }
-        close(fd_h);
+        s_probed = true;
     }
 
-    out_env->temperature_c = temp_val;
-    out_env->humidity_pct = humi_val;
-    out_env->timestamp_us = ts_us;
-    out_env->is_valid = (temp_ok || humi_ok);
+    if (!s_temp_node_exists && !s_humi_node_exists) {
+        return 0;
+    }
+
+    /* 仅在硬件节点确凿存在时执行非阻塞读取 */
+    if (s_temp_node_exists) {
+        int fd_t = open("/dev/sensor/temp0", O_RDONLY | O_NONBLOCK);
+        if (fd_t >= 0) {
+            struct {
+                uint64_t timestamp;
+                float temperature;
+            } evt_t;
+            if (read(fd_t, &evt_t, sizeof(evt_t)) == sizeof(evt_t)) {
+                out_env->temperature_c = evt_t.temperature;
+                out_env->timestamp_us = evt_t.timestamp;
+                out_env->is_valid = true;
+            }
+            close(fd_t);
+        }
+    }
+
+    if (s_humi_node_exists) {
+        int fd_h = open("/dev/sensor/humi0", O_RDONLY | O_NONBLOCK);
+        if (fd_h >= 0) {
+            struct {
+                uint64_t timestamp;
+                float humidity;
+            } evt_h;
+            if (read(fd_h, &evt_h, sizeof(evt_h)) == sizeof(evt_h)) {
+                out_env->humidity_pct = evt_h.humidity;
+                out_env->is_valid = true;
+            }
+            close(fd_h);
+        }
+    }
 
     return 0;
 }

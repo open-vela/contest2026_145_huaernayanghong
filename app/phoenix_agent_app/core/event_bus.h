@@ -35,9 +35,9 @@ typedef enum {
     PHOENIX_EVT_HAL_TAP,          /**< Hardware physical tap / knock detected */
     PHOENIX_EVT_HAL_LIGHT,        /**< Ambient light sensor change (Lux) */
     PHOENIX_EVT_HAL_BATTERY,      /**< Power & battery level update */
-    PHOENIX_EVT_HAL_ENV,          /**< On-board ambient temperature & humidity update */
     PHOENIX_EVT_CARTRIDGE_SWITCHED, /**< Active cartridge switched */
     PHOENIX_EVT_NET_STATUS,       /**< Wi-Fi network mode, SSID, IP and state change */
+    PHOENIX_EVT_HAL_ENV,          /**< On-board ambient temperature & humidity update */
     PHOENIX_EVT_COUNT
 } phoenix_event_type_t;
 

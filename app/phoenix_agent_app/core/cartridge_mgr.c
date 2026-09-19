@@ -112,16 +112,22 @@ void cartridge_mgr_deinit(void)
 
 void cartridge_mgr_set_stage(void *stage)
 {
+    cartridge_t *enter_cartridge = NULL;
     lock_mgr();
     s_stage_view = stage;
     if (s_current_index >= 0 && (size_t)s_current_index < s_count) {
         s_cartridges[s_current_index].current_stage = stage;
-        /* 若当前卡带处于激活状态且新舞台有效，触发舞台装载与界面呈现 */
+        /* 若当前卡带处于激活状态且新舞台有效，记录待装载卡带 */
         if (stage && s_cartridges[s_current_index].is_active && s_cartridges[s_current_index].ops.enter) {
-            s_cartridges[s_current_index].ops.enter(&s_cartridges[s_current_index], stage);
+            enter_cartridge = &s_cartridges[s_current_index];
         }
     }
     unlock_mgr();
+
+    /* 架构级防死锁：在互斥锁外执行业务层舞台装载回调 */
+    if (enter_cartridge && enter_cartridge->ops.enter) {
+        enter_cartridge->ops.enter(enter_cartridge, stage);
+    }
 }
 
 int cartridge_mgr_register(const cartridge_ops_t *ops, void *priv_data, void *user_init_data)

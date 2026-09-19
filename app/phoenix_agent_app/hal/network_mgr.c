@@ -740,8 +740,7 @@ int net_mgr_init(void)
         LOG_I(TAG, "检测到已保存的 Wi-Fi 配置: [%s]，尝试连入局域网...", saved_ssid);
         return net_mgr_connect_sta(saved_ssid, saved_psk);
     } else {
-        LOG_I(TAG, "本地无 Wi-Fi 配置，预扫描周边网络并启动 SoftAP 独立热点配网模式...");
-        net_mgr_prescan_wifi();
+        LOG_I(TAG, "本地无 Wi-Fi 配置，启动 SoftAP 独立热点配网模式 (后台异步预扫描)...");
         return net_mgr_start_softap(NULL);
     }
 }
@@ -1204,7 +1203,16 @@ static void* softap_worker_thread(void *arg)
 
     LOG_I(TAG, "[SoftAP:Worker] 正在后台配置 wlan1 SoftAP 物理网卡与射频 (SSID: %s)...", ssid);
 
-    /* 1. 先关闭旧的热点 (wlan1) 并保持 wlan0 监听态就绪 */
+    /* 1. 后台异步预热周边 Wi-Fi 列表 (若缓存为空)，杜绝在主线程开机期间阻塞 LVGL 渲染 */
+    pthread_mutex_lock(&s_scan_lock);
+    bool need_prescan = (s_scan_cache_count == 0);
+    pthread_mutex_unlock(&s_scan_lock);
+    if (need_prescan) {
+        LOG_I(TAG, "[SoftAP:Worker] 后台执行空中 Wi-Fi 预扫描，填充配网列表...");
+        net_mgr_prescan_wifi();
+    }
+
+    /* 2. 先关闭旧的热点 (wlan1) 并保持 wlan0 监听态就绪 */
     net_mgr_stop_softap();
 
     int sock = wapi_make_socket();
@@ -1245,15 +1253,6 @@ static void* softap_worker_thread(void *arg)
 
 int net_mgr_start_softap(const char *custom_ssid)
 {
-    /* 若启动 SoftAP 时预扫描缓存尚为空，先在纯 STA 模式下快速预扫描，杜绝开热点后跳频断网 */
-    pthread_mutex_lock(&s_scan_lock);
-    bool need_prescan = (s_scan_cache_count == 0);
-    pthread_mutex_unlock(&s_scan_lock);
-
-    if (need_prescan) {
-        net_mgr_prescan_wifi();
-    }
-
     pthread_mutex_lock(&s_lock);
     const char *ssid = (custom_ssid && custom_ssid[0]) ? custom_ssid : NET_DEFAULT_SOFTAP_SSID;
 
