@@ -16,10 +16,17 @@
 #else
 #  include "harness/llm_provider.h"
 #endif
+#if defined(__has_include) && __has_include("../utils/log_utils.h")
+#  include "../utils/log_utils.h"
+#else
+#  include "utils/log_utils.h"
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+
+#define TAG "PhoenixCore"
 
 #define AGENT_MAX_TURNS 5
 #define AGENT_MAX_HISTORY_BYTES (32 * 1024)
@@ -90,7 +97,7 @@ static void history_compact(phoenix_agent_ctx_t *ctx)
             free(ctx->context_summary);
             ctx->context_summary = strdup(merged);
         }
-        printf("[PhoenixCore] 🧠 两级记忆滚动更新: %s\n", ctx->context_summary);
+        LOG_I(TAG, "🧠 两级记忆滚动更新: %s", ctx->context_summary);
     }
 
     size_t keep = ctx->history_count - drop;
@@ -100,8 +107,8 @@ static void history_compact(phoenix_agent_ctx_t *ctx)
 
     memmove(ctx->history, ctx->history + drop, keep * sizeof(phoenix_chat_msg_t));
     ctx->history_count = keep;
-    printf("[PhoenixCore] Compacted history: dropped %zu, kept %zu messages (paired tools preserved, bytes: %zu)\n",
-           drop, keep, ctx->total_history_bytes);
+    LOG_I(TAG, "Compacted history: dropped %zu, kept %zu messages (paired tools preserved, bytes: %zu)",
+          drop, keep, ctx->total_history_bytes);
 }
 
 static void history_add(phoenix_agent_ctx_t *ctx,
@@ -177,7 +184,7 @@ phoenix_agent_ctx_t* phoenix_agent_core_init(void)
 
     s_agent_core_instance = ctx;
 
-    printf("[PhoenixCore] Master Agent Orchestrator initialized with Two-Tier Memory & Core Mutex.\n");
+    LOG_I(TAG, "Master Agent Orchestrator initialized with Two-Tier Memory & Core Mutex.");
     return ctx;
 }
 
@@ -212,13 +219,13 @@ int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_inp
         trace_out->success = false;
     }
 
-    printf("[PhoenixCore] 💬 User Input: \"%s\"\n", user_input);
+    LOG_I(TAG, "💬 User Input: \"%s\"", user_input);
 
     /* 0. Fast-path Intent Routing */
     phoenix_intent_result_t intent = phoenix_intent_route(user_input);
     if (intent.category == INTENT_TYPE_FASTPATH && intent.tool_name) {
-        printf("[PhoenixCore] ⚡ Fast-path Intent Hit: Tool [%s], Args [%s]\n",
-               intent.tool_name, intent.tool_args_json ? intent.tool_args_json : "{}");
+        LOG_I(TAG, "⚡ Fast-path Intent Hit: Tool [%s], Args [%s]",
+              intent.tool_name, intent.tool_args_json ? intent.tool_args_json : "{}");
         history_add(ctx, PHOENIX_ROLE_USER, user_input, NULL, NULL, NULL);
 
         char tool_res[512] = {0};
@@ -255,7 +262,7 @@ int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_inp
     }
 
     if (intent.category == INTENT_TYPE_WORKFLOW) {
-        printf("[PhoenixCore] 🚀 Macro Workflow Hit: [%s]\n", intent.workflow_name ? intent.workflow_name : "");
+        LOG_I(TAG, "🚀 Macro Workflow Hit: [%s]", intent.workflow_name ? intent.workflow_name : "");
         history_add(ctx, PHOENIX_ROLE_USER, user_input, NULL, NULL, NULL);
 
         char tool_res[512] = {0};
@@ -326,8 +333,8 @@ int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_inp
 
         int ret = phoenix_llm_provider_chat(send_msgs, send_count, tools_schema, &resp);
         if (ret < 0) {
-            printf("[PhoenixCore] ❌ 云端通信异常: %s (HTTP %d, 耗时 %ums)\n",
-                   resp.content ? resp.content : "未知网络错误", resp.http_status, resp.latency_ms);
+            LOG_E(TAG, "❌ 云端通信异常: %s (HTTP %d, 耗时 %ums)",
+                  resp.content ? resp.content : "未知网络错误", resp.http_status, resp.latency_ms);
             phoenix_agent_set_state(ctx, AGENT_STATE_ALERT, "端云协同通信异常，请检查网络设置！");
             history_add(ctx, PHOENIX_ROLE_ASSISTANT, resp.content ? resp.content : "抱歉，端云协同通信遇到问题。", NULL, NULL, NULL);
 
@@ -344,7 +351,7 @@ int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_inp
 
         /* Broadcast thinking process if reasoning_content is available */
         if (resp.reasoning_content && strlen(resp.reasoning_content) > 0) {
-            printf("[PhoenixCore] 🧠 [Turn %d Thinking] %s\n", turn + 1, resp.reasoning_content);
+            LOG_I(TAG, "🧠 [Turn %d Thinking] %s", turn + 1, resp.reasoning_content);
 
             if (trace_out) {
                 if (trace_out->reasoning_content[0] != '\0') {
@@ -359,7 +366,7 @@ int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_inp
             phoenix_event_data_t think_evt;
             memset(&think_evt, 0, sizeof(think_evt));
             think_evt.type = PHOENIX_EVT_LLM_THINKING;
-            think_evt.data.thinking.reasoning_snippet = resp.reasoning_content;
+            strncpy(think_evt.data.thinking.reasoning_snippet, resp.reasoning_content, sizeof(think_evt.data.thinking.reasoning_snippet) - 1);
             phoenix_event_publish(&think_evt);
         }
 
@@ -375,8 +382,8 @@ int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_inp
 
         if (resp.is_tool_use && resp.tool_name) {
             /* Assistant requested Tool Call */
-            printf("[PhoenixCore] 🛠️ [Turn %d Tool Call] %s(args: %s)\n",
-                   turn + 1, resp.tool_name, resp.tool_input ? resp.tool_input : "{}");
+            LOG_I(TAG, "🛠️ [Turn %d Tool Call] %s(args: %s)",
+                  turn + 1, resp.tool_name, resp.tool_input ? resp.tool_input : "{}");
 
             phoenix_agent_set_state(ctx, AGENT_STATE_EXECUTING, "正在调度具身工具执行...");
 
@@ -385,7 +392,7 @@ int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_inp
             /* Execute Tool */
             char tool_result[512] = {0};
             phoenix_tool_execute(resp.tool_name, resp.tool_input, tool_result, sizeof(tool_result));
-            printf("[PhoenixCore] 📥 [Turn %d Tool Result] %s\n", turn + 1, tool_result);
+            LOG_I(TAG, "📥 [Turn %d Tool Result] %s", turn + 1, tool_result);
 
             if (trace_out) {
                 trace_out->has_tool_call = true;
@@ -393,9 +400,6 @@ int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_inp
                 strncpy(trace_out->tool_args, resp.tool_input ? resp.tool_input : "{}", sizeof(trace_out->tool_args) - 1);
                 strncpy(trace_out->tool_observation, tool_result, sizeof(trace_out->tool_observation) - 1);
             }
-
-            /* 同步排空事件总线并触发消费，确保音效/动效/功德事件被即时派发 */
-            phoenix_event_bus_drain();
 
             /* Add Tool result back to history */
             history_add(ctx, PHOENIX_ROLE_TOOL, tool_result, resp.tool_call_id, NULL, NULL);
@@ -406,8 +410,8 @@ int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_inp
 
         /* Final Assistant Answer */
         if (resp.content) {
-            printf("[PhoenixCore] 🤖 [Turn %d Final Answer] %s (HTTP %d, 耗时 %ums, Tokens %u)\n",
-                   turn + 1, resp.content, resp.http_status, resp.latency_ms, resp.total_tokens);
+            LOG_I(TAG, "🤖 [Turn %d Final Answer] %s (HTTP %d, 耗时 %ums, Tokens %u)",
+                  turn + 1, resp.content, resp.http_status, resp.latency_ms, resp.total_tokens);
             history_add(ctx, PHOENIX_ROLE_ASSISTANT, resp.content, NULL, NULL, resp.reasoning_content);
             const char *saved_content = (ctx->history_count > 0 && ctx->history[ctx->history_count - 1].content) ?
                                          ctx->history[ctx->history_count - 1].content : resp.content;
@@ -419,9 +423,6 @@ int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_inp
             text_evt.data.llm_text.text = saved_content;
             text_evt.data.llm_text.is_final = true;
             phoenix_event_publish(&text_evt);
-
-            /* 同步排空事件 */
-            phoenix_event_bus_drain();
 
             phoenix_agent_set_state(ctx, AGENT_STATE_IDLE, saved_content);
 
@@ -466,7 +467,7 @@ int phoenix_agent_clear_memory(phoenix_agent_ctx_t *ctx)
     ctx->total_history_bytes = 0;
     ctx->state = AGENT_STATE_IDLE;
     pthread_mutex_unlock(&ctx->core_lock);
-    printf("[PhoenixCore] 🧹 会话历史与两级记忆上下文已彻底清空\n");
+    LOG_I(TAG, "🧹 会话历史与两级记忆上下文已彻底清空");
     return 0;
 }
 
@@ -587,8 +588,8 @@ int phoenix_agent_trigger_proactive(phoenix_agent_ctx_t *ctx, phoenix_proactive_
     }
 
     phoenix_event_publish(&evt);
-    printf("[PhoenixCore] 🚨 Proactive intervention triggered: [%s] -> %s\n",
-           evt.data.proactive.title, evt.data.proactive.suggestion);
+    LOG_I(TAG, "🚨 Proactive intervention triggered: [%s] -> %s",
+          evt.data.proactive.title, evt.data.proactive.suggestion);
     return 0;
 }
 

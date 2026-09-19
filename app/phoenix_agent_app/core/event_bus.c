@@ -169,6 +169,11 @@ size_t phoenix_event_bus_drain(void)
         return 0;
     }
 
+    /* 跨线程并发防护：事件排空仅允许 UI 主线程串行分发，禁止工作/网络线程调用避免事件重推异步环形队列引发活锁 */
+    if (g_main_thread_set && !pthread_equal(pthread_self(), g_main_thread)) {
+        return 0;
+    }
+
     size_t dispatched = 0;
     while (1) {
         phoenix_event_data_t evt;

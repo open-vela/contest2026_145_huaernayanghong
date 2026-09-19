@@ -21,6 +21,14 @@
 #include <arpa/inet.h>
 #include <poll.h>
 
+#if defined(__has_include) && __has_include("../utils/log_utils.h")
+#  include "../utils/log_utils.h"
+#else
+#  include "utils/log_utils.h"
+#endif
+
+#define TAG "PhoenixWeb"
+
 static bool g_server_running = false;
 static int g_server_fd = -1;
 static int g_server_fd_alt = -1; /* 辅助端口 socket (80/8080 双端口并发) */
@@ -246,8 +254,8 @@ static void handle_single_client(int client_fd, char *req_buf, char *resp_buf)
         } else {
             strncpy(req_summary, req_buf, sizeof(req_summary) - 1);
         }
-        printf("[PhoenixWeb] 📥 Client connected: %s (Total: %zu bytes, Body: %d bytes)\n",
-               req_summary, total_read, content_length > 0 ? content_length : 0);
+        LOG_I(TAG, "📥 Client connected: %s (Total: %zu bytes, Body: %d bytes)",
+              req_summary, total_read, content_length > 0 ? content_length : 0);
 
         int resp_len = phoenix_web_portal_handle_request(req_buf, resp_buf, PHOENIX_WEB_MAX_RESP_SIZE);
         if (resp_len > 0) {
@@ -257,7 +265,7 @@ static void handle_single_client(int client_fd, char *req_buf, char *resp_buf)
                 if (s <= 0) break;
                 total_sent += s;
             }
-            printf("[PhoenixWeb] 📤 Sent %zd/%d bytes\n", total_sent, resp_len);
+            LOG_I(TAG, "📤 Sent %zd/%d bytes", total_sent, resp_len);
         }
     }
 
@@ -278,7 +286,7 @@ static void *server_thread_worker(void *arg)
     char *req_buf = (char *)malloc(PHOENIX_WEB_MAX_REQ_SIZE);
     char *resp_buf = (char *)malloc(PHOENIX_WEB_MAX_RESP_SIZE);
     if (!req_buf || !resp_buf) {
-        printf("[PhoenixWeb] Error: failed to allocate buffers for server worker\n");
+        LOG_E(TAG, "Error: failed to allocate buffers for server worker");
         if (req_buf) free(req_buf);
         if (resp_buf) free(resp_buf);
         return NULL;
@@ -347,27 +355,27 @@ int phoenix_web_portal_start(uint16_t port, phoenix_agent_ctx_t *agent_ctx)
     g_server_fd_alt = bind_and_listen_socket(alt_port);
 
     if (g_server_fd < 0 && g_server_fd_alt < 0) {
-        printf("[PhoenixWeb] Error: failed to bind both ports %u and %u\n", g_server_port, alt_port);
+        LOG_E(TAG, "Error: failed to bind both ports %u and %u", g_server_port, alt_port);
         return -1;
     }
 
     g_server_running = true;
     pthread_attr_t attr;
     pthread_attr_init(&attr);
-    pthread_attr_setstacksize(&attr, 16384);
+    pthread_attr_setstacksize(&attr, 65536);
 
     int ret = pthread_create(&g_server_thread, &attr, server_thread_worker, NULL);
     pthread_attr_destroy(&attr);
     if (ret != 0) {
-        printf("[PhoenixWeb] Error: failed to create server worker thread (16KB stack)\n");
+        LOG_E(TAG, "Error: failed to create server worker thread (64KB stack)");
         g_server_running = false;
         if (g_server_fd >= 0) { close(g_server_fd); g_server_fd = -1; }
         if (g_server_fd_alt >= 0) { close(g_server_fd_alt); g_server_fd_alt = -1; }
         return -1;
     }
 
-    printf("[PhoenixWeb] 🌐 Web Portal listening on BOTH http://0.0.0.0:%u (免端口直达) & :%u (兼容)\n",
-           g_server_port, alt_port);
+    LOG_I(TAG, "🌐 Web Portal listening on BOTH http://0.0.0.0:%u (免端口直达) & :%u (兼容)",
+          g_server_port, alt_port);
     return 0;
 }
 
@@ -388,5 +396,5 @@ void phoenix_web_portal_stop(void)
 
     pthread_join(g_server_thread, NULL);
     web_router_deinit();
-    printf("[PhoenixWeb] 🛑 Web Portal stopped cleanly.\n");
+    LOG_I(TAG, "🛑 Web Portal stopped cleanly.");
 }

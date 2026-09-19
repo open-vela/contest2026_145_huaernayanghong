@@ -8,9 +8,16 @@
 #include "web_api.h"
 #include "../agent_core.h"
 #include "../tool_registry.h"
+#if defined(__has_include) && __has_include("../../utils/log_utils.h")
+#  include "../../utils/log_utils.h"
+#else
+#  include "utils/log_utils.h"
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define TAG "PhoenixWebAPI"
 
 static phoenix_agent_ctx_t* get_effective_agent(void)
 {
@@ -44,13 +51,20 @@ int handle_agent_chat(const http_req_t *req, http_resp_t *resp)
         return 0;
     }
 
-    phoenix_agent_trace_t trace;
-    memset(&trace, 0, sizeof(trace));
+    LOG_I(TAG, "💬 收到 Web 伴侣对话请求: \"%s\"", prompt);
 
-    int ret = phoenix_agent_chat_with_trace(agent, prompt, &trace);
+    /* 关键栈保护：trace 结构体占用 ~5.5KB，改由堆动态分配彻底杜绝工作线程栈溢出与 TCB 损坏 */
+    phoenix_agent_trace_t *trace = (phoenix_agent_trace_t *)calloc(1, sizeof(phoenix_agent_trace_t));
+    if (!trace) {
+        LOG_E(TAG, "❌ 内存不足，无法分配 Agent Trace 追踪缓冲");
+        http_resp_error(resp, 500, "Out of memory for agent trace");
+        return 0;
+    }
+
+    int ret = phoenix_agent_chat_with_trace(agent, prompt, trace);
 
     const char *state_str = "IDLE";
-    switch (trace.end_state) {
+    switch (trace->end_state) {
         case AGENT_STATE_IDLE:        state_str = "IDLE"; break;
         case AGENT_STATE_LISTENING:   state_str = "LISTENING"; break;
         case AGENT_STATE_THINKING:    state_str = "THINKING"; break;
@@ -62,30 +76,34 @@ int handle_agent_chat(const http_req_t *req, http_resp_t *resp)
     }
 
     cJSON *root = cJSON_CreateObject();
-    cJSON_AddBoolToObject(root, "success", ret == 0 && trace.success);
-    cJSON_AddStringToObject(root, "prompt", trace.user_prompt);
+    cJSON_AddBoolToObject(root, "success", ret == 0 && trace->success);
+    cJSON_AddStringToObject(root, "prompt", trace->user_prompt);
     cJSON_AddStringToObject(root, "state", state_str);
-    cJSON_AddStringToObject(root, "reasoning_content", trace.reasoning_content);
+    cJSON_AddStringToObject(root, "reasoning_content", trace->reasoning_content);
 
-    if (trace.has_tool_call && trace.tool_name[0] != '\0') {
+    if (trace->has_tool_call && trace->tool_name[0] != '\0') {
         cJSON *action = cJSON_CreateObject();
-        cJSON_AddStringToObject(action, "tool_name", trace.tool_name);
-        cJSON_AddStringToObject(action, "arguments", trace.tool_args);
-        cJSON_AddStringToObject(action, "observation", trace.tool_observation);
+        cJSON_AddStringToObject(action, "tool_name", trace->tool_name);
+        cJSON_AddStringToObject(action, "arguments", trace->tool_args);
+        cJSON_AddStringToObject(action, "observation", trace->tool_observation);
         cJSON_AddItemToObject(root, "action", action);
     } else {
         cJSON_AddNullToObject(root, "action");
     }
 
-    cJSON_AddStringToObject(root, "answer", trace.final_answer);
+    cJSON_AddStringToObject(root, "answer", trace->final_answer);
 
     cJSON *metrics = cJSON_CreateObject();
-    cJSON_AddNumberToObject(metrics, "latency_ms", trace.latency_ms);
-    cJSON_AddNumberToObject(metrics, "prompt_tokens", trace.prompt_tokens);
-    cJSON_AddNumberToObject(metrics, "completion_tokens", trace.completion_tokens);
-    cJSON_AddNumberToObject(metrics, "total_tokens", trace.total_tokens);
+    cJSON_AddNumberToObject(metrics, "latency_ms", trace->latency_ms);
+    cJSON_AddNumberToObject(metrics, "prompt_tokens", trace->prompt_tokens);
+    cJSON_AddNumberToObject(metrics, "completion_tokens", trace->completion_tokens);
+    cJSON_AddNumberToObject(metrics, "total_tokens", trace->total_tokens);
     cJSON_AddItemToObject(root, "metrics", metrics);
 
+    LOG_I(TAG, "🤖 Web 伴侣对话完成: 状态=%s, 耗时=%ums, Tokens=%u, Success=%d",
+          state_str, trace->latency_ms, trace->total_tokens, trace->success);
+
+    free(trace);
     http_resp_json_obj(resp, 200, root);
     return 0;
 }

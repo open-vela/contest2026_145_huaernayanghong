@@ -402,9 +402,6 @@ static int cloud_backend_chat(phoenix_llm_backend_t *self,
             case PHOENIX_ROLE_ASSISTANT:
                 cJSON_AddStringToObject(m, "role", "assistant");
                 cJSON_AddStringToObject(m, "content", messages[i].content ? messages[i].content : "");
-                if (messages[i].reasoning_content) {
-                    cJSON_AddStringToObject(m, "reasoning_content", messages[i].reasoning_content);
-                }
                 if (messages[i].tool_name) {
                     cJSON *tcalls = cJSON_CreateArray();
                     cJSON *tc = cJSON_CreateObject();

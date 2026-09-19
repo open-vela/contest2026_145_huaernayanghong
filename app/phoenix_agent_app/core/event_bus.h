@@ -81,7 +81,7 @@ typedef struct {
         } tool;
 
         struct {
-            const char *reasoning_snippet;
+            char reasoning_snippet[128];
         } thinking;
 
         struct {

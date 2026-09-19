@@ -355,7 +355,7 @@ static void thinking_event_listener(const phoenix_event_data_t *event, void *use
     (void)user_data;
     if (event->type == PHOENIX_EVT_LLM_THINKING) {
         g_thinking_received = true;
-        if (event->data.thinking.reasoning_snippet) {
+        if (event->data.thinking.reasoning_snippet[0] != '\0') {
             snprintf(g_last_reasoning, sizeof(g_last_reasoning), "%s", event->data.thinking.reasoning_snippet);
         }
     }
@@ -920,6 +920,13 @@ static void on_async_test_event(const phoenix_event_data_t *evt, void *user_data
     }
 }
 
+static void *worker_drain_test_thread(void *arg)
+{
+    size_t *res = (size_t *)arg;
+    *res = phoenix_event_bus_drain();
+    return NULL;
+}
+
 static void run_test_async_event_queue(void)
 {
     printf("\n[TEST 15] Testing Async Event Queue & Drain Mechanism...\n");
@@ -949,8 +956,23 @@ static void run_test_async_event_queue(void)
     assert(phoenix_event_bus_pending_count() == 0);
     assert(g_async_event_count == 3); /* All dispatched */
 
+    /* 非主线程调用 drain 安全防护验证：后台工作线程调用必须被阻断并返回 0，严禁引发 CPU 活锁 */
+    assert(phoenix_event_post_async(&evt1) == 0);
+    assert(phoenix_event_bus_pending_count() == 1);
+
+    pthread_t worker_th;
+    size_t worker_drained = 999;
+    pthread_create(&worker_th, NULL, worker_drain_test_thread, &worker_drained);
+    pthread_join(worker_th, NULL);
+    assert(worker_drained == 0); /* 非主线程被安全拦截 */
+    assert(phoenix_event_bus_pending_count() == 1); /* 事件完好保留在队列中等待主线程调度 */
+
+    size_t main_drained = phoenix_event_bus_drain();
+    assert(main_drained == 1);
+    assert(phoenix_event_bus_pending_count() == 0);
+
     phoenix_event_bus_deinit();
-    printf("  -> Async Event Queue Post & Drain PASSED!\n");
+    printf("  -> Async Event Queue Post & Drain (with Cross-Thread Safety Guard) PASSED!\n");
 }
 
 /* ========================================================================= */
