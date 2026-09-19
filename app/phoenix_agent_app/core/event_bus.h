@@ -35,6 +35,7 @@ typedef enum {
     PHOENIX_EVT_HAL_TAP,          /**< Hardware physical tap / knock detected */
     PHOENIX_EVT_HAL_LIGHT,        /**< Ambient light sensor change (Lux) */
     PHOENIX_EVT_HAL_BATTERY,      /**< Power & battery level update */
+    PHOENIX_EVT_HAL_ENV,          /**< On-board ambient temperature & humidity update */
     PHOENIX_EVT_CARTRIDGE_SWITCHED, /**< Active cartridge switched */
     PHOENIX_EVT_NET_STATUS,       /**< Wi-Fi network mode, SSID, IP and state change */
     PHOENIX_EVT_COUNT
@@ -123,6 +124,12 @@ typedef struct {
             bool is_charging;
             bool is_low_power;
         } battery;
+
+        struct {
+            float temp_c;
+            uint8_t humi_pct;
+            bool is_valid;
+        } env;
 
         struct {
             const char *from_id;

@@ -316,6 +316,18 @@ static const http_route_t g_web_api_routes[] = {
     { HTTP_METHOD_POST, "/api/sdcard/upload",            false, handle_sdcard_upload },
     { HTTP_METHOD_POST, "/api/sdcard/delete",            false, handle_sdcard_delete },
     { HTTP_METHOD_POST, "/api/sdcard/mkdir",             false, handle_sdcard_mkdir },
+
+    /* 7. 具身智能体 (Agent Core) 控制台与 ReAct 追踪 */
+    { HTTP_METHOD_POST, "/api/v1/agent/chat",        false, handle_agent_chat },
+    { HTTP_METHOD_POST, "/api/agent/chat",           false, handle_agent_chat },
+    { HTTP_METHOD_GET,  "/api/v1/agent/tools",       false, handle_agent_tools },
+    { HTTP_METHOD_GET,  "/api/agent/tools",          false, handle_agent_tools },
+    { HTTP_METHOD_POST, "/api/v1/agent/tool/execute",false, handle_agent_tool_exec },
+    { HTTP_METHOD_POST, "/api/agent/tool/execute",   false, handle_agent_tool_exec },
+    { HTTP_METHOD_GET,  "/api/v1/agent/memory",      false, handle_agent_memory },
+    { HTTP_METHOD_GET,  "/api/agent/memory",         false, handle_agent_memory },
+    { HTTP_METHOD_POST, "/api/v1/agent/memory/clear",false, handle_agent_memory_clear },
+    { HTTP_METHOD_POST, "/api/agent/memory/clear",   false, handle_agent_memory_clear },
 };
 
 void web_api_register_all(void)

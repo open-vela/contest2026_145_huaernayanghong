@@ -139,6 +139,14 @@ size_t phoenix_tool_get_count(void)
     return g_tool_count;
 }
 
+const phoenix_tool_desc_t* phoenix_tool_get_at(size_t index)
+{
+    if (!g_initialized || index >= g_tool_count) {
+        return NULL;
+    }
+    return &g_registry[index];
+}
+
 void phoenix_tool_registry_deinit(void)
 {
     memset(g_registry, 0, sizeof(g_registry));

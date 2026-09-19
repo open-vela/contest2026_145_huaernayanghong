@@ -223,6 +223,53 @@
     .log-lvl-I { color: #50fa7b; }
     .log-lvl-D { color: #8be9fd; }
     .log-lvl-V { color: #bd93f9; }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--accent);
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 8px var(--accent);
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.4; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.15); box-shadow: 0 0 12px var(--accent); }
+      100% { opacity: 0.4; transform: scale(0.9); }
+    }
+    .chip {
+      background: #142033;
+      border: 1px solid #233b63;
+      color: #c9d8eb;
+      padding: 6px 12px;
+      border-radius: 16px;
+      font-size: 11.5px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .chip:hover {
+      border-color: var(--accent);
+      color: #fff;
+      background: rgba(0, 229, 255, 0.15);
+      transform: translateY(-1px);
+    }
+    .tool-item-card {
+      background: #0a0f1c;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: border-color 0.2s;
+    }
+    .tool-item-card:hover {
+      border-color: #233b63;
+    }
   </style>
 </head>
 <body>
@@ -237,6 +284,7 @@
       <div class="pill-btn" id="tab-memo" onclick="switchCartridge('memo')">💡 灵感外脑</div>
       <div class="pill-btn" id="tab-clock" onclick="switchCartridge('clock')">⏰ 翻页时钟</div>
       <div class="pill-btn" id="tab-zen" onclick="switchCartridge('zen')">🪷 赛博木鱼</div>
+      <div class="pill-btn" id="tab-agent" onclick="switchCartridge('agent')">🤖 灵眸 Agent 实验室</div>
     </div>
 
     <div class="grid">
@@ -288,6 +336,113 @@
           <div class="m-block"><div class="m-lbl">消耗 Tokens</div><div class="m-val" id="tokensVal">--</div></div>
         </div>
         <button onclick="doAction('knock_fish')">🪷 敲击木鱼 (功德+1)</button>
+      </div>
+    </div>
+
+    <!-- 🤖 具身智能体 (Agent Core) 极客实验室 & ReAct 闭环工作台 -->
+    <div class="card highlight" id="card-agent-studio" style="margin-bottom:20px;">
+      <div class="card-head">
+        <div class="card-title">🤖 具身灵眸 Agent 极客实验室 (ReAct 闭环工作台)</div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <span class="badge" id="agentModelBadge">DeepSeek-V4-Flash / 端云协同</span>
+          <span class="badge" id="agentOnlineStateBadge" style="background:#091b2c; color:var(--accent-sub);">● IDLE 待命</span>
+        </div>
+      </div>
+
+      <!-- 快捷用例芯片组 -->
+      <div style="font-size:11px; color:var(--muted); margin-bottom:6px; font-weight:600;">意图快捷芯片 (点击即填入并触发闭环验证):</div>
+      <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+        <span class="chip" onclick="setAndSendPrompt('帮我敲3下赛博木鱼积攒功德')">📿 敲木鱼 (功德+3)</span>
+        <span class="chip" onclick="setAndSendPrompt('检查一下开发板当前的内存和CPU负载')">🩺 硬件健康遥测</span>
+        <span class="chip" onclick="setAndSendPrompt('开启一个25分钟的专注番茄钟')">⏱️ 25分钟番茄专注</span>
+        <span class="chip" onclick="setAndSendPrompt('切换眼球微表情为开心状态')">😊 灵眸开心表情</span>
+        <span class="chip" onclick="setAndSendPrompt('用一句话介绍你的具身智能与端侧能力')">🤖 具身人设自我介绍</span>
+      </div>
+
+      <!-- 对话与指令录入框 -->
+      <div style="display:flex; gap:10px; margin-bottom:16px;">
+        <input id="agentPromptInput" type="text" placeholder="在此输入自然语言指令测试端云 Agent 闭环与工具调度..." onkeydown="if(event.key==='Enter') sendAgentChat()" style="margin:0;">
+        <button id="sendAgentBtn" style="margin:0; width:auto; padding:10px 20px; white-space:nowrap;" onclick="sendAgentChat()">🚀 调度 Agent</button>
+        <button class="btn-secondary" style="margin:0; width:auto; padding:10px 14px; white-space:nowrap;" onclick="clearAgentMemory()">🧹 清空记忆</button>
+      </div>
+
+      <!-- ReAct 全链路实时追踪展示视窗 -->
+      <div id="agentTraceBox" style="display:none; background:#080c14; border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:8px;">
+          <div style="font-weight:bold; color:var(--accent); font-size:13px; display:flex; align-items:center; gap:8px;">
+            <span class="pulse-dot"></span> ReAct 执行追踪与状态链路 (Visual Trace)
+          </div>
+          <div style="display:flex; gap:8px; font-size:11px;">
+            <span class="badge" id="traceStateBadge">STATE: IDLE</span>
+            <span class="badge" style="background:#132338; color:var(--accent-sub)" id="traceLatencyBadge">0 ms</span>
+          </div>
+        </div>
+
+        <!-- 阶段 1: Thinking 思维链 (可折叠) -->
+        <details id="traceThinkingDetails" style="margin-bottom:12px; background:#0c1322; border:1px solid #1c2a44; border-radius:8px; overflow:hidden;" open>
+          <summary style="padding:10px 14px; cursor:pointer; color:var(--accent); font-weight:600; font-size:12px; user-select:none; display:flex; align-items:center; gap:6px;">
+            <span>🧠 阶段一：DeepSeek-V4-Flash 思维链 (Thinking Process)</span>
+          </summary>
+          <div id="traceThinkingContent" style="padding:10px 14px; font-size:12px; color:#a2b9d5; line-height:1.6; border-top:1px solid #1c2a44; white-space:pre-wrap; max-height:220px; overflow-y:auto; font-family:ui-monospace, monospace;">--</div>
+        </details>
+
+        <!-- 阶段 2 & 3: Action & Observation (若调用端侧工具) -->
+        <div id="traceToolSection" style="display:none; margin-bottom:12px;">
+          <div style="background:#0c1322; border:1px solid #233b63; border-radius:8px; padding:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span style="font-size:12px; font-weight:bold; color:#f1fa8c">🛠️ 阶段二：端侧具身工具调用 (Tool Call)</span>
+              <span class="badge" style="background:#282a36; color:#f1fa8c" id="traceToolName">--</span>
+            </div>
+            <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">入参 Arguments:</div>
+            <pre id="traceToolArgs" style="background:#05080f; padding:8px; border-radius:6px; font-size:11.5px; color:#50fa7b; margin:0 0 10px 0; overflow-x:auto; font-family:ui-monospace, monospace;"></pre>
+
+            <div style="font-size:12px; font-weight:bold; color:var(--accent-sub); margin-bottom:6px;">📥 阶段三：端侧硬件执行反馈 (Observation)</div>
+            <pre id="traceToolObs" style="background:#05080f; padding:8px; border-radius:6px; font-size:11.5px; color:#8be9fd; margin:0; overflow-x:auto; font-family:ui-monospace, monospace;"></pre>
+          </div>
+        </div>
+
+        <!-- 阶段 4: Final Answer 拟人化回复 -->
+        <div style="background:#0c1322; border:1px solid #1c2a44; border-radius:8px; padding:12px; margin-bottom:12px;">
+          <div style="font-size:12px; font-weight:bold; color:var(--accent-sub); margin-bottom:8px;">💬 阶段四：灵眸拟人化答复 (Final Answer)</div>
+          <div id="traceFinalAnswer" style="font-size:13px; color:#fff; line-height:1.6; padding:4px;">--</div>
+        </div>
+
+        <!-- 消耗指标栏 -->
+        <div style="display:flex; gap:12px; flex-wrap:wrap; font-size:11px; color:var(--muted); padding-top:4px;">
+          <span>⚡ 端到端往返耗时: <b id="metricLatency" style="color:var(--accent-sub)">0</b> ms</span>
+          <span>📊 Prompt Tokens: <b id="metricPromptTokens" style="color:#9bc0e7">0</b></span>
+          <span>📝 Completion Tokens: <b id="metricCompTokens" style="color:#9bc0e7">0</b></span>
+          <span>💰 Total Tokens: <b id="metricTotalTokens" style="color:var(--accent)">0</b></span>
+        </div>
+      </div>
+
+      <!-- 端侧具身工具池与单步执行 (Tool Playground) -->
+      <div style="margin-top:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <div style="font-size:13px; font-weight:bold; color:var(--accent);">🛠️ 端侧具身工具池与单步直调 (Tool Playground)</div>
+          <button class="btn-secondary" style="margin:0; padding:4px 10px; font-size:11px; width:auto;" onclick="refreshAgentTools()">🔄 刷新工具列表</button>
+        </div>
+        <div id="agentToolsGrid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px;">
+          <div style="color:var(--muted); font-size:12px;">正在加载已注册端侧工具...</div>
+        </div>
+      </div>
+
+      <!-- 两级长程记忆状态 (Memory Inspector) -->
+      <div style="margin-top:16px; background:#090d16; border:1px solid var(--border); border-radius:8px; padding:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleMemoryDrawer()">
+          <div style="font-size:12px; font-weight:bold; color:#c0d2e8; display:flex; align-items:center; gap:6px;">
+            <span>🧠 两级长程记忆自省 (Two-Tier Memory)</span>
+            <span class="badge" id="memCountBadge">0 轮会话</span>
+            <span style="font-size:11px; color:var(--muted);" id="memWatermarkBadge">0 B</span>
+          </div>
+          <span style="font-size:11px; color:var(--accent)" id="memToggleTxt">▼ 展开记忆详情</span>
+        </div>
+        <div id="memoryDrawer" style="display:none; margin-top:10px; border-top:1px solid rgba(255,255,255,0.06); padding-top:8px;">
+          <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">前情增量摘要卡片 (context_summary):</div>
+          <div id="memSummaryBox" style="background:#05080f; padding:8px; border-radius:6px; font-size:11.5px; color:#f1fa8c; margin-bottom:8px; word-break:break-all;">(暂无前情摘要，记忆仍在近程滑动窗口内)</div>
+          <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">滑动窗口上下文消息:</div>
+          <div id="memMessagesList" style="max-height:160px; overflow-y:auto; font-size:11.5px; display:flex; flex-direction:column; gap:6px;"></div>
+        </div>
       </div>
     </div>
 
@@ -508,6 +663,8 @@
         }
         if (d.model) {
           document.getElementById('modelName').value = d.model;
+          const mb = document.getElementById('agentModelBadge');
+          if (mb) mb.innerText = d.model + ' / 端云协同';
         }
         if (d.prompt) {
           document.getElementById('agentPrompt').value = d.prompt;
@@ -893,6 +1050,217 @@
     setInterval(fetchLogs, 900);
     fetchLogs();
     syncClientTimeToDevice();
+
+    /* ========================================================
+     * 具身智能体 (Agent Core) Web 交互与 ReAct 追踪逻辑
+     * ======================================================== */
+    function setAndSendPrompt(txt) {
+      document.getElementById('agentPromptInput').value = txt;
+      sendAgentChat();
+    }
+
+    function sendAgentChat() {
+      const promptInput = document.getElementById('agentPromptInput');
+      const prompt = promptInput.value.trim();
+      if (!prompt) return;
+
+      const btn = document.getElementById('sendAgentBtn');
+      btn.disabled = true;
+      btn.innerText = '🧠 思考执行中...';
+
+      const stateBadge = document.getElementById('agentOnlineStateBadge');
+      stateBadge.innerText = '⏳ THINKING / EXECUTING';
+      stateBadge.style.color = '#f1fa8c';
+
+      fetch('/api/v1/agent/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: prompt })
+      })
+      .then(r => r.json())
+      .then(d => {
+        btn.disabled = false;
+        btn.innerText = '🚀 调度 Agent';
+
+        const box = document.getElementById('agentTraceBox');
+        box.style.display = 'block';
+
+        document.getElementById('traceStateBadge').innerText = 'STATE: ' + (d.state || 'IDLE');
+        document.getElementById('traceLatencyBadge').innerText = (d.metrics ? d.metrics.latency_ms : 0) + ' ms';
+
+        stateBadge.innerText = '● ' + (d.state || 'IDLE');
+        stateBadge.style.color = 'var(--accent-sub)';
+
+        // Thinking
+        const thinkEl = document.getElementById('traceThinkingContent');
+        if (d.reasoning_content && d.reasoning_content.trim().length > 0) {
+          thinkEl.innerText = d.reasoning_content;
+          document.getElementById('traceThinkingDetails').open = true;
+        } else {
+          thinkEl.innerText = '(该轮交互无单独思维链，已直接调用端侧工具或输出最终答复)';
+          document.getElementById('traceThinkingDetails').open = false;
+        }
+
+        // Tool Action & Observation
+        const toolSection = document.getElementById('traceToolSection');
+        if (d.action && d.action.tool_name) {
+          toolSection.style.display = 'block';
+          document.getElementById('traceToolName').innerText = d.action.tool_name;
+          document.getElementById('traceToolArgs').innerText = typeof d.action.arguments === 'string' ? d.action.arguments : JSON.stringify(d.action.arguments, null, 2);
+          document.getElementById('traceToolObs').innerText = typeof d.action.observation === 'string' ? d.action.observation : JSON.stringify(d.action.observation, null, 2);
+        } else {
+          toolSection.style.display = 'none';
+        }
+
+        // Final Answer
+        document.getElementById('traceFinalAnswer').innerText = d.answer || '(无回复文案)';
+
+        // Metrics
+        if (d.metrics) {
+          document.getElementById('metricLatency').innerText = d.metrics.latency_ms || 0;
+          document.getElementById('metricPromptTokens').innerText = d.metrics.prompt_tokens || 0;
+          document.getElementById('metricCompTokens').innerText = d.metrics.completion_tokens || 0;
+          document.getElementById('metricTotalTokens').innerText = d.metrics.total_tokens || 0;
+        }
+
+        refresh();
+        refreshAgentMemory();
+      })
+      .catch(e => {
+        btn.disabled = false;
+        btn.innerText = '🚀 调度 Agent';
+        stateBadge.innerText = '❌ 连接失败';
+        stateBadge.style.color = '#ff5555';
+        alert('Agent 请求异常: ' + e);
+      });
+    }
+
+    function refreshAgentTools() {
+      fetch('/api/v1/agent/tools')
+        .then(r => r.json())
+        .then(d => {
+          const grid = document.getElementById('agentToolsGrid');
+          if (!d.success || !d.tools || d.tools.length === 0) {
+            grid.innerHTML = '<div style="color:var(--muted); font-size:12px;">暂无已注册具身工具</div>';
+            return;
+          }
+
+          let html = '';
+          d.tools.forEach(t => {
+            let defaultArgs = '{}';
+            if (t.name === 'knock_wooden_fish') defaultArgs = '{"count": 1}';
+            else if (t.name === 'manage_pomodoro') defaultArgs = '{"action":"start","minutes":25}';
+            else if (t.name === 'set_eye_emotion') defaultArgs = '{"emotion":"happy"}';
+            else if (t.name === 'launch_app') defaultArgs = '{"app_name":"赛博木鱼"}';
+
+            html += `
+              <div class="tool-item-card">
+                <div>
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <b style="color:var(--accent); font-size:12.5px;">${escapeHtml(t.name)}</b>
+                    <span class="badge" style="font-size:10px; padding:2px 8px;">C Driver</span>
+                  </div>
+                  <div style="font-size:11.5px; color:#a2b9d5; line-height:1.4; margin-bottom:8px;">${escapeHtml(t.description || '')}</div>
+                </div>
+                <div style="display:flex; gap:6px;">
+                  <button class="btn-secondary" style="margin:0; padding:6px 10px; font-size:11px; flex:1;" onclick="execSingleTool('${escapeHtml(t.name)}', '${escapeHtml(defaultArgs)}')">⚡ 单步直调测试</button>
+                </div>
+              </div>
+            `;
+          });
+          grid.innerHTML = html;
+        })
+        .catch(e => {
+          document.getElementById('agentToolsGrid').innerHTML = '<div style="color:#ff5555; font-size:12px;">拉取工具清单失败</div>';
+        });
+    }
+
+    function execSingleTool(name, defaultArgs) {
+      const argsStr = prompt(`直接调度底层 C 驱动：${name}\n请输入调用入参 (JSON):`, defaultArgs);
+      if (argsStr === null) return;
+
+      fetch('/api/v1/agent/tool/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, arguments: argsStr })
+      })
+      .then(r => r.json())
+      .then(d => {
+        const resTxt = typeof d.result === 'object' ? JSON.stringify(d.result, null, 2) : d.result;
+        alert(`✅ [${name}] 执行成功！\n\nObservation 返回值:\n${resTxt}`);
+        refresh();
+      })
+      .catch(e => alert('调度失败: ' + e));
+    }
+
+    let memoryDrawerOpen = false;
+    function toggleMemoryDrawer() {
+      memoryDrawerOpen = !memoryDrawerOpen;
+      document.getElementById('memoryDrawer').style.display = memoryDrawerOpen ? 'block' : 'none';
+      document.getElementById('memToggleTxt').innerText = memoryDrawerOpen ? '▲ 收起记忆详情' : '▼ 展开记忆详情';
+      if (memoryDrawerOpen) {
+        refreshAgentMemory();
+      }
+    }
+
+    function refreshAgentMemory() {
+      fetch('/api/v1/agent/memory')
+        .then(r => r.json())
+        .then(d => {
+          if (!d.success) return;
+          document.getElementById('memCountBadge').innerText = (d.history_count || 0) + ' 轮会话';
+          document.getElementById('memWatermarkBadge').innerText = formatBytes(d.total_bytes || 0);
+
+          const sumBox = document.getElementById('memSummaryBox');
+          if (d.context_summary && d.context_summary.trim().length > 0) {
+            sumBox.innerText = d.context_summary;
+            sumBox.style.color = '#f1fa8c';
+          } else {
+            sumBox.innerText = '(暂无前情摘要，记忆仍在近程滑动窗口内)';
+            sumBox.style.color = 'var(--muted)';
+          }
+
+          const msgList = document.getElementById('memMessagesList');
+          if (!d.messages || d.messages.length === 0) {
+            msgList.innerHTML = '<div style="color:var(--muted)">(暂无历史会话)</div>';
+            return;
+          }
+
+          let mHtml = '';
+          d.messages.forEach(m => {
+            let roleColor = m.role === 'user' ? '#00e5ff' : (m.role === 'tool' ? '#50fa7b' : '#ffb86c');
+            let contentSnippet = escapeHtml(m.content || '');
+            if (contentSnippet.length > 100) contentSnippet = contentSnippet.substring(0, 100) + '...';
+
+            mHtml += `
+              <div style="background:#05080f; padding:6px 10px; border-radius:6px; border-left:3px solid ${roleColor};">
+                <div style="display:flex; justify-content:space-between; margin-bottom:2px;">
+                  <b style="color:${roleColor}; font-size:11px;">${m.role.toUpperCase()}</b>
+                  ${m.tool_name ? '<span style="color:#f1fa8c; font-size:10px;">🛠️ ' + escapeHtml(m.tool_name) + '</span>' : ''}
+                </div>
+                <div style="color:#c9d1d9;">${contentSnippet}</div>
+              </div>
+            `;
+          });
+          msgList.innerHTML = mHtml;
+        })
+        .catch(e => {});
+    }
+
+    function clearAgentMemory() {
+      if (!confirm('确认清空 Agent 当前会话历史与前情摘要？设备将重置为初始纯净状态。')) return;
+      fetch('/api/v1/agent/memory/clear', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => {
+          alert('✅ Agent 会话记忆已清空！');
+          refreshAgentMemory();
+          document.getElementById('agentTraceBox').style.display = 'none';
+        })
+        .catch(e => alert('清空失败'));
+    }
+
+    refreshAgentTools();
+    refreshAgentMemory();
   </script>
 </body>
 </html>

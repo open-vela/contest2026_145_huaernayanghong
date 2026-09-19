@@ -11,7 +11,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#define MAX_ROUTES 64
+#define MAX_ROUTES 128
 static http_route_t g_routes[MAX_ROUTES];
 static size_t g_route_count = 0;
 

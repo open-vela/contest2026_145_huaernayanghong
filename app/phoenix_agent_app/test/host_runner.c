@@ -46,6 +46,8 @@
 #  include "../utils/log_utils.h"
 #  include "../hal/hal_system.h"
 #  include "../hal/hal_sdcard.h"
+#  include "../core/web_api/web_api.h"
+#  include "../core/web_api/api_agent.h"
 #else
 #  include "core/app.h"
 #  include "core/event_bus.h"
@@ -2184,6 +2186,155 @@ static void run_test_time_synchronization(void)
     printf("  -> Time Synchronization Subsystem PASSED!\n");
 }
 
+static void run_test_agent_web_api(void)
+{
+    printf("\n[TEST 31] Testing Agent Core RESTful Web API & ReAct Whitebox Trace Engine...\n");
+
+    /* 1. 初始化并绑定全局 Agent 核心及具身工具 */
+    phoenix_llm_provider_init(NULL);
+    phoenix_llm_provider_set_backend(phoenix_llm_mock_backend_create());
+    phoenix_tool_registry_init();
+    phoenix_register_builtin_tools();
+    phoenix_agent_ctx_t *agent = phoenix_agent_core_init();
+    assert(agent != NULL);
+    web_api_set_bound_agent(agent);
+
+    char resp_buf[4096];
+
+    /* 2. 测试 GET /api/v1/agent/tools */
+    char req_tools[] = "GET /api/v1/agent/tools HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+    int resp_len = phoenix_web_portal_handle_request(req_tools, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "200 OK") != NULL);
+    assert(strstr(resp_buf, "\"success\":true") != NULL);
+    assert(strstr(resp_buf, "\"tools\":[") != NULL);
+    assert(strstr(resp_buf, "knock_wooden_fish") != NULL);
+    assert(strstr(resp_buf, "system_health") != NULL);
+    printf("  -> GET /api/v1/agent/tools PASSED (Dynamic tool schema discovery)\n");
+
+    /* 3. 测试 POST /api/v1/agent/tool/execute (零 LLM 依赖单步直调) */
+    char req_exec[] = "POST /api/v1/agent/tool/execute HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 53\r\n\r\n{\"name\":\"knock_wooden_fish\",\"arguments\":{\"count\":3}}";
+    resp_len = phoenix_web_portal_handle_request(req_exec, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "200 OK") != NULL);
+    assert(strstr(resp_buf, "\"success\":true") != NULL);
+    assert(strstr(resp_buf, "added_merit") != NULL || strstr(resp_buf, "total_merit") != NULL);
+    printf("  -> POST /api/v1/agent/tool/execute PASSED (Zero-LLM single-step tool execution)\n");
+
+    /* 4. 测试 POST /api/v1/agent/chat (驱动 ReAct 闭环与白盒链路) */
+    char req_chat[] = "POST /api/v1/agent/chat HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 35\r\n\r\n{\"prompt\":\"敲一下赛博木鱼\"}";
+    resp_len = phoenix_web_portal_handle_request(req_chat, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "200 OK") != NULL);
+    assert(strstr(resp_buf, "\"success\":true") != NULL);
+    assert(strstr(resp_buf, "\"prompt\":\"敲一下赛博木鱼\"") != NULL);
+    assert(strstr(resp_buf, "\"action\":") != NULL);
+    assert(strstr(resp_buf, "\"answer\":") != NULL);
+    assert(strstr(resp_buf, "\"metrics\":") != NULL);
+    printf("  -> POST /api/v1/agent/chat PASSED (End-to-end ReAct trace & state serialization)\n");
+
+    /* 5. 测试 GET /api/v1/agent/memory (上下文自省) */
+    char req_mem[] = "GET /api/v1/agent/memory HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+    resp_len = phoenix_web_portal_handle_request(req_mem, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "200 OK") != NULL);
+    assert(strstr(resp_buf, "\"history_count\":") != NULL);
+    assert(strstr(resp_buf, "\"messages\":[") != NULL);
+    printf("  -> GET /api/v1/agent/memory PASSED (Two-Tier context memory inspection)\n");
+
+    /* 6. 测试 POST /api/v1/agent/memory/clear (记忆擦除) */
+    char req_clear[] = "POST /api/v1/agent/memory/clear HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+    resp_len = phoenix_web_portal_handle_request(req_clear, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "200 OK") != NULL);
+    assert(strstr(resp_buf, "\"success\":true") != NULL);
+
+    /* 验证记忆已确实清零 */
+    resp_len = phoenix_web_portal_handle_request(req_mem, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "\"history_count\":0") != NULL);
+    printf("  -> POST /api/v1/agent/memory/clear & Re-check PASSED\n");
+
+    phoenix_agent_core_destroy(agent);
+    web_api_set_bound_agent(NULL);
+    printf("  -> Agent Core RESTful Web API & ReAct Whitebox Subsystem PASSED!\n");
+}
+
+static bool s_env_evt_received = false;
+static float s_last_received_temp = 0.0f;
+static uint8_t s_last_received_humi = 0;
+
+static void on_env_test_event(const phoenix_event_data_t *event, void *user_data)
+{
+    (void)user_data;
+    if (event->type == PHOENIX_EVT_HAL_ENV) {
+        s_env_evt_received = true;
+        s_last_received_temp = event->data.env.temp_c;
+        s_last_received_humi = event->data.env.humi_pct;
+    }
+}
+
+static void run_test_env_sensor_subsystem(void)
+{
+    printf("\n[TEST 32] Testing Ambient Temperature & Humidity Sensor Subsystem...\n");
+
+    /* 1. HAL 层环境温湿度读取测试 */
+    hal_mock_set_env(25.6f, 55.4f, true);
+    hal_env_data_t env_data;
+    int ret = hal_sensor_read_env(&env_data);
+    assert(ret == 0);
+    assert(env_data.is_valid == true);
+    assert(env_data.temperature_c > 25.5f && env_data.temperature_c < 25.7f);
+    assert(env_data.humidity_pct > 55.0f && env_data.humidity_pct < 56.0f);
+    printf("  -> HAL hal_sensor_read_env (Temp=%.1fC, Humi=%.1f%%, Valid=%d) PASSED\n",
+           env_data.temperature_c, env_data.humidity_pct, env_data.is_valid);
+
+    /* 2. 事件总线订阅与 Perception 采样广播联动 */
+    phoenix_event_bus_init();
+    s_env_evt_received = false;
+    phoenix_event_subscribe(PHOENIX_EVT_HAL_ENV, on_env_test_event, NULL);
+
+    phoenix_perception_config_t pcfg = {
+        .poll_interval_ms = 10,
+        .auto_bridge_to_event_bus = true,
+        .enable_tap_to_wooden_fish = false
+    };
+    phoenix_perception_init(&pcfg);
+
+    /* 模拟注入动态温湿度跳变 (如夏日室温升高) */
+    hal_mock_set_env(28.8f, 66.2f, true);
+
+    /* 触发感知引擎轮询 */
+    phoenix_perception_step();
+    phoenix_event_bus_drain();
+
+    assert(s_env_evt_received == true);
+    assert(s_last_received_temp > 28.7f && s_last_received_temp < 28.9f);
+    assert(s_last_received_humi == 66);
+    printf("  -> Perception Poll & PHOENIX_EVT_HAL_ENV Dispatch (Temp=%.1fC, Humi=%u%%) PASSED\n",
+           s_last_received_temp, s_last_received_humi);
+
+    /* 3. 再次轮询相同值（验证消抖，不冗余重复派发事件） */
+    s_env_evt_received = false;
+    phoenix_perception_step();
+    phoenix_event_bus_drain();
+    assert(s_env_evt_received == false);
+    printf("  -> Hysteresis & Debounce Filter (No redundant event) PASSED\n");
+
+    /* 4. 再次注入显著温湿度变动，验证再次唤醒上报 */
+    hal_mock_set_env(23.1f, 48.0f, true);
+    phoenix_perception_step();
+    phoenix_event_bus_drain();
+    assert(s_env_evt_received == true);
+    assert(s_last_received_temp > 23.0f && s_last_received_temp < 23.2f);
+    assert(s_last_received_humi == 48);
+    printf("  -> Significant Environment Shift Trigger PASSED\n");
+
+    phoenix_event_unsubscribe(PHOENIX_EVT_HAL_ENV, on_env_test_event, NULL);
+    phoenix_perception_deinit();
+    printf("  -> Ambient Temperature & Humidity Sensor Subsystem PASSED!\n");
+}
+
 int main(int argc, char *argv[])
 {
     printf("====================================================\n");
@@ -2227,8 +2378,10 @@ int main(int argc, char *argv[])
     run_test_log_mgr_persistence_and_multichannel();
     run_test_architecture_evolution();
     run_test_time_synchronization();
+    run_test_agent_web_api();
+    run_test_env_sensor_subsystem();
 
-    printf("\n🎉 ALL 30 UNIT TESTS PASSED SUCCESSFULLY!\n");
+    printf("\n🎉 ALL 32 UNIT TESTS PASSED SUCCESSFULLY!\n");
 
     /* If --repl or -i passed, enter interactive mode */
     if (argc > 1 && (strcmp(argv[1], "-i") == 0 || strcmp(argv[1], "--repl") == 0)) {

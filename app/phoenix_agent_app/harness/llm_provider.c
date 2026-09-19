@@ -44,6 +44,7 @@ int phoenix_llm_provider_set_backend(phoenix_llm_backend_t *backend)
     if (g_active_backend->init) {
         g_active_backend->init(g_active_backend, &g_config);
     }
+    g_provider_initialized = true;
     LOG_I(TAG, "🔀 Switched active LLM backend to: [%s]",
           g_active_backend->name ? g_active_backend->name : "CustomBackend");
     return 0;

@@ -16,6 +16,9 @@ static uint32_t g_mock_lux = 350;
 static uint8_t g_mock_battery_pct = 90;
 static bool g_mock_battery_charging = true;
 static float g_mock_temperature = 41.2f;
+static float g_mock_env_temp_c = 26.5f;
+static float g_mock_env_humi_pct = 58.0f;
+static bool g_mock_env_valid = true;
 
 static int g_last_sound = -1;
 static int g_last_haptic = -1;
@@ -50,6 +53,13 @@ void hal_mock_set_temperature(float temp_c)
     g_mock_temperature = temp_c;
 }
 
+void hal_mock_set_env(float temp_c, float humi_pct, bool is_valid)
+{
+    g_mock_env_temp_c = temp_c;
+    g_mock_env_humi_pct = humi_pct;
+    g_mock_env_valid = is_valid;
+}
+
 int hal_mock_get_last_sound(void)
 {
     return g_last_sound;
@@ -73,6 +83,9 @@ void hal_mock_reset(void)
     g_mock_battery_pct = 90;
     g_mock_battery_charging = true;
     g_mock_temperature = 41.2f;
+    g_mock_env_temp_c = 26.5f;
+    g_mock_env_humi_pct = 58.0f;
+    g_mock_env_valid = true;
     g_last_sound = -1;
     g_last_haptic = -1;
     memset(g_last_launched_app, 0, sizeof(g_last_launched_app));
@@ -111,6 +124,16 @@ static int mock_sensor_read_battery(hal_battery_data_t *out_battery)
     out_battery->is_charging = g_mock_battery_charging;
     out_battery->is_low_power = (g_mock_battery_pct < 15);
     out_battery->voltage_mv = 3600 + (uint16_t)(g_mock_battery_pct * 6);
+    return 0;
+}
+
+static int mock_sensor_read_env(hal_env_data_t *out_env)
+{
+    if (!out_env) return -1;
+    out_env->temperature_c = g_mock_env_temp_c;
+    out_env->humidity_pct = g_mock_env_humi_pct;
+    out_env->is_valid = g_mock_env_valid;
+    out_env->timestamp_us = mock_get_time_ms() * 1000;
     return 0;
 }
 
@@ -256,7 +279,8 @@ const hal_driver_t g_hal_driver_mock = {
         .deinit = mock_sensor_deinit,
         .poll_tap = mock_sensor_poll_tap,
         .read_light = mock_sensor_read_light,
-        .read_battery = mock_sensor_read_battery
+        .read_battery = mock_sensor_read_battery,
+        .read_env = mock_sensor_read_env
     },
     .actuator_ops = {
         .init = mock_actuator_init,

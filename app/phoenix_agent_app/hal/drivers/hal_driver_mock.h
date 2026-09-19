@@ -35,6 +35,9 @@ void hal_mock_set_battery(uint8_t percentage, bool is_charging);
 /** 模拟设定硬件温度 */
 void hal_mock_set_temperature(float temp_c);
 
+/** 模拟设定环境温湿度传感器数据 (SHTC3) */
+void hal_mock_set_env(float temp_c, float humi_pct, bool is_valid);
+
 /** 模拟注入一帧麦克风拾音数据 */
 void hal_mock_inject_pcm_frame(const int16_t *samples, size_t count, bool is_speech);
 

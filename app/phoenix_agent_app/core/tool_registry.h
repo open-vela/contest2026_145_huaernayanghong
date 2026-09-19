@@ -78,6 +78,13 @@ char* phoenix_tool_build_schema_json(void);
 size_t phoenix_tool_get_count(void);
 
 /**
+ * @brief Get tool descriptor by index (0 to count - 1)
+ * @param index Tool index
+ * @return Tool descriptor pointer or NULL if index out of bounds
+ */
+const phoenix_tool_desc_t* phoenix_tool_get_at(size_t index);
+
+/**
  * @brief Cleanup Tool Registry
  */
 void phoenix_tool_registry_deinit(void);

@@ -69,6 +69,11 @@ typedef struct {
     char     cached_net_ip[32];
     char     cached_net_ssid[32];
 
+    /* 纯事件驱动的环境温湿度只读缓存 (杜绝主循环加锁轮询) */
+    float    cached_temp_c;
+    uint8_t  cached_humi_pct;
+    bool     cached_env_valid;
+
     const lv_font_t *font_chinese;
 } phoenix_ui_t;
 

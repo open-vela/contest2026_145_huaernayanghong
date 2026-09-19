@@ -67,3 +67,18 @@ int hal_sensor_read_battery(hal_battery_data_t *out_battery)
     out_battery->voltage_mv = 4050;
     return 0;
 }
+
+int hal_sensor_read_env(hal_env_data_t *out_env)
+{
+    if (!out_env) return -1;
+    memset(out_env, 0, sizeof(*out_env));
+    const hal_driver_t *drv = hal_get_active_driver();
+    if (drv && drv->sensor_ops.read_env) {
+        return drv->sensor_ops.read_env(out_env);
+    }
+    /* Default fallback: 26.0℃, 60%RH indoor comfortable baseline */
+    out_env->temperature_c = 26.0f;
+    out_env->humidity_pct = 60.0f;
+    out_env->is_valid = false;
+    return 0;
+}

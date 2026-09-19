@@ -144,8 +144,8 @@ static void refresh_status_capsule(phoenix_ui_t *ui)
     if (!ui) return;
 
     if (ui->capsule) {
-        /* 左侧：环境温湿度 */
-        ui_capsule_update_env(ui->capsule, 26.0f, 60);
+        /* 左侧：环境温湿度 (动态读取板载传感器感知缓存) */
+        ui_capsule_update_env(ui->capsule, ui->cached_temp_c, ui->cached_humi_pct);
 
         /* 右侧：真实网络感知与电池电量 (直接从 UI 只读缓存中读取，杜绝锁竞争) */
         int mode = ui->cached_net_mode;
@@ -349,6 +349,13 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
             }
             break;
 
+        case PHOENIX_EVT_HAL_ENV:
+            ui->cached_temp_c = event->data.env.temp_c;
+            ui->cached_humi_pct = event->data.env.humi_pct;
+            ui->cached_env_valid = event->data.env.is_valid;
+            refresh_status_capsule(ui);
+            break;
+
         case PHOENIX_EVT_CARTRIDGE_SWITCHED: {
             static size_t s_prev_index = 0;
             bool slide_to_left = (event->data.cartridge.index >= s_prev_index);
@@ -505,6 +512,9 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
     ui->uptime_sec = 0;
     ui->merit_count = 0;
     ui->battery_pct = 85; /* 默认电量 */
+    ui->cached_temp_c = 26.0f;
+    ui->cached_humi_pct = 60;
+    ui->cached_env_valid = false;
     ui->pomodoro_active = false;
     ui->pomodoro_remain_s = 0;
 
@@ -527,6 +537,7 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
     phoenix_event_subscribe(PHOENIX_EVT_POMODORO_TICK, on_event_bus_event, ui);
     phoenix_event_subscribe(PHOENIX_EVT_MERIT_UPDATED, on_event_bus_event, ui);
     phoenix_event_subscribe(PHOENIX_EVT_HAL_BATTERY, on_event_bus_event, ui);
+    phoenix_event_subscribe(PHOENIX_EVT_HAL_ENV, on_event_bus_event, ui);
     phoenix_event_subscribe(PHOENIX_EVT_CARTRIDGE_SWITCHED, on_event_bus_event, ui);
     phoenix_event_subscribe(PHOENIX_EVT_NET_STATUS, on_event_bus_event, ui);
 
@@ -649,5 +660,6 @@ void phoenix_ui_destroy(phoenix_ui_t *ui)
     phoenix_event_unsubscribe(PHOENIX_EVT_POMODORO_TICK, on_event_bus_event, ui);
     phoenix_event_unsubscribe(PHOENIX_EVT_MERIT_UPDATED, on_event_bus_event, ui);
     phoenix_event_unsubscribe(PHOENIX_EVT_HAL_BATTERY, on_event_bus_event, ui);
+    phoenix_event_unsubscribe(PHOENIX_EVT_HAL_ENV, on_event_bus_event, ui);
     phoenix_event_unsubscribe(PHOENIX_EVT_NET_STATUS, on_event_bus_event, ui);
 }

@@ -98,12 +98,47 @@ int phoenix_agent_trigger_proactive(phoenix_agent_ctx_t *ctx, phoenix_proactive_
 void phoenix_agent_set_state(phoenix_agent_ctx_t *ctx, phoenix_core_state_t new_state, const char *message);
 
 /**
+ * @brief ReAct 单轮执行链路白盒追踪结构体 (供 Web 伴侣与调试终端透明可视化)
+ */
+typedef struct {
+    char user_prompt[256];          /**< 用户请求入参 Prompt */
+    char reasoning_content[2048];   /**< 大模型深度思考链 Thinking */
+    char tool_name[64];             /**< 命中的具身工具名称 (若有) */
+    char tool_args[512];            /**< 传入具身工具的 JSON 参数 */
+    char tool_observation[512];     /**< 端侧具身硬件执行结果 Observation */
+    char final_answer[2048];        /**< 最终拟人化回复文案 Answer */
+    uint32_t latency_ms;            /**< 端到端往返总耗时 (毫秒) */
+    uint32_t prompt_tokens;         /**< 输入 Token 数 */
+    uint32_t completion_tokens;     /**< 输出 Token 数 */
+    uint32_t total_tokens;          /**< 累计消耗 Token 数 */
+    bool has_tool_call;             /**< 本轮对话是否调用了端侧工具 */
+    bool success;                   /**< 本轮执行是否成功 */
+    phoenix_core_state_t end_state; /**< 对话结束后的状态机状态 */
+} phoenix_agent_trace_t;
+
+/**
  * @brief Dispatch user prompt into ReAct Agent loop synchronously
  * @param ctx Agent context
  * @param user_input User question or intent string
  * @return 0 on success
  */
 int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input);
+
+/**
+ * @brief Dispatch user prompt into ReAct Agent loop synchronously and capture full ReAct execution trace
+ * @param ctx Agent context
+ * @param user_input User question or intent string
+ * @param trace_out Destination pointer to receive detailed ReAct execution trace (can be NULL)
+ * @return 0 on success
+ */
+int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_input, phoenix_agent_trace_t *trace_out);
+
+/**
+ * @brief Clear Agent conversation history and reset context memory
+ * @param ctx Agent context
+ * @return 0 on success
+ */
+int phoenix_agent_clear_memory(phoenix_agent_ctx_t *ctx);
 
 /**
  * @brief Dispatch user prompt into ReAct Agent loop asynchronously in background pthread

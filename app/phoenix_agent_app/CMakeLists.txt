@@ -45,6 +45,7 @@ if(CONFIG_LVX_USE_DEMO_CONTEST2026_145_PHOENIX_AGENT_APP)
       core/web_api/api_config.c
       core/web_api/api_logs.c
       core/web_api/api_sdcard.c
+      core/web_api/api_agent.c
       core/web_portal.c
       core/app.c
       hal/hal_sensor.c

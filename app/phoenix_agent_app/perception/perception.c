@@ -22,6 +22,9 @@ static phoenix_perception_config_t g_perception_cfg;
 static uint64_t g_last_tap_time_ms = 0;
 static bool g_prev_is_dark = false;
 static bool g_prev_is_low_battery = false;
+static float g_prev_temp_c = -999.0f;
+static float g_prev_humi_pct = -999.0f;
+static uint64_t g_last_env_broadcast_ms = 0;
 
 static uint64_t get_time_ms(void)
 {
@@ -43,6 +46,10 @@ int phoenix_perception_init(const phoenix_perception_config_t *config)
         g_perception_cfg.auto_bridge_to_event_bus = true;
         g_perception_cfg.enable_tap_to_wooden_fish = true;
     }
+
+    g_prev_temp_c = -999.0f;
+    g_prev_humi_pct = -999.0f;
+    g_last_env_broadcast_ms = 0;
 
     g_last_tap_time_ms = 0;
     g_prev_is_dark = false;
@@ -168,6 +175,34 @@ void phoenix_perception_step(void)
             phoenix_event_publish(&pro_evt);
         }
         g_prev_is_low_battery = battery_data.is_low_power;
+    }
+
+    /* 4. Poll Ambient Environment (Temperature & Humidity) */
+    hal_env_data_t env_data;
+    if (hal_sensor_read_env(&env_data) == 0) {
+        uint64_t now_ms = get_time_ms();
+        float temp_diff = (env_data.temperature_c > g_prev_temp_c) ?
+                          (env_data.temperature_c - g_prev_temp_c) : (g_prev_temp_c - env_data.temperature_c);
+        float humi_diff = (env_data.humidity_pct > g_prev_humi_pct) ?
+                          (env_data.humidity_pct - g_prev_humi_pct) : (g_prev_humi_pct - env_data.humidity_pct);
+
+        bool should_broadcast = (temp_diff >= 0.2f || humi_diff >= 1.0f || (now_ms - g_last_env_broadcast_ms >= 5000));
+
+        if (should_broadcast) {
+            g_prev_temp_c = env_data.temperature_c;
+            g_prev_humi_pct = env_data.humidity_pct;
+            g_last_env_broadcast_ms = now_ms;
+
+            if (g_perception_cfg.auto_bridge_to_event_bus) {
+                phoenix_event_data_t evt;
+                memset(&evt, 0, sizeof(evt));
+                evt.type = PHOENIX_EVT_HAL_ENV;
+                evt.data.env.temp_c = env_data.temperature_c;
+                evt.data.env.humi_pct = (uint8_t)(env_data.humidity_pct + 0.5f);
+                evt.data.env.is_valid = env_data.is_valid;
+                phoenix_event_publish(&evt);
+            }
+        }
     }
 }
 

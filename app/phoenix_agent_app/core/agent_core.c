@@ -199,12 +199,18 @@ void phoenix_agent_set_state(phoenix_agent_ctx_t *ctx, phoenix_core_state_t new_
     phoenix_event_publish(&evt);
 }
 
-int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input)
+int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_input, phoenix_agent_trace_t *trace_out)
 {
     if (!ctx || !user_input || strlen(user_input) == 0) {
         return -1;
     }
     ctx->stats.interaction_count++;
+
+    if (trace_out) {
+        memset(trace_out, 0, sizeof(phoenix_agent_trace_t));
+        strncpy(trace_out->user_prompt, user_input, sizeof(trace_out->user_prompt) - 1);
+        trace_out->success = false;
+    }
 
     printf("[PhoenixCore] 💬 User Input: \"%s\"\n", user_input);
 
@@ -230,6 +236,21 @@ int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input)
         phoenix_event_publish(&text_evt);
 
         phoenix_agent_set_state(ctx, AGENT_STATE_IDLE, "极速直达指令执行完毕。");
+
+        if (trace_out) {
+            trace_out->has_tool_call = true;
+            strncpy(trace_out->tool_name, intent.tool_name, sizeof(trace_out->tool_name) - 1);
+            strncpy(trace_out->tool_args, intent.tool_args_json ? intent.tool_args_json : "{}", sizeof(trace_out->tool_args) - 1);
+            strncpy(trace_out->tool_observation, tool_res, sizeof(trace_out->tool_observation) - 1);
+            strncpy(trace_out->reasoning_content, "【极速直达】本地命中预设意图，0ms无大模型依赖极速调度具身驱动", sizeof(trace_out->reasoning_content) - 1);
+            strncpy(trace_out->final_answer, reply, sizeof(trace_out->final_answer) - 1);
+            trace_out->latency_ms = 0;
+            trace_out->prompt_tokens = 0;
+            trace_out->completion_tokens = 0;
+            trace_out->total_tokens = 0;
+            trace_out->success = true;
+            trace_out->end_state = ctx->state;
+        }
         return 0;
     }
 
@@ -253,6 +274,21 @@ int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input)
         phoenix_event_publish(&text_evt);
 
         phoenix_agent_set_state(ctx, AGENT_STATE_POMODORO, "极客伴工流进行中...");
+
+        if (trace_out) {
+            trace_out->has_tool_call = true;
+            strncpy(trace_out->tool_name, "manage_pomodoro", sizeof(trace_out->tool_name) - 1);
+            strncpy(trace_out->tool_args, "{\"action\":\"start\",\"minutes\":25}", sizeof(trace_out->tool_args) - 1);
+            strncpy(trace_out->tool_observation, tool_res, sizeof(trace_out->tool_observation) - 1);
+            strncpy(trace_out->reasoning_content, "【宏工作流】专注工作流预设调度，联动屏幕呼吸动效与番茄钟", sizeof(trace_out->reasoning_content) - 1);
+            strncpy(trace_out->final_answer, reply, sizeof(trace_out->final_answer) - 1);
+            trace_out->latency_ms = 0;
+            trace_out->prompt_tokens = 0;
+            trace_out->completion_tokens = 0;
+            trace_out->total_tokens = 0;
+            trace_out->success = true;
+            trace_out->end_state = ctx->state;
+        }
         return 0;
     }
 
@@ -294,6 +330,14 @@ int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input)
                    resp.content ? resp.content : "未知网络错误", resp.http_status, resp.latency_ms);
             phoenix_agent_set_state(ctx, AGENT_STATE_ALERT, "端云协同通信异常，请检查网络设置！");
             history_add(ctx, PHOENIX_ROLE_ASSISTANT, resp.content ? resp.content : "抱歉，端云协同通信遇到问题。", NULL, NULL, NULL);
+
+            if (trace_out) {
+                trace_out->success = false;
+                trace_out->latency_ms += resp.latency_ms;
+                strncpy(trace_out->final_answer, resp.content ? resp.content : "抱歉，端云协同通信遇到问题。", sizeof(trace_out->final_answer) - 1);
+                trace_out->end_state = ctx->state;
+            }
+
             phoenix_llm_resp_free(&resp);
             break;
         }
@@ -301,6 +345,16 @@ int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input)
         /* Broadcast thinking process if reasoning_content is available */
         if (resp.reasoning_content && strlen(resp.reasoning_content) > 0) {
             printf("[PhoenixCore] 🧠 [Turn %d Thinking] %s\n", turn + 1, resp.reasoning_content);
+
+            if (trace_out) {
+                if (trace_out->reasoning_content[0] != '\0') {
+                    size_t cur = strlen(trace_out->reasoning_content);
+                    snprintf(trace_out->reasoning_content + cur, sizeof(trace_out->reasoning_content) - cur,
+                             "\n[Turn %d] %s", turn + 1, resp.reasoning_content);
+                } else {
+                    strncpy(trace_out->reasoning_content, resp.reasoning_content, sizeof(trace_out->reasoning_content) - 1);
+                }
+            }
 
             phoenix_event_data_t think_evt;
             memset(&think_evt, 0, sizeof(think_evt));
@@ -311,6 +365,13 @@ int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input)
 
         ctx->stats.total_tokens_used += resp.total_tokens;
         ctx->stats.last_latency_ms = resp.latency_ms;
+
+        if (trace_out) {
+            trace_out->latency_ms += resp.latency_ms;
+            trace_out->prompt_tokens += resp.prompt_tokens;
+            trace_out->completion_tokens += resp.completion_tokens;
+            trace_out->total_tokens += resp.total_tokens;
+        }
 
         if (resp.is_tool_use && resp.tool_name) {
             /* Assistant requested Tool Call */
@@ -325,6 +386,13 @@ int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input)
             char tool_result[512] = {0};
             phoenix_tool_execute(resp.tool_name, resp.tool_input, tool_result, sizeof(tool_result));
             printf("[PhoenixCore] 📥 [Turn %d Tool Result] %s\n", turn + 1, tool_result);
+
+            if (trace_out) {
+                trace_out->has_tool_call = true;
+                strncpy(trace_out->tool_name, resp.tool_name, sizeof(trace_out->tool_name) - 1);
+                strncpy(trace_out->tool_args, resp.tool_input ? resp.tool_input : "{}", sizeof(trace_out->tool_args) - 1);
+                strncpy(trace_out->tool_observation, tool_result, sizeof(trace_out->tool_observation) - 1);
+            }
 
             /* 同步排空事件总线并触发消费，确保音效/动效/功德事件被即时派发 */
             phoenix_event_bus_drain();
@@ -356,6 +424,12 @@ int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input)
             phoenix_event_bus_drain();
 
             phoenix_agent_set_state(ctx, AGENT_STATE_IDLE, saved_content);
+
+            if (trace_out) {
+                strncpy(trace_out->final_answer, saved_content, sizeof(trace_out->final_answer) - 1);
+                trace_out->success = true;
+                trace_out->end_state = ctx->state;
+            }
         }
 
         phoenix_llm_resp_free(&resp);
@@ -365,6 +439,34 @@ int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input)
     if (tools_schema) {
         free(tools_schema);
     }
+
+    if (trace_out) {
+        trace_out->end_state = ctx->state;
+    }
+    return 0;
+}
+
+int phoenix_agent_chat(phoenix_agent_ctx_t *ctx, const char *user_input)
+{
+    return phoenix_agent_chat_with_trace(ctx, user_input, NULL);
+}
+
+int phoenix_agent_clear_memory(phoenix_agent_ctx_t *ctx)
+{
+    if (!ctx) return -1;
+    pthread_mutex_lock(&ctx->core_lock);
+    for (size_t i = 0; i < ctx->history_count; i++) {
+        history_free_entry(ctx, &ctx->history[i]);
+    }
+    ctx->history_count = 0;
+    if (ctx->context_summary) {
+        free(ctx->context_summary);
+        ctx->context_summary = NULL;
+    }
+    ctx->total_history_bytes = 0;
+    ctx->state = AGENT_STATE_IDLE;
+    pthread_mutex_unlock(&ctx->core_lock);
+    printf("[PhoenixCore] 🧹 会话历史与两级记忆上下文已彻底清空\n");
     return 0;
 }
 

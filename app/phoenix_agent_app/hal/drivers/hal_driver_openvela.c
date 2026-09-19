@@ -118,6 +118,59 @@ static int openvela_sensor_read_battery(hal_battery_data_t *out_battery)
     return 0;
 }
 
+static int openvela_sensor_read_env(hal_env_data_t *out_env)
+{
+    if (!out_env) return -1;
+
+    bool temp_ok = false;
+    bool humi_ok = false;
+    float temp_val = 26.0f;
+    float humi_val = 60.0f;
+    uint64_t ts_us = board_get_time_ms() * 1000;
+
+    /* 1. 尝试从 OpenVela IIO 标准环境温度节点 /dev/sensor/temp0 读取 */
+    int fd_t = open("/dev/sensor/temp0", O_RDONLY | O_NONBLOCK);
+    if (fd_t < 0) {
+        fd_t = open("/dev/uorb/sensor_temp0", O_RDONLY | O_NONBLOCK);
+    }
+    if (fd_t >= 0) {
+        struct {
+            uint64_t timestamp;
+            float temperature;
+        } evt_t;
+        if (read(fd_t, &evt_t, sizeof(evt_t)) == sizeof(evt_t)) {
+            temp_val = evt_t.temperature;
+            ts_us = evt_t.timestamp;
+            temp_ok = true;
+        }
+        close(fd_t);
+    }
+
+    /* 2. 尝试从 OpenVela IIO 标准相对湿度节点 /dev/sensor/humi0 读取 */
+    int fd_h = open("/dev/sensor/humi0", O_RDONLY | O_NONBLOCK);
+    if (fd_h < 0) {
+        fd_h = open("/dev/uorb/sensor_humi0", O_RDONLY | O_NONBLOCK);
+    }
+    if (fd_h >= 0) {
+        struct {
+            uint64_t timestamp;
+            float humidity;
+        } evt_h;
+        if (read(fd_h, &evt_h, sizeof(evt_h)) == sizeof(evt_h)) {
+            humi_val = evt_h.humidity;
+            humi_ok = true;
+        }
+        close(fd_h);
+    }
+
+    out_env->temperature_c = temp_val;
+    out_env->humidity_pct = humi_val;
+    out_env->timestamp_us = ts_us;
+    out_env->is_valid = (temp_ok || humi_ok);
+
+    return 0;
+}
+
 /* ========================================================================= */
 /* OpenVela Board Actuator Ops                                               */
 /* ========================================================================= */
@@ -352,7 +405,8 @@ const hal_driver_t g_hal_driver_openvela = {
         .deinit = openvela_sensor_deinit,
         .poll_tap = openvela_sensor_poll_tap,
         .read_light = openvela_sensor_read_light,
-        .read_battery = openvela_sensor_read_battery
+        .read_battery = openvela_sensor_read_battery,
+        .read_env = openvela_sensor_read_env
     },
     .actuator_ops = {
         .init = openvela_actuator_init,

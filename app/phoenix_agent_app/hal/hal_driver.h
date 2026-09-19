@@ -20,6 +20,7 @@ typedef struct {
     bool (*poll_tap)(hal_tap_event_t *out_tap);
     int (*read_light)(hal_light_data_t *out_light);
     int (*read_battery)(hal_battery_data_t *out_battery);
+    int (*read_env)(hal_env_data_t *out_env);
 } hal_sensor_ops_t;
 
 /** 执行器驱动操作虚表 */

@@ -62,6 +62,7 @@ $COMPILER -O2 -Wall -Wextra -std=gnu99 \
     "$APP_DIR/core/web_api/api_config.c" \
     "$APP_DIR/core/web_api/api_logs.c" \
     "$APP_DIR/core/web_api/api_sdcard.c" \
+    "$APP_DIR/core/web_api/api_agent.c" \
     "$APP_DIR/core/web_portal.c" \
     "$APP_DIR/core/app.c" \
     "$APP_DIR/core/agent_core.c" \

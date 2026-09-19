@@ -70,6 +70,15 @@ int handle_sdcard_upload(const http_req_t *req, http_resp_t *resp);
 int handle_sdcard_delete(const http_req_t *req, http_resp_t *resp);
 int handle_sdcard_mkdir(const http_req_t *req, http_resp_t *resp);
 
+/* =========================================================================
+ * 模块 7: 具身智能体 (Agent Core) 与 ReAct 追踪 (api_agent.c)
+ * ========================================================================= */
+int handle_agent_chat(const http_req_t *req, http_resp_t *resp);
+int handle_agent_tools(const http_req_t *req, http_resp_t *resp);
+int handle_agent_tool_exec(const http_req_t *req, http_resp_t *resp);
+int handle_agent_memory(const http_req_t *req, http_resp_t *resp);
+int handle_agent_memory_clear(const http_req_t *req, http_resp_t *resp);
+
 /** 批量将上述所有 API 控制器注册到 web_router */
 void web_api_register_all(void);
 

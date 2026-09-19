@@ -28,6 +28,9 @@ int hal_sensor_read_light(hal_light_data_t *out_light);
 /** 获取当前系统电池/电源状态 */
 int hal_sensor_read_battery(hal_battery_data_t *out_battery);
 
+/** 获取当前板载环境温湿度数据 (板载 SHTC3 等器件) */
+int hal_sensor_read_env(hal_env_data_t *out_env);
+
 #ifdef __cplusplus
 }
 #endif
