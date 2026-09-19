@@ -808,16 +808,16 @@ void ui_settings_update_net_progress(ui_settings_t *settings, int mode, const ch
                 lv_obj_set_style_text_color(settings->lbl_prog_step2, lv_color_hex(0x00FF88), 0);
             }
             if (settings->lbl_prog_step3) {
-                lv_label_set_text(settings->lbl_prog_step3, "[..] 3. 正在申请 DHCP 局域网 IP...");
+                lv_label_set_text(settings->lbl_prog_step3, (msg && msg[0]) ? msg : "[..] 3. 正在申请 DHCP 局域网 IP...");
                 lv_obj_set_style_text_color(settings->lbl_prog_step3, lv_color_hex(0xFFB700), 0);
             }
             if (settings->lbl_prog_result_ip) {
-                lv_label_set_text(settings->lbl_prog_result_ip, "Wi-Fi 关联成功，正在协商 IP...");
+                lv_label_set_text(settings->lbl_prog_result_ip, (msg && msg[0]) ? msg : "Wi-Fi 关联成功，正在协商 IP...");
                 lv_obj_set_style_text_color(settings->lbl_prog_result_ip, lv_color_hex(0xFFB700), 0);
             }
         } else {
             if (settings->lbl_prog_step2) {
-                lv_label_set_text(settings->lbl_prog_step2, "[..] 2. 正在关联目标 Wi-Fi 路由...");
+                lv_label_set_text(settings->lbl_prog_step2, (msg && msg[0]) ? msg : "[..] 2. 正在关联目标 Wi-Fi 路由...");
                 lv_obj_set_style_text_color(settings->lbl_prog_step2, lv_color_hex(0xFFB700), 0);
             }
             if (settings->lbl_prog_step3) {
@@ -825,7 +825,7 @@ void ui_settings_update_net_progress(ui_settings_t *settings, int mode, const ch
                 lv_obj_set_style_text_color(settings->lbl_prog_step3, lv_color_hex(0x7E92AD), 0);
             }
             if (settings->lbl_prog_result_ip) {
-                lv_label_set_text(settings->lbl_prog_result_ip, "已向射频下发凭证，正在握手...");
+                lv_label_set_text(settings->lbl_prog_result_ip, (msg && msg[0]) ? msg : "已向射频下发凭证，正在握手...");
                 lv_obj_set_style_text_color(settings->lbl_prog_result_ip, lv_color_hex(0xFFB700), 0);
             }
         }
@@ -834,7 +834,9 @@ void ui_settings_update_net_progress(ui_settings_t *settings, int mode, const ch
             lv_obj_set_style_text_color(settings->lbl_prog_result_url, lv_color_hex(0x8B9EB5), 0);
         }
         if (settings->lbl_prog_done) {
-            lv_label_set_text(settings->lbl_prog_done, "[.. 连网进行中...]");
+            char btn_buf[64];
+            snprintf(btn_buf, sizeof(btn_buf), "[.. %s]", (msg && msg[0]) ? msg : "连网进行中...");
+            lv_label_set_text(settings->lbl_prog_done, btn_buf);
             lv_obj_set_style_text_color(settings->lbl_prog_done, lv_color_hex(0xFFB700), 0);
         }
     } else if (mode == NET_MODE_STA_CONNECTED) {

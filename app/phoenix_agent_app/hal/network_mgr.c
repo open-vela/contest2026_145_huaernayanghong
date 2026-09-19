@@ -489,17 +489,15 @@ static void* sta_connect_worker_thread(void *arg)
      * 若已有热点缓存，则执行轻量空中探针扫描同步底层驱动候选表 */
     pthread_mutex_lock(&s_scan_lock);
     bool need_full_prescan = (s_scan_cache_count == 0);
+    size_t cached_aps = s_scan_cache_count;
     pthread_mutex_unlock(&s_scan_lock);
 
     if (need_full_prescan) {
         LOG_I(TAG, "[Worker] 检测到驱动候选队列未预热，执行空中扫描以填充驱动 Candidate 缓存: [%s]...", target_ssid);
         net_mgr_prescan_wifi();
     } else {
-        LOG_I(TAG, "[Worker] 快速预热驱动候选队列: [%s]...", target_ssid);
-        char scan_cmd[256];
-        snprintf(scan_cmd, sizeof(scan_cmd), "wapi scan wlan0 \"%s\" > /dev/null 2>&1", target_ssid);
-        system(scan_cmd);
-        usleep(200000);
+        LOG_I(TAG, "[Worker] 驱动已有预热候选队列(%zu个热点)，跳过冗余全信道扫描: [%s]", cached_aps, target_ssid);
+        usleep(100000);
     }
 
     /* 4. 规范时序：先下发 PSK 加密秘钥 (CCMP+WPA2: 3 2)，再下发 ESSID 触发驱动关联握手 */
@@ -533,8 +531,12 @@ static void* sta_connect_worker_thread(void *arg)
     if (!associated) {
         LOG_W(TAG, "⚠️ [Worker] 物理 AP 关联超时(未握手成功)，跳过 DHCP 避免无谓长阻塞");
     } else {
-        /* AP 物理握手成功后，预留 2.5 秒给路由器与底层驱动完成 4-Way 握手与端口授权 */
-        sleep(2);
+        /* 1. 物理 AP 握手成功后，先将 wlan0 脏 IP/掩码/网关清空为 0.0.0.0，杜绝 SoftAP (192.168.4.1) 残留导致 DHCP 广播丢包 */
+        system("ifconfig wlan0 0.0.0.0 netmask 255.255.255.0 gateway 0.0.0.0 > /dev/null");
+
+        /* 2. 核心延时：给底层 Realtek 驱动与路由器预留 1.5 秒完成 4-Way 握手与 PTK 端口授权，
+         * 彻底消除过早请求导致的 -EINVAL (-22) 错误 */
+        sleep(1);
         usleep(500000);
 
         pthread_mutex_lock(&s_lock);

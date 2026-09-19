@@ -163,15 +163,13 @@ static void refresh_status_capsule(phoenix_ui_t *ui)
         }
         ui_capsule_update_net_battery(ui->capsule, net_label, ui->battery_pct);
 
-        /* 中间心智状态：番茄钟 > 联网状态 > 默认状态 */
+        /* 中间心智状态：专注流倒计时 (不被外设网络状态冲占，保持 Agent 具身心智生命感) */
         if (ui->pomodoro_active) {
             uint16_t m = ui->pomodoro_remain_s / 60;
             uint16_t s = ui->pomodoro_remain_s % 60;
             char pbuf[32];
             snprintf(pbuf, sizeof(pbuf), "专注 %02u:%02u", m, s);
             ui_capsule_set_status(ui->capsule, pbuf, COLOR_POMO_ORANGE, false);
-        } else if (mode == 3 /* NET_MODE_SOFTAP_CONFIG */) {
-            ui_capsule_set_status(ui->capsule, "● AP配网", lv_color_hex(0xFFB700), false);
         }
     }
 }
@@ -419,17 +417,21 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
 
             if (ui->settings) {
                 if (mode == 1 /* NET_MODE_STA_CONNECTING */) {
-                    if (!ui_settings_is_open(ui->settings)) {
-                        ui_settings_open(ui->settings);
-                        if (ui->stage && ui->stage->container) {
-                            lv_obj_add_flag(ui->stage->container, LV_OBJ_FLAG_HIDDEN);
+                    /* 仅在初次进入配网状态时展开并切换至配网详情页，避免循环重试时重复抢焦锁死交互 */
+                    if (state_changed) {
+                        if (!ui_settings_is_open(ui->settings)) {
+                            ui_settings_open(ui->settings);
+                            if (ui->stage && ui->stage->container) {
+                                lv_obj_add_flag(ui->stage->container, LV_OBJ_FLAG_HIDDEN);
+                            }
+                            if (ui->sidebar) {
+                                ui_sidebar_set_settings_active(ui->sidebar, true);
+                            }
                         }
-                        if (ui->sidebar) {
-                            ui_sidebar_set_settings_active(ui->sidebar, true);
-                        }
+                        /* 切换并直接展开进入配网二级详情页 */
+                        ui_settings_switch_tab(ui->settings, UI_SETTINGS_TAB_HOTSPOT);
                     }
-                    /* 切换并直接展开进入配网二级详情页 */
-                    ui_settings_switch_tab(ui->settings, UI_SETTINGS_TAB_HOTSPOT);
+                    /* 仅更新文本与步骤提示，不重置页面焦点与交互 */
                     ui_settings_update_net_progress(ui->settings, mode, ssid, ip, msg);
                 } else if (mode == 2 /* NET_MODE_STA_CONNECTED */) {
                     ui_settings_update_net_progress(ui->settings, mode, ssid, ip, msg);
@@ -455,7 +457,6 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
                 snprintf(bbuf, sizeof(bbuf), "正在连接 Wi-Fi: [%s]...", ssid && ssid[0] ? ssid : "目标路由");
                 phoenix_ui_show_bubble(ui, bbuf, 6000);
                 if (ui->capsule) {
-                    ui_capsule_set_status(ui->capsule, "● 联网中", lv_color_hex(0xFFB700), true);
                     ui_capsule_update_telemetry(ui->capsule, "连网", ui->battery_pct);
                 }
             } else if (mode == 2 /* NET_MODE_STA_CONNECTED */) {
@@ -463,7 +464,6 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
                 snprintf(bbuf, sizeof(bbuf), "[Wi-Fi 就绪] %s (IP: %s)", ssid, ip);
                 phoenix_ui_show_bubble(ui, bbuf, 6000);
                 if (ui->capsule) {
-                    ui_capsule_set_status(ui->capsule, "● 已联网", lv_color_hex(0x00E676), false);
                     ui_capsule_update_telemetry(ui->capsule, "WiFi", ui->battery_pct);
                 }
             } else if (mode == 3 /* NET_MODE_SOFTAP_CONFIG */) {
@@ -471,14 +471,12 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
                 snprintf(bbuf, sizeof(bbuf), "[热点广播] %s (192.168.4.1)", ssid && ssid[0] ? ssid : "Gemini-Setup");
                 phoenix_ui_show_bubble(ui, bbuf, 6000);
                 if (ui->capsule) {
-                    ui_capsule_set_status(ui->capsule, "● AP配网", lv_color_hex(0xFFB300), false);
                     ui_capsule_update_telemetry(ui->capsule, "AP", ui->battery_pct);
                 }
             } else {
                 phoenix_ui_show_flying_text(ui, "连网超时", lv_color_hex(0xFF5252));
                 phoenix_ui_show_bubble(ui, "Wi-Fi 连接失败，已恢复独立热点", 4000);
                 if (ui->capsule) {
-                    ui_capsule_set_status(ui->capsule, "● 未连接", lv_color_hex(0x9E9E9E), false);
                     ui_capsule_update_telemetry(ui->capsule, "--", ui->battery_pct);
                 }
             }
