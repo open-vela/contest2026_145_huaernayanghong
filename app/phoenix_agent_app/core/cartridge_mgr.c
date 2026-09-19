@@ -41,15 +41,36 @@ static cartridge_t      s_cartridges[CARTRIDGE_MAX_REGISTRY];
 static size_t           s_count = 0;
 static int              s_current_index = -1;
 static void            *s_stage_view = NULL;
-static pthread_mutex_t  s_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t  s_lock;
+static pthread_once_t   s_lock_once = PTHREAD_ONCE_INIT;
 static bool             s_initialized = false;
 static uint64_t         s_last_switch_ms = 0;
 
+static void init_cartridge_lock(void)
+{
+    pthread_mutexattr_t attr;
+    pthread_mutexattr_init(&attr);
+    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&s_lock, &attr);
+    pthread_mutexattr_destroy(&attr);
+}
+
+static inline void lock_mgr(void)
+{
+    pthread_once(&s_lock_once, init_cartridge_lock);
+    pthread_mutex_lock(&s_lock);
+}
+
+static inline void unlock_mgr(void)
+{
+    pthread_mutex_unlock(&s_lock);
+}
+
 int cartridge_mgr_init(void *default_stage)
 {
-    pthread_mutex_lock(&s_lock);
+    lock_mgr();
     if (s_initialized) {
-        pthread_mutex_unlock(&s_lock);
+        unlock_mgr();
         return 0;
     }
 
@@ -59,16 +80,16 @@ int cartridge_mgr_init(void *default_stage)
     s_stage_view = default_stage;
     s_initialized = true;
 
-    pthread_mutex_unlock(&s_lock);
+    unlock_mgr();
     LOG_I(TAG, "卡带管理引擎初始化成功");
     return 0;
 }
 
 void cartridge_mgr_deinit(void)
 {
-    pthread_mutex_lock(&s_lock);
+    lock_mgr();
     if (!s_initialized) {
-        pthread_mutex_unlock(&s_lock);
+        unlock_mgr();
         return;
     }
 
@@ -85,13 +106,13 @@ void cartridge_mgr_deinit(void)
     s_count = 0;
     s_current_index = -1;
     s_initialized = false;
-    pthread_mutex_unlock(&s_lock);
+    unlock_mgr();
     LOG_I(TAG, "卡带管理引擎已安全销毁");
 }
 
 void cartridge_mgr_set_stage(void *stage)
 {
-    pthread_mutex_lock(&s_lock);
+    lock_mgr();
     s_stage_view = stage;
     if (s_current_index >= 0 && (size_t)s_current_index < s_count) {
         s_cartridges[s_current_index].current_stage = stage;
@@ -100,7 +121,7 @@ void cartridge_mgr_set_stage(void *stage)
             s_cartridges[s_current_index].ops.enter(&s_cartridges[s_current_index], stage);
         }
     }
-    pthread_mutex_unlock(&s_lock);
+    unlock_mgr();
 }
 
 int cartridge_mgr_register(const cartridge_ops_t *ops, void *priv_data, void *user_init_data)
@@ -109,14 +130,14 @@ int cartridge_mgr_register(const cartridge_ops_t *ops, void *priv_data, void *us
         return -1;
     }
 
-    pthread_mutex_lock(&s_lock);
+    lock_mgr();
     if (!s_initialized) {
-        pthread_mutex_unlock(&s_lock);
+        unlock_mgr();
         return -2;
     }
 
     if (s_count >= CARTRIDGE_MAX_REGISTRY) {
-        pthread_mutex_unlock(&s_lock);
+        unlock_mgr();
         LOG_W(TAG, "注册失败: 卡带槽位已满 (上限 %d)", CARTRIDGE_MAX_REGISTRY);
         return -3;
     }
@@ -124,7 +145,7 @@ int cartridge_mgr_register(const cartridge_ops_t *ops, void *priv_data, void *us
     /* 查重 */
     for (size_t i = 0; i < s_count; i++) {
         if (strncmp(s_cartridges[i].ops.id, ops->id, CARTRIDGE_MAX_ID_LEN) == 0) {
-            pthread_mutex_unlock(&s_lock);
+            unlock_mgr();
             LOG_W(TAG, "注册失败: 卡带 ID 重复: %s", ops->id);
             return -4;
         }
@@ -141,7 +162,7 @@ int cartridge_mgr_register(const cartridge_ops_t *ops, void *priv_data, void *us
         int ret = s_cartridges[idx].ops.init(&s_cartridges[idx], user_init_data);
         if (ret != 0) {
             LOG_W(TAG, "卡带 [%s] 初始化失败, 错误码: %d", ops->id, ret);
-            pthread_mutex_unlock(&s_lock);
+            unlock_mgr();
             return -5;
         }
     }
@@ -160,7 +181,7 @@ int cartridge_mgr_register(const cartridge_ops_t *ops, void *priv_data, void *us
         }
     }
 
-    pthread_mutex_unlock(&s_lock);
+    unlock_mgr();
     return 0;
 }
 
@@ -168,7 +189,7 @@ int cartridge_mgr_unregister(const char *id)
 {
     if (!id || !id[0]) return -1;
 
-    pthread_mutex_lock(&s_lock);
+    lock_mgr();
     int target_idx = -1;
     for (size_t i = 0; i < s_count; i++) {
         if (strncmp(s_cartridges[i].ops.id, id, CARTRIDGE_MAX_ID_LEN) == 0) {
@@ -178,7 +199,7 @@ int cartridge_mgr_unregister(const char *id)
     }
 
     if (target_idx < 0) {
-        pthread_mutex_unlock(&s_lock);
+        unlock_mgr();
         return -2;
     }
 
@@ -211,12 +232,18 @@ int cartridge_mgr_unregister(const char *id)
         }
     }
 
-    pthread_mutex_unlock(&s_lock);
+    unlock_mgr();
     LOG_I(TAG, "已注销卡带: %s, 剩余卡带数: %zu", id, s_count);
     return 0;
 }
 
-static int do_switch_unlocked(int new_idx)
+typedef struct {
+    bool has_events;
+    phoenix_event_data_t switch_evt;
+    phoenix_event_data_t sound_evt;
+} switch_event_bundle_t;
+
+static int do_switch_locked(int new_idx, switch_event_bundle_t *bundle)
 {
     if (new_idx < 0 || (size_t)new_idx >= s_count) {
         return -1;
@@ -251,32 +278,46 @@ static int do_switch_unlocked(int new_idx)
     /* 持久化配置 */
     phoenix_config_set_str("active_cartridge", s_cartridges[new_idx].ops.id);
 
-    /* 广播卡带切换事件 */
-    phoenix_event_data_t evt;
-    memset(&evt, 0, sizeof(evt));
-    evt.type = PHOENIX_EVT_CARTRIDGE_SWITCHED;
-    evt.data.cartridge.from_id = from_id;
-    evt.data.cartridge.to_id = s_cartridges[new_idx].ops.id;
-    evt.data.cartridge.name = s_cartridges[new_idx].ops.name;
-    evt.data.cartridge.icon = s_cartridges[new_idx].ops.icon;
-    evt.data.cartridge.index = (size_t)new_idx;
-    evt.data.cartridge.total = s_count;
-    phoenix_event_publish(&evt);
+    /*
+     * 架构级防死锁（方案 A）：
+     * 严禁在持有内部锁时调用外部广播或派发事件。
+     * 将需发布的事件暂存至栈上 bundle，由外层调用者在释放互斥锁后再统一派发。
+     */
+    if (bundle) {
+        bundle->has_events = true;
 
-    /* 触觉微反馈通知 (Haptic click / feedback) */
-    memset(&evt, 0, sizeof(evt));
-    evt.type = PHOENIX_EVT_PLAY_SOUND;
-    evt.data.sound.sound_id = 1; /* 提示微音 */
-    phoenix_event_publish(&evt);
+        memset(&bundle->switch_evt, 0, sizeof(bundle->switch_evt));
+        bundle->switch_evt.type = PHOENIX_EVT_CARTRIDGE_SWITCHED;
+        bundle->switch_evt.data.cartridge.from_id = from_id;
+        bundle->switch_evt.data.cartridge.to_id = s_cartridges[new_idx].ops.id;
+        bundle->switch_evt.data.cartridge.name = s_cartridges[new_idx].ops.name;
+        bundle->switch_evt.data.cartridge.icon = s_cartridges[new_idx].ops.icon;
+        bundle->switch_evt.data.cartridge.index = (size_t)new_idx;
+        bundle->switch_evt.data.cartridge.total = s_count;
+
+        memset(&bundle->sound_evt, 0, sizeof(bundle->sound_evt));
+        bundle->sound_evt.type = PHOENIX_EVT_PLAY_SOUND;
+        bundle->sound_evt.data.sound.sound_id = 1; /* 提示微音 */
+    }
 
     return 0;
+}
+
+static void publish_switch_events(const switch_event_bundle_t *bundle)
+{
+    if (!bundle || !bundle->has_events) {
+        return;
+    }
+    phoenix_event_publish(&bundle->switch_evt);
+    phoenix_event_publish(&bundle->sound_evt);
 }
 
 int cartridge_mgr_switch_to(const char *id)
 {
     if (!id || !id[0]) return -1;
 
-    pthread_mutex_lock(&s_lock);
+    switch_event_bundle_t bundle = {0};
+    lock_mgr();
     int target_idx = -1;
     for (size_t i = 0; i < s_count; i++) {
         if (strncmp(s_cartridges[i].ops.id, id, CARTRIDGE_MAX_ID_LEN) == 0) {
@@ -286,94 +327,108 @@ int cartridge_mgr_switch_to(const char *id)
     }
 
     if (target_idx < 0) {
-        pthread_mutex_unlock(&s_lock);
+        unlock_mgr();
         LOG_W(TAG, "未找到目标卡带: %s", id);
         return -2;
     }
 
-    int ret = do_switch_unlocked(target_idx);
-    pthread_mutex_unlock(&s_lock);
+    int ret = do_switch_locked(target_idx, &bundle);
+    unlock_mgr();
+
+    if (ret == 0) {
+        publish_switch_events(&bundle);
+    }
     return ret;
 }
 
 int cartridge_mgr_next(void)
 {
-    pthread_mutex_lock(&s_lock);
+    switch_event_bundle_t bundle = {0};
+    lock_mgr();
     if (s_count <= 1) {
-        pthread_mutex_unlock(&s_lock);
+        unlock_mgr();
         return 0;
     }
 
     int next_idx = (s_current_index + 1) % (int)s_count;
-    int ret = do_switch_unlocked(next_idx);
-    pthread_mutex_unlock(&s_lock);
+    int ret = do_switch_locked(next_idx, &bundle);
+    unlock_mgr();
+
+    if (ret == 0) {
+        publish_switch_events(&bundle);
+    }
     return ret;
 }
 
 int cartridge_mgr_prev(void)
 {
-    pthread_mutex_lock(&s_lock);
+    switch_event_bundle_t bundle = {0};
+    lock_mgr();
     if (s_count <= 1) {
-        pthread_mutex_unlock(&s_lock);
+        unlock_mgr();
         return 0;
     }
 
     int prev_idx = (s_current_index - 1 + (int)s_count) % (int)s_count;
-    int ret = do_switch_unlocked(prev_idx);
-    pthread_mutex_unlock(&s_lock);
+    int ret = do_switch_locked(prev_idx, &bundle);
+    unlock_mgr();
+
+    if (ret == 0) {
+        publish_switch_events(&bundle);
+    }
     return ret;
 }
 
 cartridge_t *cartridge_mgr_get_current(void)
 {
-    pthread_mutex_lock(&s_lock);
+    lock_mgr();
     if (s_current_index >= 0 && (size_t)s_current_index < s_count) {
         cartridge_t *res = &s_cartridges[s_current_index];
-        pthread_mutex_unlock(&s_lock);
+        unlock_mgr();
         return res;
     }
-    pthread_mutex_unlock(&s_lock);
+    unlock_mgr();
     return NULL;
 }
 
 size_t cartridge_mgr_get_count(void)
 {
-    pthread_mutex_lock(&s_lock);
+    lock_mgr();
     size_t count = s_count;
-    pthread_mutex_unlock(&s_lock);
+    unlock_mgr();
     return count;
 }
 
 cartridge_t *cartridge_mgr_get_by_index(size_t index)
 {
-    pthread_mutex_lock(&s_lock);
+    lock_mgr();
     if (index < s_count) {
         cartridge_t *res = &s_cartridges[index];
-        pthread_mutex_unlock(&s_lock);
+        unlock_mgr();
         return res;
     }
-    pthread_mutex_unlock(&s_lock);
+    unlock_mgr();
     return NULL;
 }
 
 cartridge_t *cartridge_mgr_get_by_id(const char *id)
 {
     if (!id) return NULL;
-    pthread_mutex_lock(&s_lock);
+    lock_mgr();
     for (size_t i = 0; i < s_count; i++) {
         if (strncmp(s_cartridges[i].ops.id, id, CARTRIDGE_MAX_ID_LEN) == 0) {
             cartridge_t *res = &s_cartridges[i];
-            pthread_mutex_unlock(&s_lock);
+            unlock_mgr();
             return res;
         }
     }
-    pthread_mutex_unlock(&s_lock);
+    unlock_mgr();
     return NULL;
 }
 
 void cartridge_mgr_dispatch_tick_1s(void)
 {
-    pthread_mutex_lock(&s_lock);
+    lock_mgr();
     if (s_current_index >= 0 && (size_t)s_current_index < s_count) {
         cartridge_t *c = &s_cartridges[s_current_index];
         c->active_sec++;
@@ -381,19 +436,19 @@ void cartridge_mgr_dispatch_tick_1s(void)
             c->ops.tick_1s(c);
         }
     }
-    pthread_mutex_unlock(&s_lock);
+    unlock_mgr();
 }
 
 void cartridge_mgr_dispatch_touch(int x, int y, cartridge_touch_type_t type)
 {
-    pthread_mutex_lock(&s_lock);
+    lock_mgr();
     if (s_current_index >= 0 && (size_t)s_current_index < s_count) {
         cartridge_t *c = &s_cartridges[s_current_index];
         if (c->ops.on_touch) {
             c->ops.on_touch(c, x, y, type);
         }
     }
-    pthread_mutex_unlock(&s_lock);
+    unlock_mgr();
 }
 
 void cartridge_mgr_dispatch_knock(int intensity, int count)
@@ -410,26 +465,26 @@ void cartridge_mgr_dispatch_knock(int intensity, int count)
         return;
     }
 
-    pthread_mutex_lock(&s_lock);
+    lock_mgr();
     if (s_current_index >= 0 && (size_t)s_current_index < s_count) {
         cartridge_t *c = &s_cartridges[s_current_index];
         if (c->ops.on_knock) {
             c->ops.on_knock(c, intensity, count);
         }
     }
-    pthread_mutex_unlock(&s_lock);
+    unlock_mgr();
 }
 
 void cartridge_mgr_dispatch_voice(const char *intent, const char *params_json)
 {
-    pthread_mutex_lock(&s_lock);
+    lock_mgr();
     if (s_current_index >= 0 && (size_t)s_current_index < s_count) {
         cartridge_t *c = &s_cartridges[s_current_index];
         if (c->ops.on_voice) {
             c->ops.on_voice(c, intent, params_json);
         }
     }
-    pthread_mutex_unlock(&s_lock);
+    unlock_mgr();
 }
 
 static int dynamic_cartridge_init(cartridge_t *self, void *user_data)

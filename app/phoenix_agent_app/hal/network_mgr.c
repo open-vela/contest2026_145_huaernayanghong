@@ -479,9 +479,30 @@ static void* sta_connect_worker_thread(void *arg)
     system("wapi mode wlan0 2 > /dev/null");
     system("wapi private wlan0 adaptivity 0 > /dev/null");
     system("wapi power_save wlan0 off > /dev/null");
+    /* 提前提升 WLAN 射频优先级，压制单天线 BLE 广播/寻呼抢占，确保空中扫描与 4-Way 握手期间天线独占 */
+    system("wapi pta_prio wlan0 3 > /dev/null");
     usleep(200000);
 
-    /* 3. 规范时序：先下发 PSK 加密秘钥 (CCMP+WPA2: 3 2)，再下发 ESSID 触发驱动关联握手 */
+    /* 3. 在下发关联前执行空中扫描预热（填充 Realtek 驱动底层 candidate 候选列表）：
+     * 解决冷启动开机驱动内部 scanned_queue 为空导致直接 wapi essid 找不到信道/BSSID 报 candidate == NULL 握手超时。
+     * 若全局热点缓存为空(冷启动场景)，调用 net_mgr_prescan_wifi() 进行完整空中预扫描并缓存热点列表；
+     * 若已有热点缓存，则执行轻量空中探针扫描同步底层驱动候选表 */
+    pthread_mutex_lock(&s_scan_lock);
+    bool need_full_prescan = (s_scan_cache_count == 0);
+    pthread_mutex_unlock(&s_scan_lock);
+
+    if (need_full_prescan) {
+        LOG_I(TAG, "[Worker] 检测到驱动候选队列未预热，执行空中扫描以填充驱动 Candidate 缓存: [%s]...", target_ssid);
+        net_mgr_prescan_wifi();
+    } else {
+        LOG_I(TAG, "[Worker] 快速预热驱动候选队列: [%s]...", target_ssid);
+        char scan_cmd[256];
+        snprintf(scan_cmd, sizeof(scan_cmd), "wapi scan wlan0 \"%s\" > /dev/null 2>&1", target_ssid);
+        system(scan_cmd);
+        usleep(200000);
+    }
+
+    /* 4. 规范时序：先下发 PSK 加密秘钥 (CCMP+WPA2: 3 2)，再下发 ESSID 触发驱动关联握手 */
     char cmd[256];
     if (target_psk[0] != '\0') {
         snprintf(cmd, sizeof(cmd), "wapi psk wlan0 \"%s\" 3 2 > /dev/null", target_psk);
@@ -493,7 +514,7 @@ static void* sta_connect_worker_thread(void *arg)
     /* 核心注意：此处绝不调用 wapi reconnect wlan0，因为 wapi essid ... 1 已经触发驱动 associate 请求，
      * 调用 reconnect 会重置状态机打断 4-Way 握手 */
 
-    /* 4. 前置关联门控（Fast Link-Ready Gate）：
+    /* 5. 前置关联门控（Fast Link-Ready Gate）：
      * 轮询检测无线网卡是否真正与物理 AP 完成 4-Way 握手关联（BSSID 非全 0），最长等待 10 秒 (20*500ms)。
      * 注意：在 NuttX 未获取 IP 前网卡处于 IFF_UP，因此仅判定物理 AP 关联，绝不可强行校验 RUNNING！ */
     bool associated = false;
@@ -520,10 +541,10 @@ static void* sta_connect_worker_thread(void *arg)
         notify_state_changed_with_msg_unlocked("物理 AP 已关联，正在申请 DHCP IP 租约...");
         pthread_mutex_unlock(&s_lock);
 
-        /* 提升 WLAN 射频优先级，防止蓝牙共存仲裁丢弃无重传的 DHCP Discover/Offer 广播帧 */
+        /* 确保 WLAN 射频保持最高优先级，防止蓝牙共存仲裁丢弃无重传的 DHCP Discover/Offer 广播帧 */
         system("wapi pta_prio wlan0 3 > /dev/null");
 
-        /* 5. DHCP 租约获取：3 轮渐进重试，每轮前彻底清空网卡脏 IP 与网关为 0.0.0.0 */
+        /* 6. DHCP 租约获取：3 轮渐进重试 */
         for (int retry = 1; retry <= 3; retry++) {
             char retry_msg[64];
             snprintf(retry_msg, sizeof(retry_msg), "正在申请 DHCP IP 租约 (%d/3)...", retry);
@@ -533,9 +554,8 @@ static void* sta_connect_worker_thread(void *arg)
 
             LOG_I(TAG, "[Worker] 尝试申请 DHCP 租约 (第 %d/3 次)...", retry);
 
-            /* 每次请求前彻底清空残留的 255.255.255.255 广播地址与脏网关，杜绝协议栈死锁 */
-            system("ifconfig wlan0 0.0.0.0 netmask 255.255.255.0 gateway 0.0.0.0 > /dev/null");
-            usleep(200000);
+            /* 核心优化：此处不再重复执行 ifconfig 0.0.0.0 冲刷网卡，保持物理链路与授权端口稳定，避免触发 -EINVAL (-22) */
+            usleep(100000);
 
 #if !defined(HOST_TEST_RUNNER)
             /* 直接调用 C 原生接口发起 DHCP 请求 (内核自带约 4 秒超时与 Discover 重发) */

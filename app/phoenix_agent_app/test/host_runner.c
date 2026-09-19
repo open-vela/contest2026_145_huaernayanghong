@@ -1297,6 +1297,19 @@ static void mock_cartridge_knock(cartridge_t *self, int intensity, int count)
     s_mock_knock_count = count;
 }
 
+static int s_test_switch_reentrant_hits = 0;
+static void on_test_cartridge_switched_reentrant(const phoenix_event_data_t *evt, void *user_data)
+{
+    (void)user_data;
+    s_test_switch_reentrant_hits++;
+    /* 模拟 UI/侧边栏在收到卡带切换事件后，重入查询当前卡带、总数及 ID 信息（原普通非递归锁且在持锁期广播会导致死锁） */
+    cartridge_t *c = cartridge_mgr_get_current();
+    assert(c != NULL);
+    assert(strcmp(c->ops.id, evt->data.cartridge.to_id) == 0);
+    assert(cartridge_mgr_get_count() == 3);
+    assert(cartridge_mgr_get_by_id(evt->data.cartridge.to_id) != NULL);
+}
+
 static void run_test_cartridge_mgr(void)
 {
     printf("\n[TEST 22] Testing TASK-01: Cartridge Manager & Plugin Engine...\n");
@@ -1358,32 +1371,46 @@ static void run_test_cartridge_mgr(void)
     assert(cartridge_mgr_register(&c1_ops, NULL, NULL) != 0);
     assert(cartridge_mgr_get_count() == 3);
 
+    /* 初始化 EventBus 并订阅切换事件，验证切换过程中重入查询防死锁（方案 A + 方案 B） */
+    phoenix_event_bus_init();
+    s_test_switch_reentrant_hits = 0;
+    phoenix_event_subscribe(PHOENIX_EVT_CARTRIDGE_SWITCHED, on_test_cartridge_switched_reentrant, NULL);
+
     /* 3. Next Cartridge Rotation */
     assert(cartridge_mgr_next() == 0);
     curr = cartridge_mgr_get_current();
     assert(curr != NULL && strcmp(curr->ops.id, "memo") == 0);
     assert(s_mock_exit_count == 1);
     assert(s_mock_enter_count == 2);
+    assert(s_test_switch_reentrant_hits == 1);
 
     /* Rotate again to clock */
     assert(cartridge_mgr_next() == 0);
     curr = cartridge_mgr_get_current();
     assert(curr != NULL && strcmp(curr->ops.id, "clock") == 0);
+    assert(s_test_switch_reentrant_hits == 2);
 
     /* Wrap around to familiar */
     assert(cartridge_mgr_next() == 0);
     curr = cartridge_mgr_get_current();
     assert(curr != NULL && strcmp(curr->ops.id, "familiar") == 0);
+    assert(s_test_switch_reentrant_hits == 3);
 
     /* 4. Prev Cartridge Rotation */
     assert(cartridge_mgr_prev() == 0);
     curr = cartridge_mgr_get_current();
     assert(curr != NULL && strcmp(curr->ops.id, "clock") == 0);
+    assert(s_test_switch_reentrant_hits == 4);
 
     /* 5. Switch to specific ID */
     assert(cartridge_mgr_switch_to("memo") == 0);
     curr = cartridge_mgr_get_current();
     assert(curr != NULL && strcmp(curr->ops.id, "memo") == 0);
+    assert(s_test_switch_reentrant_hits == 5);
+
+    phoenix_event_unsubscribe(PHOENIX_EVT_CARTRIDGE_SWITCHED, on_test_cartridge_switched_reentrant, NULL);
+    phoenix_event_bus_deinit();
+    printf("  -> Re-entrant Cartridge Switching & Deadlock Immunity PASSED\n");
 
     /* Switch to non-existent ID fails */
     assert(cartridge_mgr_switch_to("non_existent") != 0);
