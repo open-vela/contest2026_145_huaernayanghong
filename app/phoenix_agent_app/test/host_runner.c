@@ -683,16 +683,30 @@ static void run_test_web_portal(void)
     assert(strstr(resp_buf, "HTTP/1.1 200 OK") != NULL);
     assert(strstr(resp_buf, "\"success\":true") != NULL);
     assert(strstr(resp_buf, "\"model\"") != NULL);
-    printf("  -> GET /api/config (Agent Configuration Query) PASSED!\n");
+    assert(strstr(resp_buf, "\"base_url\"") != NULL);
+    assert(strstr(resp_buf, "\"temperature\"") != NULL);
+    printf("  -> GET /api/config (Agent Configuration Query with Base URL) PASSED!\n");
 
-    /* 11.7 Test POST /api/config (Dynamic API Key Configuration) */
-    const char *req_config = "POST /api/config HTTP/1.1\r\nHost: localhost\r\nContent-Length: 38\r\n\r\n{\"api_key\":\"sk-test-live-key-from-web\"}";
+    /* 11.7 Test POST /api/config (Dynamic API Key & Base URL Configuration) */
+    const char *req_config = "POST /api/config HTTP/1.1\r\nHost: localhost\r\nContent-Length: 110\r\n\r\n{\"api_key\":\"sk-test-live-key-from-web\",\"base_url\":\"https://api.siliconflow.cn/v1/chat/completions\",\"model\":\"deepseek-v3\"}";
     resp_len = phoenix_web_portal_handle_request(req_config, resp_buf, sizeof(resp_buf));
     assert(resp_len > 0);
     assert(strstr(resp_buf, "HTTP/1.1 200 OK") != NULL);
     assert(strstr(resp_buf, "\"success\":true") != NULL);
     assert(strcmp(phoenix_llm_provider_get_backend()->name, "CloudVelaClawBackend") == 0);
-    printf("  -> POST /api/config (Dynamic Key Injection) PASSED!\n");
+    char check_url[256] = {0};
+    phoenix_config_get_str(PHOENIX_CFG_BASE_URL, "", check_url, sizeof(check_url));
+    assert(strcmp(check_url, "https://api.siliconflow.cn/v1/chat/completions") == 0);
+    printf("  -> POST /api/config (Dynamic Key & Base URL Injection) PASSED!\n");
+
+    /* 11.7.1 Test POST /api/config/test (LLM Connectivity Ping API) */
+    const char *req_cfg_test = "POST /api/config/test HTTP/1.1\r\nHost: localhost\r\nContent-Length: 48\r\n\r\n{\"base_url\":\"https://api.deepseek.com/v1/ping\"}";
+    resp_len = phoenix_web_portal_handle_request(req_cfg_test, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "HTTP/1.1 200 OK") != NULL);
+    assert(strstr(resp_buf, "\"latency_ms\"") != NULL);
+    assert(strstr(resp_buf, "\"http_status\"") != NULL);
+    printf("  -> POST /api/config/test (LLM Ping Connectivity Probe API) PASSED!\n");
 
     /* 11.7 Test POST /api/proactive (Remote trigger proactive drill) */
     const char *req_proactive = "POST /api/proactive HTTP/1.1\r\nHost: localhost\r\nContent-Length: 120\r\n\r\n{\"type\":\"fatigue\",\"title\":\"远程演练\",\"suggestion\":\"来自Web控制台的主动提醒\"}";

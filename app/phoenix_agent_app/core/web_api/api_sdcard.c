@@ -302,6 +302,7 @@ static const http_route_t g_web_api_routes[] = {
     /* 4. 配置中心 */
     { HTTP_METHOD_GET,  "/api/config",                   false, handle_config_get },
     { HTTP_METHOD_POST, "/api/config",                   false, handle_config_post },
+    { HTTP_METHOD_POST, "/api/config/test",              false, handle_config_test },
 
     /* 5. 统一日志 */
     { HTTP_METHOD_GET,  "/api/logs",                     false, handle_logs_get },

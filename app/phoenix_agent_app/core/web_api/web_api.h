@@ -52,6 +52,7 @@ int handle_action_dispatch(const http_req_t *req, http_resp_t *resp);
  * ========================================================================= */
 int handle_config_get(const http_req_t *req, http_resp_t *resp);
 int handle_config_post(const http_req_t *req, http_resp_t *resp);
+int handle_config_test(const http_req_t *req, http_resp_t *resp);
 
 /* =========================================================================
  * 模块 5: 统一日志检索与等级调整 (api_logs.c)

@@ -3,122 +3,161 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Phoenix HoloDesk-S1 Geek Dashboard</title>
+  <title>Phoenix HoloDesk-S1 Geek Dashboard (极客伴侣看板)</title>
   <style>
     :root {
-      --bg: #080c14;
-      --card: #101726;
+      --bg: #070a12;
+      --card: #0f1626;
+      --card-inner: #0a0f1c;
       --border: #1c2a44;
+      --border-light: rgba(255, 255, 255, 0.08);
       --accent: #00e5ff;
       --accent-sub: #00ff88;
-      --text: #e6edf3;
-      --muted: #8b9eb5;
+      --accent-warn: #f1fa8c;
+      --accent-danger: #ff5555;
+      --text: #e6edf8;
+      --muted: #8397b2;
+      --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
     }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
-      padding: 24px;
+      padding: 0;
       background: var(--bg);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
-    .wrap {
-      max-width: 960px;
-      margin: 0 auto;
-    }
-    header {
+    .top-header {
+      background: rgba(15, 22, 38, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 12px 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 20px;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 14px;
     }
-    h1 {
+    .brand-title {
+      font-size: 17px;
+      font-weight: 700;
       color: var(--accent);
-      font-size: 20px;
-      margin: 0;
       display: flex;
       align-items: center;
       gap: 8px;
-      font-weight: 700;
+      letter-spacing: 0.5px;
     }
-    .badge {
-      background: #182842;
-      border: 1px solid #233b63;
+    .header-status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .status-badge {
+      background: #121e33;
+      border: 1px solid #1f355a;
       color: var(--accent);
       padding: 4px 12px;
       border-radius: 20px;
       font-size: 12px;
       font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
-    .selector {
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--accent-sub);
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 8px var(--accent-sub);
+      animation: pulse 1.6s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.4; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.2); box-shadow: 0 0 12px var(--accent-sub); }
+      100% { opacity: 0.4; transform: scale(0.9); }
+    }
+    .nav-tabs {
+      background: #0b1120;
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
       display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
+      gap: 8px;
       overflow-x: auto;
-      padding-bottom: 4px;
+      scrollbar-width: none;
     }
-    .pill-btn {
-      background: var(--card);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 10px 16px;
-      border-radius: 24px;
-      cursor: pointer;
-      font-size: 13px;
+    .nav-tabs::-webkit-scrollbar { display: none; }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      padding: 12px 18px;
+      font-size: 13.5px;
       font-weight: 600;
+      cursor: pointer;
       display: flex;
       align-items: center;
       gap: 6px;
-      transition: 0.2s;
+      transition: all 0.2s ease;
       white-space: nowrap;
     }
-    .pill-btn:hover {
-      border-color: var(--accent);
+    .tab-btn:hover {
+      color: var(--text);
+    }
+    .tab-btn.active {
       color: var(--accent);
+      border-bottom-color: var(--accent);
+      background: linear-gradient(180deg, transparent, rgba(0, 229, 255, 0.05));
     }
-    .pill-btn.active {
-      background: linear-gradient(135deg, rgba(0, 229, 255, 0.15), rgba(0, 255, 136, 0.15));
-      border-color: var(--accent);
-      color: #fff;
-      box-shadow: 0 0 16px rgba(0, 229, 255, 0.25);
+    .main-wrap {
+      max-width: 1040px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 20px 16px 40px;
+      flex: 1;
     }
-    .grid {
+    .view-panel { display: none; }
+    .view-panel.active { display: block; }
+    .grid-2 {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
       gap: 16px;
       margin-bottom: 20px;
+    }
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
     }
     .card {
       background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 14px;
+      border-radius: 12px;
       padding: 18px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
       position: relative;
-      overflow: hidden;
+      margin-bottom: 16px;
     }
-    .card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--border), transparent);
-    }
-    .card.highlight::before {
-      background: linear-gradient(90deg, var(--accent), var(--accent-sub));
+    .card.highlight {
+      border-color: #23406e;
     }
     .card-head {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 12px;
+      margin-bottom: 14px;
     }
     .card-title {
-      font-size: 15px;
-      font-weight: bold;
+      font-size: 14.5px;
+      font-weight: 700;
       color: var(--accent);
       display: flex;
       align-items: center;
@@ -130,122 +169,90 @@
       margin-bottom: 14px;
     }
     .m-block {
-      background: #0a0f1c;
+      background: var(--card-inner);
       padding: 10px;
       border-radius: 8px;
       flex: 1;
       text-align: center;
-      border: 1px solid rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-light);
     }
     .m-lbl {
       font-size: 11px;
       color: var(--muted);
+      margin-bottom: 4px;
     }
     .m-val {
-      font-size: 20px;
-      font-weight: bold;
+      font-size: 18px;
+      font-weight: 700;
       color: var(--accent-sub);
-      margin-top: 4px;
     }
-    input, button {
+    input, select, textarea {
       width: 100%;
       box-sizing: border-box;
-      padding: 10px;
+      padding: 9px 12px;
       border-radius: 8px;
       border: 1px solid var(--border);
-      background: #090d16;
+      background: var(--card-inner);
       color: #fff;
       font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent);
     }
     button {
       background: var(--accent);
       color: #04060a;
       border: none;
-      font-weight: bold;
+      border-radius: 8px;
+      padding: 9px 16px;
+      font-weight: 700;
+      font-size: 13px;
       cursor: pointer;
-      margin-top: 10px;
-      transition: 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s;
     }
     button:hover {
       background: #33ebff;
       transform: translateY(-1px);
     }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
     .btn-secondary {
-      background: #182842;
-      color: #9bc0e7;
+      background: #142033;
+      color: #a5c7eb;
       border: 1px solid #233b63;
     }
     .btn-secondary:hover {
-      background: #22375a;
+      background: #1c2e4a;
       color: #fff;
     }
     .btn-warn {
-      background: #d29922;
+      background: #e59500;
       color: #000;
     }
-    .btn-warn:hover {
-      background: #ebb034;
+    .btn-warn:hover { background: #ffaa00; }
+    .btn-danger {
+      background: #dc3545;
+      color: #fff;
     }
-    .memo-item {
-      background: #0a0f1c;
-      padding: 8px 12px;
-      border-radius: 6px;
-      font-size: 12px;
-      margin-bottom: 6px;
-      color: #c0d2e8;
-      border-left: 2px solid var(--accent);
-    }
-    .terminal-window {
-      background: #05080f;
-      border: 1px solid #1c2a44;
-      border-radius: 8px;
-      font-family: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
-      font-size: 11.5px;
-      line-height: 1.5;
-      color: #c9d1d9;
-      height: 320px;
-      overflow-y: auto;
-      padding: 10px 14px;
-      white-space: pre-wrap;
-      word-break: break-all;
-      box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.6);
-    }
-    .log-line {
-      display: block;
-      padding: 1px 0;
-      transition: background 0.15s;
-    }
-    .log-line:hover {
-      background: rgba(255, 255, 255, 0.05);
-    }
-    .log-lvl-E { color: #ff5555; font-weight: 600; }
-    .log-lvl-W { color: #f1fa8c; }
-    .log-lvl-I { color: #50fa7b; }
-    .log-lvl-D { color: #8be9fd; }
-    .log-lvl-V { color: #bd93f9; }
-    .pulse-dot {
-      width: 8px;
-      height: 8px;
-      background-color: var(--accent);
-      border-radius: 50%;
-      display: inline-block;
-      box-shadow: 0 0 8px var(--accent);
-      animation: pulse 1.5s infinite;
-    }
-    @keyframes pulse {
-      0% { opacity: 0.4; transform: scale(0.9); }
-      50% { opacity: 1; transform: scale(1.15); box-shadow: 0 0 12px var(--accent); }
-      100% { opacity: 0.4; transform: scale(0.9); }
-    }
+    .btn-danger:hover { background: #e04b59; }
     .chip {
-      background: #142033;
-      border: 1px solid #233b63;
+      background: #121c2e;
+      border: 1px solid #203657;
       color: #c9d8eb;
-      padding: 6px 12px;
-      border-radius: 16px;
+      padding: 5px 11px;
+      border-radius: 14px;
       font-size: 11.5px;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all 0.2s;
       user-select: none;
       display: inline-flex;
       align-items: center;
@@ -254,12 +261,34 @@
     .chip:hover {
       border-color: var(--accent);
       color: #fff;
-      background: rgba(0, 229, 255, 0.15);
+      background: rgba(0, 229, 255, 0.12);
       transform: translateY(-1px);
     }
+    .terminal-window {
+      background: #04070d;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      line-height: 1.5;
+      color: #c9d1d9;
+      height: 480px;
+      overflow-y: auto;
+      padding: 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.6);
+    }
+    .log-line { display: block; padding: 1px 0; }
+    .log-line:hover { background: rgba(255, 255, 255, 0.04); }
+    .log-lvl-E { color: #ff6b6b; font-weight: 600; }
+    .log-lvl-W { color: #f1fa8c; }
+    .log-lvl-I { color: #50fa7b; }
+    .log-lvl-D { color: #8be9fd; }
+    .log-lvl-V { color: #bd93f9; }
     .tool-item-card {
-      background: #0a0f1c;
-      border: 1px solid rgba(255, 255, 255, 0.05);
+      background: var(--card-inner);
+      border: 1px solid var(--border-light);
       border-radius: 8px;
       padding: 10px 12px;
       display: flex;
@@ -267,792 +296,634 @@
       justify-content: space-between;
       transition: border-color 0.2s;
     }
-    .tool-item-card:hover {
-      border-color: #233b63;
+    .tool-item-card:hover { border-color: #233b63; }
+    .preset-card {
+      background: #0a101d;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .preset-card:hover {
+      border-color: var(--accent);
+      background: rgba(0, 229, 255, 0.08);
+      transform: translateY(-1px);
+    }
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #142033;
+      border: 1px solid var(--accent);
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      display: none;
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <h1>💎 Phoenix HoloDesk-S1 极客伴侣看板</h1>
-      <div class="badge" id="connStatus">● 局域网已连接</div>
-    </header>
 
-    <div class="selector">
-      <div class="pill-btn" id="tab-familiar" onclick="switchCartridge('familiar')">🐱 桌面使魔</div>
-      <div class="pill-btn" id="tab-memo" onclick="switchCartridge('memo')">💡 灵感外脑</div>
-      <div class="pill-btn" id="tab-clock" onclick="switchCartridge('clock')">⏰ 翻页时钟</div>
-      <div class="pill-btn" id="tab-zen" onclick="switchCartridge('zen')">🪷 赛博木鱼</div>
-      <div class="pill-btn" id="tab-agent" onclick="switchCartridge('agent')">🤖 灵眸 Agent 实验室</div>
+  <!-- 顶部状态栏 -->
+  <header class="top-header">
+    <div class="brand-title">
+      <span>💎 Phoenix HoloDesk-S1</span>
+      <span style="font-size:12px; color:var(--muted); font-weight:normal;">极客伴侣看板</span>
     </div>
-
-    <div class="grid">
-      <!-- 使魔卡片 -->
-      <div class="card" id="card-familiar">
-        <div class="card-head">
-          <div class="card-title">🐱 桌面使魔萌宠</div>
-          <span class="badge" id="moodTag">陪伴中</span>
-        </div>
-        <div class="metric-row">
-          <div class="m-block"><div class="m-lbl">使魔亲密度</div><div class="m-val" id="affinityVal">--</div></div>
-          <div class="m-block"><div class="m-lbl">元气饱腹度</div><div class="m-val">95%</div></div>
-        </div>
-        <button class="btn-secondary" onclick="doAction('pet')">🐾 远程轻抚使魔撒娇</button>
+    <div class="header-status">
+      <div class="status-badge" id="netStatusBadge">
+        <span class="pulse-dot"></span>
+        <span id="netSsidTxt">局域网已连接</span>
       </div>
-
-      <!-- 灵感外脑卡片 -->
-      <div class="card" id="card-memo">
-        <div class="card-head">
-          <div class="card-title">💡 灵感外脑速记</div>
-          <span class="badge" id="memoCountTag">3 条</span>
-        </div>
-        <div class="memo-item" id="lastMemo">正在同步端侧备忘...</div>
-        <input id="memoInput" type="text" placeholder="在此输入闪念，即刻存入端侧外脑">
-        <button onclick="addMemo()">💡 推入灵感外脑</button>
-      </div>
-
-      <!-- 翻页时钟卡片 -->
-      <div class="card" id="card-clock">
-        <div class="card-head">
-          <div class="card-title">⏰ 翻页时钟 & 专注流</div>
-          <span class="badge" id="pomoStatusTag">待命</span>
-        </div>
-        <div class="metric-row">
-          <div class="m-block"><div class="m-lbl">专注倒计时</div><div class="m-val" id="pomoRemain">--:--</div></div>
-          <div class="m-block"><div class="m-lbl">推理延迟</div><div class="m-val" id="latencyVal">-- ms</div></div>
-        </div>
-        <button class="btn-secondary" onclick="doAction('pomo_toggle')">🍅 开启 / 暂停番茄专注</button>
-      </div>
-
-      <!-- 赛博木鱼卡片 -->
-      <div class="card" id="card-zen">
-        <div class="card-head">
-          <div class="card-title">🪷 极客禅意木鱼</div>
-          <span class="badge">消除焦虑</span>
-        </div>
-        <div class="metric-row">
-          <div class="m-block"><div class="m-lbl">累计功德数</div><div class="m-val" id="meritVal">--</div></div>
-          <div class="m-block"><div class="m-lbl">消耗 Tokens</div><div class="m-val" id="tokensVal">--</div></div>
-        </div>
-        <button onclick="doAction('knock_fish')">🪷 敲击木鱼 (功德+1)</button>
-      </div>
+      <div class="status-badge" style="color:var(--muted)" id="netIpTxt">IP: 192.168.x.x</div>
     </div>
+  </header>
 
-    <!-- 🤖 具身智能体 (Agent Core) 极客实验室 & ReAct 闭环工作台 -->
-    <div class="card highlight" id="card-agent-studio" style="margin-bottom:20px;">
-      <div class="card-head">
-        <div class="card-title">🤖 具身灵眸 Agent 极客实验室 (ReAct 闭环工作台)</div>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <span class="badge" id="agentModelBadge">DeepSeek-V4-Flash / 端云协同</span>
-          <span class="badge" id="agentOnlineStateBadge" style="background:#091b2c; color:var(--accent-sub);">● IDLE 待命</span>
+  <!-- SPA 导航栏 -->
+  <nav class="nav-tabs">
+    <button class="tab-btn active" onclick="switchView('overview')">📊 系统监控 & 概览</button>
+    <button class="tab-btn" onclick="switchView('agent')">🤖 灵眸具身工坊 (ReAct)</button>
+    <button class="tab-btn" onclick="switchView('settings')">⚙️ 大模型 & 系统配置</button>
+    <button class="tab-btn" onclick="switchView('storage')">📁 TF卡文件管理</button>
+    <button class="tab-btn" onclick="switchView('terminal')">📜 实时系统日志终端</button>
+  </nav>
+
+  <!-- 主体视图容器 -->
+  <main class="main-wrap">
+
+    <!-- ================================================================= -->
+    <!-- 视图 1: 📊 系统监控 & 概览 (Overview) -->
+    <!-- ================================================================= -->
+    <div class="view-panel active" id="view-overview">
+      <!-- 硬件遥测看板 -->
+      <div class="card highlight">
+        <div class="card-head">
+          <div class="card-title">🩺 全志 R528-S3 硬件遥测与系统负载</div>
+          <span class="status-badge" id="fpsBadge">60 FPS</span>
         </div>
-      </div>
-
-      <!-- 快捷用例芯片组 -->
-      <div style="font-size:11px; color:var(--muted); margin-bottom:6px; font-weight:600;">意图快捷芯片 (点击即填入并触发闭环验证):</div>
-      <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
-        <span class="chip" onclick="setAndSendPrompt('帮我敲3下赛博木鱼积攒功德')">📿 敲木鱼 (功德+3)</span>
-        <span class="chip" onclick="setAndSendPrompt('检查一下开发板当前的内存和CPU负载')">🩺 硬件健康遥测</span>
-        <span class="chip" onclick="setAndSendPrompt('开启一个25分钟的专注番茄钟')">⏱️ 25分钟番茄专注</span>
-        <span class="chip" onclick="setAndSendPrompt('切换眼球微表情为开心状态')">😊 灵眸开心表情</span>
-        <span class="chip" onclick="setAndSendPrompt('用一句话介绍你的具身智能与端侧能力')">🤖 具身人设自我介绍</span>
-      </div>
-
-      <!-- 对话与指令录入框 -->
-      <div style="display:flex; gap:10px; margin-bottom:16px;">
-        <input id="agentPromptInput" type="text" placeholder="在此输入自然语言指令测试端云 Agent 闭环与工具调度..." onkeydown="if(event.key==='Enter') sendAgentChat()" style="margin:0;">
-        <button id="sendAgentBtn" style="margin:0; width:auto; padding:10px 20px; white-space:nowrap;" onclick="sendAgentChat()">🚀 调度 Agent</button>
-        <button class="btn-secondary" style="margin:0; width:auto; padding:10px 14px; white-space:nowrap;" onclick="clearAgentMemory()">🧹 清空记忆</button>
-      </div>
-
-      <!-- ReAct 全链路实时追踪展示视窗 -->
-      <div id="agentTraceBox" style="display:none; background:#080c14; border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:16px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:8px;">
-          <div style="font-weight:bold; color:var(--accent); font-size:13px; display:flex; align-items:center; gap:8px;">
-            <span class="pulse-dot"></span> ReAct 执行追踪与状态链路 (Visual Trace)
+        <div class="grid-4">
+          <div class="m-block">
+            <div class="m-lbl">CPU 负荷 & 频率</div>
+            <div class="m-val" id="cpuLoadVal">-- %</div>
+            <div style="font-size:10px; color:var(--muted); margin-top:2px;" id="cpuFreqVal">-- MHz</div>
           </div>
-          <div style="display:flex; gap:8px; font-size:11px;">
-            <span class="badge" id="traceStateBadge">STATE: IDLE</span>
-            <span class="badge" style="background:#132338; color:var(--accent-sub)" id="traceLatencyBadge">0 ms</span>
+          <div class="m-block">
+            <div class="m-lbl">内存使用率 (RAM)</div>
+            <div class="m-val" id="memUsedVal">-- %</div>
+            <div style="font-size:10px; color:var(--muted); margin-top:2px;" id="memFreeVal">Free: -- KB</div>
+          </div>
+          <div class="m-block">
+            <div class="m-lbl">芯片温度 (Core Temp)</div>
+            <div class="m-val" id="tempVal">-- °C</div>
+            <div style="font-size:10px; color:var(--muted); margin-top:2px;">健康安全</div>
+          </div>
+          <div class="m-block">
+            <div class="m-lbl">系统运行时长 (Uptime)</div>
+            <div class="m-val" style="font-size:15px; line-height:22px;" id="uptimeVal">--</div>
+            <div style="font-size:10px; color:var(--muted); margin-top:2px;" id="osVerVal">RTOS / Linux</div>
           </div>
         </div>
-
-        <!-- 阶段 1: Thinking 思维链 (可折叠) -->
-        <details id="traceThinkingDetails" style="margin-bottom:12px; background:#0c1322; border:1px solid #1c2a44; border-radius:8px; overflow:hidden;" open>
-          <summary style="padding:10px 14px; cursor:pointer; color:var(--accent); font-weight:600; font-size:12px; user-select:none; display:flex; align-items:center; gap:6px;">
-            <span>🧠 阶段一：DeepSeek-V4-Flash 思维链 (Thinking Process)</span>
-          </summary>
-          <div id="traceThinkingContent" style="padding:10px 14px; font-size:12px; color:#a2b9d5; line-height:1.6; border-top:1px solid #1c2a44; white-space:pre-wrap; max-height:220px; overflow-y:auto; font-family:ui-monospace, monospace;">--</div>
-        </details>
-
-        <!-- 阶段 2 & 3: Action & Observation (若调用端侧工具) -->
-        <div id="traceToolSection" style="display:none; margin-bottom:12px;">
-          <div style="background:#0c1322; border:1px solid #233b63; border-radius:8px; padding:12px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-              <span style="font-size:12px; font-weight:bold; color:#f1fa8c">🛠️ 阶段二：端侧具身工具调用 (Tool Call)</span>
-              <span class="badge" style="background:#282a36; color:#f1fa8c" id="traceToolName">--</span>
-            </div>
-            <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">入参 Arguments:</div>
-            <pre id="traceToolArgs" style="background:#05080f; padding:8px; border-radius:6px; font-size:11.5px; color:#50fa7b; margin:0 0 10px 0; overflow-x:auto; font-family:ui-monospace, monospace;"></pre>
-
-            <div style="font-size:12px; font-weight:bold; color:var(--accent-sub); margin-bottom:6px;">📥 阶段三：端侧硬件执行反馈 (Observation)</div>
-            <pre id="traceToolObs" style="background:#05080f; padding:8px; border-radius:6px; font-size:11.5px; color:#8be9fd; margin:0; overflow-x:auto; font-family:ui-monospace, monospace;"></pre>
+        <!-- 快捷设备控制 (音量/背光) -->
+        <div style="display:flex; flex-wrap:wrap; gap:16px; background:var(--card-inner); padding:12px 16px; border-radius:8px; border:1px solid var(--border-light); align-items:center;">
+          <div style="flex:1; min-width:180px; display:flex; align-items:center; gap:8px; font-size:12px;">
+            <span>🔊 音量:</span>
+            <input type="range" id="volRange" min="0" max="100" value="80" oninput="document.getElementById('volTxt').innerText=this.value+'%'" onchange="syncHardwareCtrl()" style="flex:1;">
+            <span id="volTxt" style="min-width:36px; text-align:right; font-weight:bold; color:var(--accent);">80%</span>
           </div>
-        </div>
-
-        <!-- 阶段 4: Final Answer 拟人化回复 -->
-        <div style="background:#0c1322; border:1px solid #1c2a44; border-radius:8px; padding:12px; margin-bottom:12px;">
-          <div style="font-size:12px; font-weight:bold; color:var(--accent-sub); margin-bottom:8px;">💬 阶段四：灵眸拟人化答复 (Final Answer)</div>
-          <div id="traceFinalAnswer" style="font-size:13px; color:#fff; line-height:1.6; padding:4px;">--</div>
-        </div>
-
-        <!-- 消耗指标栏 -->
-        <div style="display:flex; gap:12px; flex-wrap:wrap; font-size:11px; color:var(--muted); padding-top:4px;">
-          <span>⚡ 端到端往返耗时: <b id="metricLatency" style="color:var(--accent-sub)">0</b> ms</span>
-          <span>📊 Prompt Tokens: <b id="metricPromptTokens" style="color:#9bc0e7">0</b></span>
-          <span>📝 Completion Tokens: <b id="metricCompTokens" style="color:#9bc0e7">0</b></span>
-          <span>💰 Total Tokens: <b id="metricTotalTokens" style="color:var(--accent)">0</b></span>
-        </div>
-      </div>
-
-      <!-- 端侧具身工具池与单步执行 (Tool Playground) -->
-      <div style="margin-top:16px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <div style="font-size:13px; font-weight:bold; color:var(--accent);">🛠️ 端侧具身工具池与单步直调 (Tool Playground)</div>
-          <button class="btn-secondary" style="margin:0; padding:4px 10px; font-size:11px; width:auto;" onclick="refreshAgentTools()">🔄 刷新工具列表</button>
-        </div>
-        <div id="agentToolsGrid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px;">
-          <div style="color:var(--muted); font-size:12px;">正在加载已注册端侧工具...</div>
-        </div>
-      </div>
-
-      <!-- 两级长程记忆状态 (Memory Inspector) -->
-      <div style="margin-top:16px; background:#090d16; border:1px solid var(--border); border-radius:8px; padding:12px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleMemoryDrawer()">
-          <div style="font-size:12px; font-weight:bold; color:#c0d2e8; display:flex; align-items:center; gap:6px;">
-            <span>🧠 两级长程记忆自省 (Two-Tier Memory)</span>
-            <span class="badge" id="memCountBadge">0 轮会话</span>
-            <span style="font-size:11px; color:var(--muted);" id="memWatermarkBadge">0 B</span>
+          <div style="flex:1; min-width:180px; display:flex; align-items:center; gap:8px; font-size:12px;">
+            <span>☀️ 屏幕背光:</span>
+            <input type="range" id="brightRange" min="10" max="100" value="90" oninput="document.getElementById('brightTxt').innerText=this.value+'%'" onchange="syncHardwareCtrl()" style="flex:1;">
+            <span id="brightTxt" style="min-width:36px; text-align:right; font-weight:bold; color:var(--accent);">90%</span>
           </div>
-          <span style="font-size:11px; color:var(--accent)" id="memToggleTxt">▼ 展开记忆详情</span>
-        </div>
-        <div id="memoryDrawer" style="display:none; margin-top:10px; border-top:1px solid rgba(255,255,255,0.06); padding-top:8px;">
-          <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">前情增量摘要卡片 (context_summary):</div>
-          <div id="memSummaryBox" style="background:#05080f; padding:8px; border-radius:6px; font-size:11.5px; color:#f1fa8c; margin-bottom:8px; word-break:break-all;">(暂无前情摘要，记忆仍在近程滑动窗口内)</div>
-          <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">滑动窗口上下文消息:</div>
-          <div id="memMessagesList" style="max-height:160px; overflow-y:auto; font-size:11.5px; display:flex; flex-direction:column; gap:6px;"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Agent & 大模型配置中心 -->
-    <div class="card" style="margin-bottom:20px;">
-      <div class="card-head">
-        <div class="card-title">⚙️ 云端大模型与 Agent 配置中心</div>
-        <span class="badge" id="cfgStatusBadge">端侧热加载</span>
-      </div>
-      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; margin-bottom:10px;">
-        <div>
-          <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;">大模型 API Key:</div>
-          <input id="apiKey" type="password" placeholder="输入云端 API Key (如 sk-xxxx)">
-        </div>
-        <div>
-          <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;">大模型名称 (Model):</div>
-          <input id="modelName" type="text" placeholder="如 deepseek-chat 或 gpt-4o-mini">
-        </div>
-      </div>
-      <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;">Agent 系统人设提示词 (Prompt):</div>
-      <textarea id="agentPrompt" rows="2" style="width:100%; box-sizing:border-box; padding:10px; border-radius:8px; border:1px solid var(--border); background:#090d16; color:#fff; font-size:13px; resize:none;" placeholder="如：你是一个贴心的赛博桌面极客助手，语气温和简短"></textarea>
-      <div style="display:flex; gap:10px; margin-top:12px;">
-        <button onclick="saveAgentConfig()">💾 保存并热加载至开发板</button>
-        <button class="btn-warn" onclick="resetWifi()">📡 重置 Wi-Fi 并返回热点</button>
-      </div>
-    </div>
-
-    <!-- 📁 外置 TF 卡与文件存储管理中心 -->
-    <div class="card" id="card-storage">
-      <div class="card-head">
-        <div class="card-title">📁 外置 MicroSD / TF 卡存储管理</div>
-        <span class="badge" id="sdcardMountBadge">探测中...</span>
-      </div>
-
-      <!-- 容量与存储分区状态条 -->
-      <div style="background:#090d16; border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:16px;">
-        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:8px;">
-          <span style="color:var(--muted)">挂载目录: <b id="sdcardMountPoint" style="color:var(--accent)">/mnt/sdcard</b></span>
-          <span style="color:var(--muted)">已用: <b id="sdcardUsedPct" style="color:var(--accent-sub)">--%</b> (<span id="sdcardUsedMb">0</span> MB / <span id="sdcardTotalMb">0</span> MB)</span>
-        </div>
-        <div style="height:8px; background:#141c2c; border-radius:4px; overflow:hidden;">
-          <div id="sdcardProgressBar" style="width:0%; height:100%; background:linear-gradient(90deg, var(--accent), var(--accent-sub)); transition:width 0.4s ease;"></div>
-        </div>
-        <div style="display:flex; gap:12px; margin-top:10px; font-size:11px; color:var(--muted);">
-          <span>📌 持久配置: <code id="dataBaseDir" style="color:#9bc0e7">/data/phoenix</code></span>
-          <span>⚡ 中间分片: <code id="tempBaseDir" style="color:#9bc0e7">/tmp/phoenix</code></span>
+          <button class="btn-secondary" style="margin:0; padding:6px 12px; font-size:11px;" onclick="triggerProactiveDemo()">⚡ 演练主动交互</button>
         </div>
       </div>
 
-      <!-- 快速导航与操作工具栏 -->
-      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
-        <div style="display:flex; align-items:center; gap:6px;">
-          <span style="font-size:12px; color:var(--muted)">路径:</span>
-          <code id="currentPathDisplay" style="background:#182842; color:var(--accent); padding:4px 8px; border-radius:6px; font-size:12px; font-weight:bold;">/</code>
-          <button class="btn-secondary" style="margin:0; padding:4px 10px; font-size:11px; width:auto;" onclick="sdcardGoUp()">⬆️ 上一级</button>
-          <button class="btn-secondary" style="margin:0; padding:4px 10px; font-size:11px; width:auto;" onclick="sdcardRefreshList()">🔄 刷新</button>
-        </div>
-        <div style="display:flex; gap:6px;">
-          <button class="btn-secondary" style="margin:0; padding:4px 10px; font-size:11px; width:auto;" onclick="sdcardGoPath('/sounds')">🎵 sounds</button>
-          <button class="btn-secondary" style="margin:0; padding:4px 10px; font-size:11px; width:auto;" onclick="sdcardGoPath('/logs')">📜 logs</button>
-          <button class="btn-secondary" style="margin:0; padding:4px 10px; font-size:11px; width:auto;" onclick="sdcardGoPath('/docs')">📑 docs</button>
-        </div>
+      <!-- 4 大伴侣卡带联动控制台 -->
+      <div style="font-size:13px; font-weight:bold; color:var(--muted); margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+        <span>🎮 桌面具身数字生命体卡带 (Cartridges)</span>
+        <span style="font-size:11px; color:var(--accent);" id="activeCartridgeHint">当前卡带: 使魔</span>
       </div>
+      <div class="grid-2">
+        <!-- 使魔 -->
+        <div class="card" id="card-familiar">
+          <div class="card-head">
+            <div class="card-title">🐱 桌面使魔萌宠</div>
+            <span class="status-badge" id="moodTag">陪伴中</span>
+          </div>
+          <div class="metric-row">
+            <div class="m-block"><div class="m-lbl">使魔亲密度</div><div class="m-val" id="affinityVal">88</div></div>
+            <div class="m-block"><div class="m-lbl">饱腹元气度</div><div class="m-val">96%</div></div>
+          </div>
+          <button class="btn-secondary" style="width:100%" onclick="doCartridgeAction('pet')">🐾 远程轻抚使魔撒娇</button>
+        </div>
 
-      <!-- 文件列表视图 -->
-      <div style="background:#090d16; border:1px solid var(--border); border-radius:8px; max-height:260px; overflow-y:auto; margin-bottom:16px;">
-        <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:left;">
-          <thead>
-            <tr style="border-bottom:1px solid var(--border); color:var(--muted);">
-              <th style="padding:8px 12px;">名称</th>
-              <th style="padding:8px 12px; width:80px;">大小</th>
-              <th style="padding:8px 12px; width:120px; text-align:right;">操作</th>
-            </tr>
-          </thead>
-          <tbody id="sdcardFileList">
-            <tr><td colspan="3" style="padding:16px; text-align:center; color:var(--muted)">正在读取 TF 卡文件系统...</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- 快速新建与写入区域 -->
-      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px;">
-        <!-- 新建目录 -->
-        <div style="background:#0a0f1c; padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.04);">
-          <div style="font-size:12px; color:var(--accent); font-weight:600; margin-bottom:6px;">📁 新建子目录</div>
+        <!-- 灵感外脑 -->
+        <div class="card" id="card-memo">
+          <div class="card-head">
+            <div class="card-title">💡 灵感外脑速记</div>
+            <span class="status-badge" id="memoCountTag">0 条</span>
+          </div>
+          <div id="lastMemoBox" style="background:var(--card-inner); padding:8px 12px; border-radius:6px; font-size:12px; margin-bottom:8px; border-left:2px solid var(--accent); color:#c0d2e8;">正在同步端侧备忘...</div>
           <div style="display:flex; gap:8px;">
-            <input id="newDirName" type="text" placeholder="目录名称 (如 music)" style="padding:8px; font-size:12px;">
-            <button style="margin:0; width:auto; padding:8px 14px; font-size:12px; white-space:nowrap;" onclick="sdcardMkdir()">新建</button>
+            <input id="memoInput" type="text" placeholder="输入闪念即刻存入外脑..." onkeydown="if(event.key==='Enter') addMemo()">
+            <button style="white-space:nowrap; padding:8px 14px;" onclick="addMemo()">💡 存入</button>
           </div>
         </div>
 
-        <!-- 文本/文件写入与上传 -->
-        <div style="background:#0a0f1c; padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.04);">
-          <div style="font-size:12px; color:var(--accent-sub); font-weight:600; margin-bottom:6px;">✍️ 写入文件 / 上传文本</div>
-          <input id="uploadFileName" type="text" placeholder="文件名 (如 memo.txt)" style="padding:8px; font-size:12px; margin-bottom:6px;">
-          <textarea id="uploadFileContent" rows="2" placeholder="文件内容 (纯文本、脚本或配置)" style="width:100%; box-sizing:border-box; padding:8px; border-radius:8px; border:1px solid var(--border); background:#090d16; color:#fff; font-size:12px; resize:none;"></textarea>
-          <div style="display:flex; gap:8px; margin-top:6px;">
-            <input type="file" id="localFileInput" style="display:none;" onchange="handleLocalFileSelected(this)">
-            <button class="btn-secondary" style="margin:0; padding:6px 12px; font-size:11px; width:auto;" onclick="document.getElementById('localFileInput').click()">📂 选择本地文件</button>
-            <button style="margin:0; padding:6px 12px; font-size:11px; flex:1;" onclick="sdcardUploadText()">🚀 保存并写入 TF 卡</button>
+        <!-- 机械翻页钟 -->
+        <div class="card" id="card-clock">
+          <div class="card-head">
+            <div class="card-title">⏰ 翻页时钟 & 番茄专注</div>
+            <span class="status-badge" id="pomoStatusTag">待命</span>
+          </div>
+          <div class="metric-row">
+            <div class="m-block"><div class="m-lbl">专注倒计时</div><div class="m-val" id="pomoRemain">25:00</div></div>
+            <div class="m-block"><div class="m-lbl">历史专注轮次</div><div class="m-val" id="pomoCycles">3 轮</div></div>
+          </div>
+          <button class="btn-secondary" style="width:100%" onclick="doCartridgeAction('pomo_toggle')">🍅 开启 / 暂停番茄专注</button>
+        </div>
+
+        <!-- 赛博木鱼 -->
+        <div class="card" id="card-zen">
+          <div class="card-head">
+            <div class="card-title">🪷 极客禅意木鱼</div>
+            <span class="status-badge" style="color:var(--accent-sub);">消除焦虑</span>
+          </div>
+          <div class="metric-row">
+            <div class="m-block"><div class="m-lbl">累计功德数</div><div class="m-val" id="meritVal">0</div></div>
+            <div class="m-block"><div class="m-lbl">LLM 消耗 Tokens</div><div class="m-val" id="tokensVal">0</div></div>
+          </div>
+          <button style="width:100%" onclick="doCartridgeAction('knock_fish')">🪷 敲击木鱼 (功德+1)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- 视图 2: 🤖 灵眸具身工坊 (Agent Studio) -->
+    <!-- ================================================================= -->
+    <div class="view-panel" id="view-agent">
+      <div class="card highlight">
+        <div class="card-head">
+          <div class="card-title">🤖 具身灵眸 Agent 极客工作台 (ReAct 闭环控制台)</div>
+          <div style="display:flex; gap:8px;">
+            <span class="status-badge" id="agentModelBadge">DeepSeek-Chat / 端云协同</span>
+            <span class="status-badge" id="agentOnlineStateBadge" style="background:#091b2c; color:var(--accent-sub);">● IDLE 待命</span>
+          </div>
+        </div>
+
+        <!-- 快捷意图芯片 -->
+        <div style="font-size:11px; color:var(--muted); margin-bottom:6px; font-weight:600;">常用意图快捷芯片 (点击即调度):</div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+          <span class="chip" onclick="setAndSendPrompt('帮我敲3下赛博木鱼积攒功德')">📿 敲木鱼 (功德+3)</span>
+          <span class="chip" onclick="setAndSendPrompt('检查一下开发板当前的内存和CPU负载')">🩺 硬件健康遥测</span>
+          <span class="chip" onclick="setAndSendPrompt('开启一个25分钟的专注番茄钟')">⏱️ 25分钟番茄专注</span>
+          <span class="chip" onclick="setAndSendPrompt('切换眼球微表情为开心状态')">😊 灵眸开心表情</span>
+          <span class="chip" onclick="setAndSendPrompt('用一句话介绍你的具身智能与端侧能力')">🤖 具身人设自我介绍</span>
+        </div>
+
+        <!-- 指令录入框 -->
+        <div style="display:flex; gap:10px; margin-bottom:16px;">
+          <input id="agentPromptInput" type="text" placeholder="输入自然语言指令，调度具身智能与端侧工具闭环..." onkeydown="if(event.key==='Enter') sendAgentChat()">
+          <button id="sendAgentBtn" style="white-space:nowrap; padding:9px 18px;" onclick="sendAgentChat()">🚀 调度 Agent</button>
+          <button class="btn-secondary" style="white-space:nowrap; padding:9px 14px;" onclick="clearAgentMemory()">🧹 清空记忆</button>
+        </div>
+
+        <!-- ReAct 全链路追踪展示区 -->
+        <div id="agentTraceBox" style="display:none; background:#080c14; border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid var(--border-light); padding-bottom:8px;">
+            <div style="font-weight:bold; color:var(--accent); font-size:13px; display:flex; align-items:center; gap:8px;">
+              <span class="pulse-dot"></span> ReAct 执行追踪与状态链路 (Visual Trace)
+            </div>
+            <div style="display:flex; gap:8px; font-size:11px;">
+              <span class="status-badge" id="traceStateBadge">STATE: IDLE</span>
+              <span class="status-badge" style="background:#132338; color:var(--accent-sub)" id="traceLatencyBadge">0 ms</span>
+            </div>
+          </div>
+
+          <!-- 阶段 1: Thinking 思维链 -->
+          <details id="traceThinkingDetails" style="margin-bottom:12px; background:#0c1322; border:1px solid var(--border); border-radius:8px; overflow:hidden;" open>
+            <summary style="padding:10px 14px; cursor:pointer; color:var(--accent); font-weight:600; font-size:12px; user-select:none;">
+              🧠 阶段一：DeepSeek 思维链 (Thinking Process)
+            </summary>
+            <div id="traceThinkingContent" style="padding:10px 14px; font-size:12px; color:#a2b9d5; line-height:1.6; border-top:1px solid var(--border); white-space:pre-wrap; max-height:220px; overflow-y:auto; font-family:var(--font-mono);">--</div>
+          </details>
+
+          <!-- 阶段 2 & 3: Action & Observation -->
+          <div id="traceToolSection" style="display:none; margin-bottom:12px;">
+            <div style="background:#0c1322; border:1px solid #233b63; border-radius:8px; padding:12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-size:12px; font-weight:bold; color:#f1fa8c">🛠️ 阶段二：端侧具身工具调用 (Tool Call)</span>
+                <span class="status-badge" style="background:#282a36; color:#f1fa8c" id="traceToolName">--</span>
+              </div>
+              <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">入参 Arguments:</div>
+              <pre id="traceToolArgs" style="background:#05080f; padding:8px; border-radius:6px; font-size:11.5px; color:#50fa7b; margin:0 0 10px 0; overflow-x:auto; font-family:var(--font-mono);"></pre>
+
+              <div style="font-size:12px; font-weight:bold; color:var(--accent-sub); margin-bottom:6px;">📥 阶段三：端侧硬件执行反馈 (Observation)</div>
+              <pre id="traceToolObs" style="background:#05080f; padding:8px; border-radius:6px; font-size:11.5px; color:#8be9fd; margin:0; overflow-x:auto; font-family:var(--font-mono);"></pre>
+            </div>
+          </div>
+
+          <!-- 阶段 4: Final Answer -->
+          <div style="background:#0c1322; border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:12px;">
+            <div style="font-size:12px; font-weight:bold; color:var(--accent-sub); margin-bottom:8px;">💬 阶段四：灵眸拟人化答复 (Final Answer)</div>
+            <div id="traceFinalAnswer" style="font-size:13px; color:#fff; line-height:1.6; padding:4px;">--</div>
+          </div>
+
+          <!-- 指标 -->
+          <div style="display:flex; gap:12px; flex-wrap:wrap; font-size:11px; color:var(--muted); padding-top:4px;">
+            <span>⚡ 端到端往返耗时: <b id="metricLatency" style="color:var(--accent-sub)">0</b> ms</span>
+            <span>📊 Prompt Tokens: <b id="metricPromptTokens" style="color:#9bc0e7">0</b></span>
+            <span>📝 Completion Tokens: <b id="metricCompTokens" style="color:#9bc0e7">0</b></span>
+            <span>💰 Total Tokens: <b id="metricTotalTokens" style="color:var(--accent)">0</b></span>
+          </div>
+        </div>
+
+        <!-- 工具池 Playground -->
+        <div style="margin-top:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <div style="font-size:13px; font-weight:bold; color:var(--accent);">🛠️ 端侧具身工具池与单步直调 (Tool Playground)</div>
+            <button class="btn-secondary" style="margin:0; padding:4px 10px; font-size:11px;" onclick="refreshAgentTools()">🔄 刷新工具</button>
+          </div>
+          <div id="agentToolsGrid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px;">
+            <div style="color:var(--muted); font-size:12px;">正在加载已注册端侧工具...</div>
+          </div>
+        </div>
+
+        <!-- 两级记忆自省 -->
+        <div style="margin-top:16px; background:#090d16; border:1px solid var(--border); border-radius:8px; padding:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleMemoryDrawer()">
+            <div style="font-size:12px; font-weight:bold; color:#c0d2e8; display:flex; align-items:center; gap:6px;">
+              <span>🧠 两级长程记忆自省 (Two-Tier Memory)</span>
+              <span class="status-badge" id="memCountBadge">0 轮会话</span>
+              <span style="font-size:11px; color:var(--muted);" id="memWatermarkBadge">0 B</span>
+            </div>
+            <span style="font-size:11px; color:var(--accent)" id="memToggleTxt">▼ 展开记忆详情</span>
+          </div>
+          <div id="memoryDrawer" style="display:none; margin-top:10px; border-top:1px solid var(--border-light); padding-top:8px;">
+            <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">前情增量摘要卡片 (context_summary):</div>
+            <div id="memSummaryBox" style="background:#05080f; padding:8px; border-radius:6px; font-size:11.5px; color:#f1fa8c; margin-bottom:8px; word-break:break-all;">(暂无前情摘要，记忆仍在近程滑动窗口内)</div>
+            <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">滑动窗口上下文消息:</div>
+            <div id="memMessagesList" style="max-height:160px; overflow-y:auto; font-size:11.5px; display:flex; flex-direction:column; gap:6px;"></div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 📜 实时内核与应用日志终端 -->
-    <div class="card" id="card-logs" style="margin-bottom:20px;">
-      <div class="card-head">
-        <div class="card-title">📜 实时系统日志终端 (Live Kernel & App Logs)</div>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span class="badge" id="logStreamBadge">● 实时监听中</span>
-          <span style="font-size:11px; color:var(--muted)" id="logCursorTag">Cursor: 0 B</span>
-        </div>
-      </div>
-
-      <!-- 日志控制工具栏 -->
-      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
-        <div style="display:flex; align-items:center; gap:6px; flex:1; min-width:280px;">
-          <select id="logLevelSelect" onchange="changeLogLevel(this.value)" style="width:auto; padding:6px 10px; font-size:12px; border-radius:6px; background:#090d16; color:#fff; border:1px solid var(--border);">
-            <option value="all">🔍 显示过滤: 全部级别</option>
-            <option value="INFO">🟢 仅 INFO 及以上</option>
-            <option value="WARN">🟡 仅 WARN 及以上</option>
-            <option value="ERROR">🔴 仅 ERROR 错误</option>
-            <option value="DEBUG">🔵 DEBUG 及以上</option>
-          </select>
-          <input id="logFilterInput" type="text" placeholder="关键词实时过滤..." oninput="applyLogFilter()" style="padding:6px 10px; font-size:12px; margin:0; flex:1; min-width:140px;">
+    <!-- ================================================================= -->
+    <!-- 视图 3: ⚙️ 大模型 & 系统配置 (LLM & Settings) -->
+    <!-- ================================================================= -->
+    <div class="view-panel" id="view-settings">
+      <div class="card highlight">
+        <div class="card-head">
+          <div class="card-title">⚙️ 云端大模型 (LLM) 与端云引擎配置</div>
+          <span class="status-badge" id="cfgStatusBadge">端侧热加载</span>
         </div>
 
-        <div style="display:flex; gap:6px; flex-wrap:wrap;">
-          <button class="btn-secondary" id="autoScrollBtn" style="margin:0; padding:6px 10px; font-size:11px; width:auto;" onclick="toggleAutoScroll()">⏬ 滚屏: 开</button>
-          <button class="btn-secondary" id="pauseLogBtn" style="margin:0; padding:6px 10px; font-size:11px; width:auto;" onclick="toggleLogPause()">⏸️ 暂停</button>
-          <button class="btn-secondary" style="margin:0; padding:6px 10px; font-size:11px; width:auto;" onclick="clearLocalLogs()">🧹 清屏</button>
-          <button class="btn-warn" style="margin:0; padding:6px 10px; font-size:11px; width:auto;" onclick="clearDeviceLogs()">🗑️ 清空端侧缓存</button>
-          <button class="btn-secondary" style="margin:0; padding:6px 10px; font-size:11px; width:auto;" onclick="exportLogs()">💾 导出日志</button>
+        <!-- 一键服务商预设 -->
+        <div style="font-size:11px; color:var(--muted); font-weight:600; margin-bottom:8px;">一键填入主流大模型服务商预设 (点击即自动配置 URL 与模型名):</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px; margin-bottom:16px;">
+          <div class="preset-card" onclick="applyLlmPreset('deepseek')">
+            <div style="font-weight:bold; color:var(--accent); font-size:12.5px;">🔹 DeepSeek 官方</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:3px;">deepseek-chat (V3 / R1)</div>
+          </div>
+          <div class="preset-card" onclick="applyLlmPreset('siliconflow')">
+            <div style="font-weight:bold; color:var(--accent-sub); font-size:12.5px;">⚡ 硅基流动 SiliconFlow</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:3px;">deepseek-ai/DeepSeek-V3</div>
+          </div>
+          <div class="preset-card" onclick="applyLlmPreset('ollama')">
+            <div style="font-weight:bold; color:#f1fa8c; font-size:12.5px;">🦙 本地 Ollama / 私有反代</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:3px;">http://192.168.x.x:11434</div>
+          </div>
+          <div class="preset-card" onclick="applyLlmPreset('openai')">
+            <div style="font-weight:bold; color:#ff79c6; font-size:12.5px;">🌐 OpenAI / 兼容网关</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:3px;">gpt-4o-mini 或兼容聚合</div>
+          </div>
         </div>
-      </div>
 
-      <!-- 控制台终端视窗 -->
-      <div class="terminal-window" id="terminalWindow">
-        <div class="log-line" style="color:var(--muted)">[SYSTEM] 连接到 Phoenix HoloDesk-S1 实时日志流 (增量游标就绪)...</div>
+        <!-- 详细字段表单 -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px; margin-bottom:14px;">
+          <div>
+            <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;">大模型 API Endpoint (Base URL):</div>
+            <input id="baseUrl" type="text" placeholder="如 https://api.deepseek.com/v1/chat/completions">
+          </div>
+          <div>
+            <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;">大模型模型名称 (Model):</div>
+            <input id="modelName" type="text" placeholder="如 deepseek-chat 或 deepseek-ai/DeepSeek-V3">
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;">大模型 API Key (云端密钥):</div>
+          <div style="display:flex; gap:8px;">
+            <input id="apiKey" type="password" placeholder="输入云端 API Key (如 sk-xxxx)">
+            <button class="btn-secondary" style="white-space:nowrap; padding:0 12px;" onclick="toggleApiKeyVisibility()" id="toggleKeyBtn">👁️ 显示</button>
+            <button class="btn-secondary" style="white-space:nowrap; padding:0 14px; color:var(--accent-sub); border-color:#235a46;" onclick="testLlmPing()" id="pingTestBtn">⚡ 测试连通性</button>
+          </div>
+          <div id="pingResultBadge" style="margin-top:6px; font-size:12px; display:none;"></div>
+        </div>
+
+        <!-- 人设与系统提示词预设 -->
+        <div style="margin-bottom:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <div style="font-size:12px; color:var(--muted); font-weight:600;">Agent 系统人设提示词 (System Prompt):</div>
+            <div style="display:flex; gap:6px;">
+              <span class="chip" style="font-size:10.5px;" onclick="setPromptTemplate('geek')">极客助手</span>
+              <span class="chip" style="font-size:10.5px;" onclick="setPromptTemplate('pet')">毒舌萌宠</span>
+              <span class="chip" style="font-size:10.5px;" onclick="setPromptTemplate('study')">考研督导</span>
+            </div>
+          </div>
+          <textarea id="agentPrompt" rows="3" placeholder="如：你是一个贴心的赛博桌面极客助手，语气温和简短"></textarea>
+        </div>
+
+        <!-- 创造力温度 -->
+        <div style="background:var(--card-inner); padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); margin-bottom:18px;">
+          <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:6px;">
+            <span style="color:var(--muted)">生成创造力温度 (Temperature):</span>
+            <b id="tempTxt" style="color:var(--accent-sub);">0.7</b>
+          </div>
+          <input type="range" id="tempRange" min="10" max="100" value="70" oninput="document.getElementById('tempTxt').innerText=(this.value/100).toFixed(1)">
+        </div>
+
+        <!-- 动作按钮栏 -->
+        <div style="display:flex; flex-wrap:wrap; gap:10px;">
+          <button style="flex:1; min-width:200px;" onclick="saveAgentConfig()">💾 保存并热加载至开发板</button>
+          <button class="btn-warn" onclick="resetWifi()">📡 重置 Wi-Fi 并返回配网热点</button>
+        </div>
       </div>
     </div>
-  </div>
+
+    <!-- ================================================================= -->
+    <!-- 视图 4: 📁 TF卡存储管理 (Storage) -->
+    <!-- ================================================================= -->
+    <div class="view-panel" id="view-storage">
+      <div class="card highlight">
+        <div class="card-head">
+          <div class="card-title">📁 外置 MicroSD / TF 卡存储系统</div>
+          <span class="status-badge" id="sdcardMountBadge">探测中...</span>
+        </div>
+
+        <!-- 容量进度条 -->
+        <div style="background:var(--card-inner); border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:16px;">
+          <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:8px;">
+            <span style="color:var(--muted)">挂载目录: <b id="sdcardMountPoint" style="color:var(--accent)">/mnt/sdcard</b></span>
+            <span style="color:var(--muted)">已用: <b id="sdcardUsedPct" style="color:var(--accent-sub)">--%</b> (<span id="sdcardUsedMb">0</span> MB / <span id="sdcardTotalMb">0</span> MB)</span>
+          </div>
+          <div style="height:8px; background:#141c2c; border-radius:4px; overflow:hidden;">
+            <div id="sdcardProgressBar" style="width:0%; height:100%; background:linear-gradient(90deg, var(--accent), var(--accent-sub)); transition:width 0.4s ease;"></div>
+          </div>
+          <div style="display:flex; gap:12px; margin-top:10px; font-size:11px; color:var(--muted);">
+            <span>📌 持久配置: <code id="dataBaseDir" style="color:#9bc0e7">/data/phoenix</code></span>
+            <span>⚡ 中间分片: <code id="tempBaseDir" style="color:#9bc0e7">/tmp/phoenix</code></span>
+          </div>
+        </div>
+
+        <!-- 目录导航与路径跳转 -->
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:12px; color:var(--muted)">当前路径:</span>
+            <code id="currentPathDisplay" style="background:#182842; color:var(--accent); padding:4px 8px; border-radius:6px; font-size:12px; font-weight:bold;">/</code>
+            <button class="btn-secondary" style="margin:0; padding:4px 10px; font-size:11px;" onclick="sdcardGoUp()">⬆️ 上一级</button>
+            <button class="btn-secondary" style="margin:0; padding:4px 10px; font-size:11px;" onclick="sdcardRefreshList()">🔄 刷新</button>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="btn-secondary" style="margin:0; padding:4px 10px; font-size:11px;" onclick="sdcardGoPath('/sounds')">🎵 sounds</button>
+            <button class="btn-secondary" style="margin:0; padding:4px 10px; font-size:11px;" onclick="sdcardGoPath('/logs')">📜 logs</button>
+            <button class="btn-secondary" style="margin:0; padding:4px 10px; font-size:11px;" onclick="sdcardGoPath('/docs')">📑 docs</button>
+          </div>
+        </div>
+
+        <!-- 文件列表 -->
+        <div style="background:var(--card-inner); border:1px solid var(--border); border-radius:8px; max-height:280px; overflow-y:auto; margin-bottom:16px;">
+          <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:left;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border); color:var(--muted);">
+                <th style="padding:8px 12px;">文件名称</th>
+                <th style="padding:8px 12px; width:90px;">大小</th>
+                <th style="padding:8px 12px; width:120px; text-align:right;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="sdcardFileList">
+              <tr><td colspan="3" style="padding:16px; text-align:center; color:var(--muted)">正在读取 TF 卡文件系统...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 新建与上传 -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px;">
+          <div style="background:var(--card-inner); padding:12px; border-radius:8px; border:1px solid var(--border-light);">
+            <div style="font-size:12px; color:var(--accent); font-weight:600; margin-bottom:6px;">📁 新建子目录</div>
+            <div style="display:flex; gap:8px;">
+              <input id="newDirName" type="text" placeholder="目录名称 (如 music)" style="padding:8px; font-size:12px;">
+              <button style="margin:0; padding:8px 14px; font-size:12px; white-space:nowrap;" onclick="sdcardMkdir()">新建</button>
+            </div>
+          </div>
+          <div style="background:var(--card-inner); padding:12px; border-radius:8px; border:1px solid var(--border-light);">
+            <div style="font-size:12px; color:var(--accent-sub); font-weight:600; margin-bottom:6px;">✍️ 写入文本 / 上传文件</div>
+            <input id="uploadFileName" type="text" placeholder="目标文件名 (如 memo.txt)" style="padding:8px; font-size:12px; margin-bottom:6px;">
+            <textarea id="uploadFileContent" rows="2" placeholder="输入文件文本内容..." style="margin-bottom:6px; resize:none;"></textarea>
+            <div style="display:flex; gap:8px;">
+              <input type="file" id="localFileInput" style="display:none;" onchange="handleLocalFileSelected(this)">
+              <button class="btn-secondary" style="margin:0; padding:6px 12px; font-size:11px;" onclick="document.getElementById('localFileInput').click()">📂 选本地文件</button>
+              <button style="margin:0; padding:6px 12px; font-size:11px; flex:1;" onclick="sdcardUploadText()">🚀 保存并写入 TF 卡</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- 视图 5: 📜 实时系统日志终端 (Terminal) -->
+    <!-- ================================================================= -->
+    <div class="view-panel" id="view-terminal">
+      <div class="card highlight">
+        <div class="card-head">
+          <div class="card-title">📜 实时系统日志终端 (Live Kernel & App Logs)</div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="status-badge" id="logStreamBadge">● 按需监听中</span>
+            <span style="font-size:11px; color:var(--muted)" id="logCursorTag">Cursor: 0 B</span>
+          </div>
+        </div>
+
+        <!-- 日志工具栏 -->
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+          <div style="display:flex; align-items:center; gap:6px; flex:1; min-width:280px;">
+            <select id="logLevelSelect" onchange="changeLogLevel(this.value)" style="width:auto; padding:6px 10px; font-size:12px;">
+              <option value="all">🔍 显示: 全部级别</option>
+              <option value="INFO">🟢 仅 INFO 及以上</option>
+              <option value="WARN">🟡 仅 WARN 及以上</option>
+              <option value="ERROR">🔴 仅 ERROR 错误</option>
+              <option value="DEBUG">🔵 DEBUG 及以上</option>
+            </select>
+            <input id="logFilterInput" type="text" placeholder="关键词检索过滤..." oninput="applyLogFilter()" style="padding:6px 10px; font-size:12px; flex:1;">
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn-secondary" id="autoScrollBtn" style="padding:6px 10px; font-size:11px;" onclick="toggleAutoScroll()">⏬ 滚屏: 开</button>
+            <button class="btn-secondary" id="pauseLogBtn" style="padding:6px 10px; font-size:11px;" onclick="toggleLogPause()">⏸️ 暂停</button>
+            <button class="btn-secondary" style="padding:6px 10px; font-size:11px;" onclick="clearLocalLogs()">🧹 清屏</button>
+            <button class="btn-warn" style="padding:6px 10px; font-size:11px;" onclick="clearDeviceLogs()">🗑️ 清空端侧缓存</button>
+            <button class="btn-secondary" style="padding:6px 10px; font-size:11px;" onclick="exportLogs()">💾 导出日志</button>
+          </div>
+        </div>
+
+        <!-- 终端控制台 -->
+        <div class="terminal-window" id="terminalWindow">
+          <div class="log-line" style="color:var(--muted)">[SYSTEM] 连接到 Phoenix HoloDesk-S1 实时日志流 (增量游标已对齐)...</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <div class="toast" id="toastMsg"></div>
 
   <script>
-    let curCard = 'familiar';
+    /* ========================================================
+     * SPA Tab 路由视图切换与按需轮询控制
+     * ======================================================== */
+    let currentView = 'overview';
+    let logPollTimer = null;
+    let statusPollTimer = null;
 
-    function refresh() {
-      fetch('/api/status').then(r => r.json()).then(d => {
-        const s = d.stats || {};
-        const c = d.cartridges || {};
-        curCard = d.active_cartridge || 'familiar';
+    function switchView(viewId) {
+      currentView = viewId;
+      document.querySelectorAll('.tab-btn').forEach((b, idx) => {
+        const ids = ['overview', 'agent', 'settings', 'storage', 'terminal'];
+        b.classList.toggle('active', ids[idx] === viewId);
+      });
+      document.querySelectorAll('.view-panel').forEach(p => {
+        p.classList.toggle('active', p.id === 'view-' + viewId);
+      });
 
-        document.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
-        const activeBtn = document.getElementById('tab-' + curCard);
-        if (activeBtn) activeBtn.classList.add('active');
+      // 仅在切入 Terminal 时开启高频日志轮询；切离时休眠，节省嵌入式 R528 性能！
+      if (viewId === 'terminal') {
+        startLogPolling();
+      } else {
+        stopLogPolling();
+      }
 
-        document.querySelectorAll('.card').forEach(c => c.classList.remove('highlight'));
-        const activeCard = document.getElementById('card-' + curCard);
-        if (activeCard) activeCard.classList.add('highlight');
-
-        if (c.familiar) {
-          document.getElementById('affinityVal').innerText = c.familiar.affinity || 88;
-        }
-        if (c.memo) {
-          document.getElementById('memoCountTag').innerText = (c.memo.count || 0) + ' 条';
-        }
-        if (c.zen) {
-          document.getElementById('meritVal').innerText = c.zen.total_merit || s.merit || 0;
-        }
-        if (c.clock) {
-          const sec = c.clock.remain_s || 0;
-          const m = String(Math.floor(sec / 60)).padStart(2, '0');
-          const sc = String(sec % 60).padStart(2, '0');
-          document.getElementById('pomoRemain').innerText = c.clock.is_pomodoro ? (m + ':' + sc) : '25:00';
-          document.getElementById('pomoStatusTag').innerText = c.clock.is_pomodoro ? '🍅 专注中' : '待机';
-        }
-        document.getElementById('tokensVal').innerText = s.total_tokens || 0;
-        document.getElementById('latencyVal').innerText = (s.last_latency_ms || 0) + ' ms';
-        if (d.storage) updateStorageInfo(d.storage);
-      }).catch(e => {});
+      if (viewId === 'storage') {
+        sdcardRefreshList();
+      }
     }
 
-    setInterval(refresh, 1500);
-    refresh();
-
-    function switchCartridge(id) {
-      fetch('/api/cartridge/switch', {
-        method: 'POST',
-        body: JSON.stringify({id: id})
-      }).then(() => refresh());
+    function showToast(txt) {
+      const t = document.getElementById('toastMsg');
+      t.innerText = txt;
+      t.style.display = 'block';
+      setTimeout(() => { t.style.display = 'none'; }, 2600);
     }
 
-    function doAction(act) {
+    /* ========================================================
+     * 硬件遥测与卡带状态轮询 (Overview)
+     * ======================================================== */
+    function refreshStatus() {
+      fetch('/api/status')
+        .then(r => r.json())
+        .then(d => {
+          // 网络状态
+          if (d.network) {
+            document.getElementById('netSsidTxt').innerText = d.network.ssid || (d.network.mode === 'SOFTAP' ? 'SoftAP 独立配网模式' : '已连接局域网');
+            document.getElementById('netIpTxt').innerText = 'IP: ' + (d.network.ip || '192.168.4.1');
+          }
+
+          // 硬件遥测
+          if (d.telemetry) {
+            const t = d.telemetry;
+            document.getElementById('cpuLoadVal').innerText = (t.cpu_load_pct || 0) + ' %';
+            document.getElementById('cpuFreqVal').innerText = (t.cpu_freq_mhz || 1008) + ' MHz';
+            document.getElementById('memUsedVal').innerText = (t.mem_used_pct || 0) + ' %';
+            document.getElementById('memFreeVal').innerText = 'Free: ' + Math.round((t.mem_free_kb || 0) / 1024) + ' MB';
+            document.getElementById('tempVal').innerText = (t.temp_c || 42) + ' °C';
+            document.getElementById('fpsBadge').innerText = (t.fps || 60) + ' FPS';
+
+            const upSec = t.uptime || 0;
+            const h = Math.floor(upSec / 3600);
+            const m = Math.floor((upSec % 3600) / 60);
+            const s = upSec % 60;
+            document.getElementById('uptimeVal').innerText = `${h}h ${m}m ${s}s`;
+            if (t.os) document.getElementById('osVerVal').innerText = t.os;
+          }
+
+          // 当前卡带
+          if (d.active_cartridge) {
+            const names = { familiar: '使魔萌宠', memo: '灵感外脑', clock: '翻页时钟', zen: '赛博木鱼', home: '主页', agent: '灵眸AI' };
+            document.getElementById('activeCartridgeHint').innerText = '当前卡带: ' + (names[d.active_cartridge] || d.active_cartridge);
+          }
+
+          // 卡带状态
+          const c = d.cartridges || {};
+          const s = d.stats || {};
+          if (c.familiar && c.familiar.affinity !== undefined) {
+            document.getElementById('affinityVal').innerText = c.familiar.affinity;
+          }
+          if (c.memo && c.memo.count !== undefined) {
+            document.getElementById('memoCountTag').innerText = c.memo.count + ' 条';
+          }
+          if (c.zen && (c.zen.total_merit !== undefined || s.merit !== undefined)) {
+            document.getElementById('meritVal').innerText = c.zen.total_merit || s.merit || 0;
+          }
+          if (c.clock) {
+            const sec = c.clock.remain_s || 0;
+            const mm = String(Math.floor(sec / 60)).padStart(2, '0');
+            const ss = String(sec % 60).padStart(2, '0');
+            document.getElementById('pomoRemain').innerText = c.clock.is_pomodoro ? (mm + ':' + ss) : '25:00';
+            document.getElementById('pomoStatusTag').innerText = c.clock.is_pomodoro ? '🍅 专注中' : '待机';
+          }
+          document.getElementById('tokensVal').innerText = s.total_tokens || 0;
+
+          // 存储状态
+          if (d.storage) updateStorageInfo(d.storage);
+        })
+        .catch(() => {});
+    }
+
+    function doCartridgeAction(act) {
       fetch('/api/action', {
         method: 'POST',
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({action: act})
-      }).then(() => refresh());
+      }).then(() => refreshStatus());
     }
 
     function addMemo() {
-      const t = document.getElementById('memoInput').value.trim();
-      if (!t) return;
+      const inp = document.getElementById('memoInput');
+      const txt = inp.value.trim();
+      if (!txt) return;
       fetch('/api/memo/add', {
         method: 'POST',
-        body: JSON.stringify({content: t})
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({content: txt})
       }).then(() => {
-        document.getElementById('lastMemo').innerText = t;
-        document.getElementById('memoInput').value = '';
-        refresh();
+        document.getElementById('lastMemoBox').innerText = txt;
+        inp.value = '';
+        showToast('💡 灵感已推入端侧外脑！');
+        refreshStatus();
       });
     }
 
-    function loadConfig() {
-      fetch('/api/config').then(r => r.json()).then(d => {
-        if (d.has_key && d.api_key_masked) {
-          document.getElementById('apiKey').placeholder = '已配置 (' + d.api_key_masked + ')';
-        }
-        if (d.model) {
-          document.getElementById('modelName').value = d.model;
-          const mb = document.getElementById('agentModelBadge');
-          if (mb) mb.innerText = d.model + ' / 端云协同';
-        }
-        if (d.prompt) {
-          document.getElementById('agentPrompt').value = d.prompt;
-        }
-      }).catch(e => {});
-    }
-
-    function saveAgentConfig() {
-      const k = document.getElementById('apiKey').value.trim();
-      const m = document.getElementById('modelName').value.trim();
-      const pr = document.getElementById('agentPrompt').value.trim();
+    function syncHardwareCtrl() {
+      const vol = parseInt(document.getElementById('volRange').value);
+      const bright = parseInt(document.getElementById('brightRange').value);
       fetch('/api/config', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({api_key: k, model: m, prompt: pr})
-      }).then(r => r.json()).then(d => {
-        alert('✅ Agent 配置已保存并热加载至开发板！');
-        loadConfig();
-      }).catch(e => alert('保存失败'));
+        body: JSON.stringify({volume: vol, brightness: bright})
+      }).catch(() => {});
     }
 
-    function resetWifi() {
-      if (confirm('确认重置 Wi-Fi 并返回 SoftAP 独立热点配网模式？')) {
-        fetch('/api/wifi/reset', {method: 'POST'}).then(() => alert('设备正在重置网络并开启热点...'));
-      }
+    function triggerProactiveDemo() {
+      fetch('/api/proactive', {method: 'POST'})
+        .then(r => r.json())
+        .then(() => showToast('⚡ 已向端侧触发主动式交互演练！'));
     }
-
-    loadConfig();
 
     /* ========================================================
-     * 外置 TF 卡与存储管理器前端逻辑
-     * ======================================================== */
-    let curSdPath = '/';
-
-    function updateStorageInfo(st) {
-      if (!st) return;
-      if (st.data_dir) document.getElementById('dataBaseDir').innerText = st.data_dir;
-      if (st.temp_dir) document.getElementById('tempBaseDir').innerText = st.temp_dir;
-
-      const badge = document.getElementById('sdcardMountBadge');
-      const pbar = document.getElementById('sdcardProgressBar');
-      if (st.sdcard_mounted) {
-        badge.innerText = '● 已挂载就绪';
-        badge.style.color = 'var(--accent-sub)';
-        badge.style.borderColor = 'rgba(0, 255, 136, 0.4)';
-        document.getElementById('sdcardMountPoint').innerText = st.sdcard_mount_point || '/mnt/sdcard';
-        document.getElementById('sdcardUsedPct').innerText = (st.sdcard_used_pct || 0) + '%';
-        pbar.style.width = Math.min(100, Math.max(0, st.sdcard_used_pct || 0)) + '%';
-        const totalMb = st.sdcard_total_mb || 0;
-        const freeMb = st.sdcard_free_mb || 0;
-        const usedMb = totalMb >= freeMb ? (totalMb - freeMb) : 0;
-        document.getElementById('sdcardTotalMb').innerText = totalMb;
-        document.getElementById('sdcardUsedMb').innerText = usedMb;
-      } else {
-        badge.innerText = '○ 未检测到 TF 卡';
-        badge.style.color = 'var(--muted)';
-        badge.style.borderColor = 'var(--border)';
-        pbar.style.width = '0%';
-      }
-    }
-
-    function formatBytes(bytes) {
-      if (!bytes || bytes === 0) return '0 B';
-      const k = 1024;
-      const sizes = ['B', 'KB', 'MB', 'GB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
-    }
-
-    function sdcardRefreshList() {
-      fetch('/api/sdcard/list?path=' + encodeURIComponent(curSdPath))
-        .then(r => r.json())
-        .then(d => {
-          document.getElementById('currentPathDisplay').innerText = curSdPath;
-          const tbody = document.getElementById('sdcardFileList');
-          if (!d.success || !d.items) {
-            tbody.innerHTML = '<tr><td colspan="3" style="padding:16px; text-align:center; color:#ff5555">读取失败: ' + (d.error || '未知错误') + '</td></tr>';
-            return;
-          }
-          if (d.items.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="padding:16px; text-align:center; color:var(--muted)">当前目录为空</td></tr>';
-            return;
-          }
-
-          // 文件夹排在前面，按名称字母升序
-          d.items.sort((a, b) => (b.is_dir - a.is_dir) || a.name.localeCompare(b.name));
-
-          let html = '';
-          d.items.forEach(it => {
-            const fullItemPath = (curSdPath === '/' ? '' : curSdPath) + '/' + it.name;
-            const icon = it.is_dir ? '📁' : '📄';
-            const nameClick = it.is_dir
-              ? `onclick="sdcardGoPath('${fullItemPath}')" style="cursor:pointer; color:var(--accent); font-weight:600;"`
-              : `style="color:#e6edf3;"`;
-            const sizeStr = it.is_dir ? '<span style="color:var(--muted)">[目录]</span>' : formatBytes(it.size);
-
-            let actions = '';
-            if (!it.is_dir) {
-              actions += `<a href="/api/sdcard/download?path=${encodeURIComponent(fullItemPath)}" download="${it.name}" style="color:var(--accent); text-decoration:none; margin-right:8px;">⬇️下载</a>`;
-            }
-            actions += `<a href="javascript:void(0)" onclick="sdcardDelete('${fullItemPath}', ${it.is_dir})" style="color:#ff6b6b; text-decoration:none;">🗑️删除</a>`;
-
-            html += `
-              <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                <td style="padding:8px 12px;"><span style="margin-right:6px;">${icon}</span><span ${nameClick}>${it.name}</span></td>
-                <td style="padding:8px 12px; color:var(--muted);">${sizeStr}</td>
-                <td style="padding:8px 12px; text-align:right;">${actions}</td>
-              </tr>
-            `;
-          });
-          tbody.innerHTML = html;
-        })
-        .catch(e => {
-          document.getElementById('sdcardFileList').innerHTML = '<tr><td colspan="3" style="padding:16px; text-align:center; color:#ff5555">无法连接至开发板端侧服务</td></tr>';
-        });
-    }
-
-    function sdcardGoPath(path) {
-      curSdPath = path.startsWith('/') ? path : '/' + path;
-      sdcardRefreshList();
-    }
-
-    function sdcardGoUp() {
-      if (curSdPath === '/' || !curSdPath) return;
-      const parts = curSdPath.split('/').filter(Boolean);
-      parts.pop();
-      curSdPath = '/' + parts.join('/');
-      sdcardRefreshList();
-    }
-
-    function sdcardMkdir() {
-      const name = document.getElementById('newDirName').value.trim();
-      if (!name) return;
-      const targetPath = (curSdPath === '/' ? '' : curSdPath) + '/' + name;
-      fetch('/api/sdcard/mkdir', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({path: targetPath})
-      }).then(r => r.json()).then(d => {
-        if (d.success) {
-          document.getElementById('newDirName').value = '';
-          sdcardRefreshList();
-        } else {
-          alert('创建目录失败: ' + (d.error || '权限或路径非法'));
-        }
-      }).catch(e => alert('请求失败'));
-    }
-
-    function sdcardUploadText() {
-      const fname = document.getElementById('uploadFileName').value.trim();
-      const content = document.getElementById('uploadFileContent').value;
-      if (!fname) {
-        alert('请输入目标文件名');
-        return;
-      }
-      const targetPath = (curSdPath === '/' ? '' : curSdPath) + '/' + fname;
-      fetch('/api/sdcard/upload', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({path: targetPath, content: content})
-      }).then(r => r.json()).then(d => {
-        if (d.success) {
-          alert('✅ 文件已成功保存至 TF 卡: ' + targetPath);
-          document.getElementById('uploadFileName').value = '';
-          document.getElementById('uploadFileContent').value = '';
-          sdcardRefreshList();
-        } else {
-          alert('保存失败: ' + (d.error || '写入错误'));
-        }
-      }).catch(e => alert('上传异常'));
-    }
-
-    function handleLocalFileSelected(input) {
-      if (input.files && input.files[0]) {
-        const file = input.files[0];
-        document.getElementById('uploadFileName').value = file.name;
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          document.getElementById('uploadFileContent').value = e.target.result;
-        };
-        reader.readAsText(file);
-      }
-    }
-
-    function sdcardDelete(path, isDir) {
-      const typeStr = isDir ? '目录' : '文件';
-      if (!confirm(`确认永久删除该${typeStr}：\n${path} ？`)) return;
-      fetch('/api/sdcard/delete', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({path: path})
-      }).then(r => r.json()).then(d => {
-        if (d.success) {
-          sdcardRefreshList();
-        } else {
-          alert('删除失败: ' + (d.error || '请确认目录是否为空'));
-        }
-      }).catch(e => alert('删除请求异常'));
-    }
-
-    // 初始化加载 TF 卡文件列表
-    sdcardRefreshList();
-
-    /* ========================================================
-     * 实时系统日志流 (增量游标消费 + 语法着色 + 过滤)
-     * ======================================================== */
-    let logCursor = 0;
-    let logIsPaused = false;
-    let logAutoScroll = true;
-    let logLinesData = [];
-    const MAX_LOG_LINES = 1500;
-
-    function parseLogLine(raw) {
-      if (!raw) return null;
-      let level = 'I';
-      if (raw.includes('[E]') || raw.includes('ERROR') || raw.includes('<3>')) level = 'E';
-      else if (raw.includes('[W]') || raw.includes('WARN') || raw.includes('<4>')) level = 'W';
-      else if (raw.includes('[D]') || raw.includes('DEBUG') || raw.includes('<7>')) level = 'D';
-      else if (raw.includes('[V]') || raw.includes('VERBOSE')) level = 'V';
-      else if (raw.includes('[I]') || raw.includes('INFO') || raw.includes('<6>')) level = 'I';
-      return { raw: raw, level: level };
-    }
-
-    function renderLogEntry(entry) {
-      const div = document.createElement('div');
-      div.className = 'log-line';
-      let lvlClass = 'log-lvl-' + entry.level;
-      div.innerHTML = `<span class="${lvlClass}">${escapeHtml(entry.raw)}</span>`;
-      return div;
-    }
-
-    function escapeHtml(str) {
-      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
-
-    function fetchLogs() {
-      if (logIsPaused) return;
-      fetch('/api/logs?cursor=' + logCursor)
-        .then(r => r.json())
-        .then(d => {
-          if (d.cursor !== undefined) {
-            logCursor = d.cursor;
-            document.getElementById('logCursorTag').innerText = 'Cursor: ' + logCursor + ' B';
-          }
-          if (d.logs && d.logs.length > 0) {
-            const lines = d.logs.split('\n');
-            const term = document.getElementById('terminalWindow');
-            const kw = document.getElementById('logFilterInput').value.trim().toLowerCase();
-            const minLvl = document.getElementById('logLevelSelect').value;
-
-            for (let line of lines) {
-              if (!line.trim()) continue;
-              const entry = parseLogLine(line);
-              logLinesData.push(entry);
-              if (logLinesData.length > MAX_LOG_LINES) {
-                logLinesData.shift();
-              }
-
-              if (matchesFilter(entry, kw, minLvl)) {
-                term.appendChild(renderLogEntry(entry));
-              }
-            }
-
-            while (term.children.length > MAX_LOG_LINES) {
-              term.removeChild(term.firstChild);
-            }
-
-            if (logAutoScroll) {
-              term.scrollTop = term.scrollHeight;
-            }
-          }
-        })
-        .catch(e => {});
-    }
-
-    function matchesFilter(entry, kw, minLvl) {
-      if (kw && !entry.raw.toLowerCase().includes(kw)) return false;
-      if (minLvl === 'all') return true;
-      const order = { 'DEBUG': 1, 'INFO': 2, 'WARN': 3, 'ERROR': 4 };
-      const entryVal = { 'D': 1, 'V': 1, 'I': 2, 'W': 3, 'E': 4 }[entry.level] || 2;
-      const targetVal = order[minLvl] || 0;
-      return entryVal >= targetVal;
-    }
-
-    function applyLogFilter() {
-      const term = document.getElementById('terminalWindow');
-      term.innerHTML = '';
-      const kw = document.getElementById('logFilterInput').value.trim().toLowerCase();
-      const minLvl = document.getElementById('logLevelSelect').value;
-      const frag = document.createDocumentFragment();
-
-      for (let entry of logLinesData) {
-        if (matchesFilter(entry, kw, minLvl)) {
-          frag.appendChild(renderLogEntry(entry));
-        }
-      }
-      term.appendChild(frag);
-      if (logAutoScroll) term.scrollTop = term.scrollHeight;
-    }
-
-    function changeLogLevel(val) {
-      applyLogFilter();
-      if (val !== 'all') {
-        fetch('/api/logs/level', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({level: val})
-        }).catch(e => {});
-      }
-    }
-
-    function toggleAutoScroll() {
-      logAutoScroll = !logAutoScroll;
-      const btn = document.getElementById('autoScrollBtn');
-      btn.innerText = logAutoScroll ? '⏬ 滚屏: 开' : '⏸️ 滚屏: 关';
-      btn.style.borderColor = logAutoScroll ? 'var(--accent)' : 'var(--border)';
-    }
-
-    function toggleLogPause() {
-      logIsPaused = !logIsPaused;
-      const btn = document.getElementById('pauseLogBtn');
-      const badge = document.getElementById('logStreamBadge');
-      if (logIsPaused) {
-        btn.innerText = '▶️ 继续';
-        badge.innerText = '⏸️ 已暂停';
-        badge.style.color = 'var(--muted)';
-      } else {
-        btn.innerText = '⏸️ 暂停';
-        badge.innerText = '● 实时监听中';
-        badge.style.color = 'var(--accent-sub)';
-      }
-    }
-
-    function clearLocalLogs() {
-      logLinesData = [];
-      document.getElementById('terminalWindow').innerHTML = '<div class="log-line" style="color:var(--muted)">[UI] 视图已清空</div>';
-    }
-
-    function clearDeviceLogs() {
-      if (!confirm('确认清空端侧循环日志缓冲区？')) return;
-      fetch('/api/logs/clear', { method: 'POST' })
-        .then(r => r.json())
-        .then(d => {
-          clearLocalLogs();
-          logCursor = 0;
-          document.getElementById('logCursorTag').innerText = 'Cursor: 0 B';
-        })
-        .catch(e => alert('清空失败'));
-    }
-
-    function exportLogs() {
-      const text = logLinesData.map(e => e.raw).join('\n');
-      const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'phoenix_logs_' + new Date().toISOString().replace(/[:.]/g, '-') + '.log';
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    const termEl = document.getElementById('terminalWindow');
-    termEl.addEventListener('scroll', () => {
-      const isAtBottom = termEl.scrollHeight - termEl.scrollTop - termEl.clientHeight < 30;
-      if (!isAtBottom && logAutoScroll) {
-        toggleAutoScroll();
-      }
-    });
-
-    function syncClientTimeToDevice() {
-      const ts = Math.floor(Date.now() / 1000);
-      fetch('/api/system/time', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ timestamp: ts })
-      }).then(r => r.json()).then(res => {
-        if (res.success) {
-          console.log('[TimeSync] 浏览器时间已成功注入设备:', res.datetime);
-        }
-      }).catch(e => console.warn('[TimeSync] 自动对时跳过:', e));
-    }
-
-    setInterval(fetchLogs, 900);
-    fetchLogs();
-    syncClientTimeToDevice();
-
-    /* ========================================================
-     * 具身智能体 (Agent Core) Web 交互与 ReAct 追踪逻辑
+     * 智能体工坊 (Agent Studio) & ReAct 追踪
      * ======================================================== */
     function setAndSendPrompt(txt) {
       document.getElementById('agentPromptInput').value = txt;
@@ -1060,8 +931,8 @@
     }
 
     function sendAgentChat() {
-      const promptInput = document.getElementById('agentPromptInput');
-      const prompt = promptInput.value.trim();
+      const inp = document.getElementById('agentPromptInput');
+      const prompt = inp.value.trim();
       if (!prompt) return;
 
       const btn = document.getElementById('sendAgentBtn');
@@ -1074,8 +945,8 @@
 
       fetch('/api/v1/agent/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt })
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({prompt: prompt})
       })
       .then(r => r.json())
       .then(d => {
@@ -1101,7 +972,7 @@
           document.getElementById('traceThinkingDetails').open = false;
         }
 
-        // Tool Action & Observation
+        // Tool
         const toolSection = document.getElementById('traceToolSection');
         if (d.action && d.action.tool_name) {
           toolSection.style.display = 'block';
@@ -1123,13 +994,13 @@
           document.getElementById('metricTotalTokens').innerText = d.metrics.total_tokens || 0;
         }
 
-        refresh();
+        refreshStatus();
         refreshAgentMemory();
       })
       .catch(e => {
         btn.disabled = false;
         btn.innerText = '🚀 调度 Agent';
-        stateBadge.innerText = '❌ 连接失败';
+        stateBadge.innerText = '❌ 请求异常';
         stateBadge.style.color = '#ff5555';
         alert('Agent 请求异常: ' + e);
       });
@@ -1158,7 +1029,7 @@
                 <div>
                   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                     <b style="color:var(--accent); font-size:12.5px;">${escapeHtml(t.name)}</b>
-                    <span class="badge" style="font-size:10px; padding:2px 8px;">C Driver</span>
+                    <span class="status-badge" style="font-size:10px; padding:2px 8px;">C Driver</span>
                   </div>
                   <div style="font-size:11.5px; color:#a2b9d5; line-height:1.4; margin-bottom:8px;">${escapeHtml(t.description || '')}</div>
                 </div>
@@ -1170,25 +1041,25 @@
           });
           grid.innerHTML = html;
         })
-        .catch(e => {
+        .catch(() => {
           document.getElementById('agentToolsGrid').innerHTML = '<div style="color:#ff5555; font-size:12px;">拉取工具清单失败</div>';
         });
     }
 
     function execSingleTool(name, defaultArgs) {
-      const argsStr = prompt(`直接调度底层 C 驱动：${name}\n请输入调用入参 (JSON):`, defaultArgs);
+      const argsStr = prompt(`直接调度底层 C 驱动：${name}\n请输入入参 (JSON):`, defaultArgs);
       if (argsStr === null) return;
 
       fetch('/api/v1/agent/tool/execute', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name, arguments: argsStr })
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: name, arguments: argsStr})
       })
       .then(r => r.json())
       .then(d => {
         const resTxt = typeof d.result === 'object' ? JSON.stringify(d.result, null, 2) : d.result;
         alert(`✅ [${name}] 执行成功！\n\nObservation 返回值:\n${resTxt}`);
-        refresh();
+        refreshStatus();
       })
       .catch(e => alert('调度失败: ' + e));
     }
@@ -1198,9 +1069,7 @@
       memoryDrawerOpen = !memoryDrawerOpen;
       document.getElementById('memoryDrawer').style.display = memoryDrawerOpen ? 'block' : 'none';
       document.getElementById('memToggleTxt').innerText = memoryDrawerOpen ? '▲ 收起记忆详情' : '▼ 展开记忆详情';
-      if (memoryDrawerOpen) {
-        refreshAgentMemory();
-      }
+      if (memoryDrawerOpen) refreshAgentMemory();
     }
 
     function refreshAgentMemory() {
@@ -1244,23 +1113,521 @@
           });
           msgList.innerHTML = mHtml;
         })
-        .catch(e => {});
+        .catch(() => {});
     }
 
     function clearAgentMemory() {
       if (!confirm('确认清空 Agent 当前会话历史与前情摘要？设备将重置为初始纯净状态。')) return;
-      fetch('/api/v1/agent/memory/clear', { method: 'POST' })
+      fetch('/api/v1/agent/memory/clear', {method: 'POST'})
         .then(r => r.json())
-        .then(d => {
-          alert('✅ Agent 会话记忆已清空！');
+        .then(() => {
+          showToast('✅ Agent 会话记忆已清空！');
           refreshAgentMemory();
           document.getElementById('agentTraceBox').style.display = 'none';
         })
-        .catch(e => alert('清空失败'));
+        .catch(() => alert('清空失败'));
     }
 
+    /* ========================================================
+     * 大模型配置中心 (LLM Settings) & 连通性测试 (Ping)
+     * ======================================================== */
+    function loadAgentConfig() {
+      fetch('/api/config')
+        .then(r => r.json())
+        .then(d => {
+          if (d.base_url) document.getElementById('baseUrl').value = d.base_url;
+          if (d.model) {
+            document.getElementById('modelName').value = d.model;
+            document.getElementById('agentModelBadge').innerText = d.model + ' / 端云协同';
+          }
+          if (d.has_key && d.api_key_masked) {
+            document.getElementById('apiKey').placeholder = '已配置 (' + d.api_key_masked + ')';
+          }
+          if (d.prompt) document.getElementById('agentPrompt').value = d.prompt;
+          if (d.temperature !== undefined) {
+            document.getElementById('tempRange').value = d.temperature;
+            document.getElementById('tempTxt').innerText = (d.temperature / 100).toFixed(1);
+          }
+          if (d.volume !== undefined) {
+            document.getElementById('volRange').value = d.volume;
+            document.getElementById('volTxt').innerText = d.volume + '%';
+          }
+          if (d.brightness !== undefined) {
+            document.getElementById('brightRange').value = d.brightness;
+            document.getElementById('brightTxt').innerText = d.brightness + '%';
+          }
+        })
+        .catch(() => {});
+    }
+
+    function applyLlmPreset(type) {
+      const urlEl = document.getElementById('baseUrl');
+      const modelEl = document.getElementById('modelName');
+      if (type === 'deepseek') {
+        urlEl.value = 'https://api.deepseek.com/v1/chat/completions';
+        modelEl.value = 'deepseek-chat';
+      } else if (type === 'siliconflow') {
+        urlEl.value = 'https://api.siliconflow.cn/v1/chat/completions';
+        modelEl.value = 'deepseek-ai/DeepSeek-V3';
+      } else if (type === 'ollama') {
+        urlEl.value = 'http://192.168.1.100:11434/v1/chat/completions';
+        modelEl.value = 'deepseek-r1:8b';
+      } else if (type === 'openai') {
+        urlEl.value = 'https://api.openai.com/v1/chat/completions';
+        modelEl.value = 'gpt-4o-mini';
+      }
+      showToast('已填入 ' + type + ' 预设');
+    }
+
+    function setPromptTemplate(type) {
+      const p = document.getElementById('agentPrompt');
+      if (type === 'geek') {
+        p.value = '你是一个贴心的赛博桌面极客助手，语气温和简短，具备嵌入式硬件感知与具身工具调度能力。';
+      } else if (type === 'pet') {
+        p.value = '你是一只居住在桌面屏幕里的傲娇赛博猫咪使魔，说话简短毒舌但很黏主人，喜欢被摸头。';
+      } else if (type === 'study') {
+        p.value = '你是一个严厉专注的学习与考研督导员，随时提醒主人保持专注，合理规划番茄钟。';
+      }
+    }
+
+    function toggleApiKeyVisibility() {
+      const k = document.getElementById('apiKey');
+      const btn = document.getElementById('toggleKeyBtn');
+      if (k.type === 'password') {
+        k.type = 'text';
+        btn.innerText = '🔒 隐藏';
+      } else {
+        k.type = 'password';
+        btn.innerText = '👁️ 显示';
+      }
+    }
+
+    function testLlmPing() {
+      const btn = document.getElementById('pingTestBtn');
+      const badge = document.getElementById('pingResultBadge');
+      const url = document.getElementById('baseUrl').value.trim();
+      const model = document.getElementById('modelName').value.trim();
+      const key = document.getElementById('apiKey').value.trim();
+
+      btn.disabled = true;
+      btn.innerText = '⏳ 探测中...';
+      badge.style.display = 'block';
+      badge.innerHTML = '<span style="color:#f1fa8c">正在向目标大模型端点发送轻量 Ping 探测包...</span>';
+
+      fetch('/api/config/test', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({base_url: url, model: model, api_key: key})
+      })
+      .then(r => r.json())
+      .then(d => {
+        btn.disabled = false;
+        btn.innerText = '⚡ 测试连通性';
+        if (d.success) {
+          badge.innerHTML = `<span style="color:var(--accent-sub); font-weight:bold;">✅ 连通成功！HTTP ${d.http_status || 200} (往返延时: ${d.latency_ms || 0} ms)</span>`;
+        } else {
+          badge.innerHTML = `<span style="color:var(--accent-danger); font-weight:bold;">❌ 连通失败: ${escapeHtml(d.error || '无法访问服务')} (HTTP ${d.http_status || 0})</span>`;
+        }
+      })
+      .catch(e => {
+        btn.disabled = false;
+        btn.innerText = '⚡ 测试连通性';
+        badge.innerHTML = `<span style="color:var(--accent-danger);">❌ 网络请求错误: ${e}</span>`;
+      });
+    }
+
+    function saveAgentConfig() {
+      const url = document.getElementById('baseUrl').value.trim();
+      const model = document.getElementById('modelName').value.trim();
+      const key = document.getElementById('apiKey').value.trim();
+      const pr = document.getElementById('agentPrompt').value.trim();
+      const temp = parseInt(document.getElementById('tempRange').value);
+
+      fetch('/api/config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          base_url: url,
+          model: model,
+          api_key: key,
+          prompt: pr,
+          temperature: temp
+        })
+      })
+      .then(r => r.json())
+      .then(d => {
+        showToast('✅ 大模型与 Agent 配置已热加载至开发板！');
+        loadAgentConfig();
+      })
+      .catch(() => alert('保存配置失败'));
+    }
+
+    function resetWifi() {
+      if (confirm('确认重置 Wi-Fi 并返回 SoftAP 独立热点配网模式？')) {
+        fetch('/api/wifi/reset', {method: 'POST'})
+          .then(() => alert('设备正在重置网络并开启配网热点...'));
+      }
+    }
+
+    /* ========================================================
+     * 外置 TF 卡管理 (Storage)
+     * ======================================================== */
+    let curSdPath = '/';
+
+    function updateStorageInfo(st) {
+      if (!st) return;
+      if (st.data_dir) document.getElementById('dataBaseDir').innerText = st.data_dir;
+      if (st.temp_dir) document.getElementById('tempBaseDir').innerText = st.temp_dir;
+
+      const badge = document.getElementById('sdcardMountBadge');
+      const pbar = document.getElementById('sdcardProgressBar');
+      if (st.sdcard_mounted) {
+        badge.innerText = '● 已挂载就绪';
+        badge.style.color = 'var(--accent-sub)';
+        document.getElementById('sdcardMountPoint').innerText = st.sdcard_mount_point || '/mnt/sdcard';
+        document.getElementById('sdcardUsedPct').innerText = (st.sdcard_used_pct || 0) + '%';
+        pbar.style.width = Math.min(100, Math.max(0, st.sdcard_used_pct || 0)) + '%';
+        const totalMb = st.sdcard_total_mb || 0;
+        const freeMb = st.sdcard_free_mb || 0;
+        const usedMb = totalMb >= freeMb ? (totalMb - freeMb) : 0;
+        document.getElementById('sdcardTotalMb').innerText = totalMb;
+        document.getElementById('sdcardUsedMb').innerText = usedMb;
+      } else {
+        badge.innerText = '○ 未检测到 TF 卡';
+        badge.style.color = 'var(--muted)';
+        pbar.style.width = '0%';
+      }
+    }
+
+    function sdcardRefreshList() {
+      fetch('/api/sdcard/list?path=' + encodeURIComponent(curSdPath))
+        .then(r => r.json())
+        .then(d => {
+          document.getElementById('currentPathDisplay').innerText = curSdPath;
+          const tbody = document.getElementById('sdcardFileList');
+          if (!d.success || !d.items) {
+            tbody.innerHTML = '<tr><td colspan="3" style="padding:16px; text-align:center; color:#ff5555">读取失败: ' + (d.error || '未知错误') + '</td></tr>';
+            return;
+          }
+          if (d.items.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="padding:16px; text-align:center; color:var(--muted)">当前目录为空</td></tr>';
+            return;
+          }
+
+          d.items.sort((a, b) => (b.is_dir - a.is_dir) || a.name.localeCompare(b.name));
+
+          let html = '';
+          d.items.forEach(it => {
+            const fullItemPath = (curSdPath === '/' ? '' : curSdPath) + '/' + it.name;
+            const icon = it.is_dir ? '📁' : '📄';
+            const nameClick = it.is_dir
+              ? `onclick="sdcardGoPath('${fullItemPath}')" style="cursor:pointer; color:var(--accent); font-weight:600;"`
+              : `style="color:#e6edf3;"`;
+            const sizeStr = it.is_dir ? '<span style="color:var(--muted)">[目录]</span>' : formatBytes(it.size);
+
+            let actions = '';
+            if (!it.is_dir) {
+              actions += `<a href="/api/sdcard/download?path=${encodeURIComponent(fullItemPath)}" download="${it.name}" style="color:var(--accent); text-decoration:none; margin-right:8px;">⬇️下载</a>`;
+            }
+            actions += `<a href="javascript:void(0)" onclick="sdcardDelete('${fullItemPath}', ${it.is_dir})" style="color:#ff6b6b; text-decoration:none;">🗑️删除</a>`;
+
+            html += `
+              <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                <td style="padding:8px 12px;"><span style="margin-right:6px;">${icon}</span><span ${nameClick}>${escapeHtml(it.name)}</span></td>
+                <td style="padding:8px 12px; color:var(--muted);">${sizeStr}</td>
+                <td style="padding:8px 12px; text-align:right;">${actions}</td>
+              </tr>
+            `;
+          });
+          tbody.innerHTML = html;
+        })
+        .catch(() => {
+          document.getElementById('sdcardFileList').innerHTML = '<tr><td colspan="3" style="padding:16px; text-align:center; color:#ff5555">无法连接至开发板端侧服务</td></tr>';
+        });
+    }
+
+    function sdcardGoPath(p) {
+      curSdPath = p.startsWith('/') ? p : '/' + p;
+      sdcardRefreshList();
+    }
+
+    function sdcardGoUp() {
+      if (curSdPath === '/' || !curSdPath) return;
+      const parts = curSdPath.split('/').filter(Boolean);
+      parts.pop();
+      curSdPath = '/' + parts.join('/');
+      sdcardRefreshList();
+    }
+
+    function sdcardMkdir() {
+      const name = document.getElementById('newDirName').value.trim();
+      if (!name) return;
+      const target = (curSdPath === '/' ? '' : curSdPath) + '/' + name;
+      fetch('/api/sdcard/mkdir', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: target})
+      }).then(r => r.json()).then(d => {
+        if (d.success) {
+          document.getElementById('newDirName').value = '';
+          sdcardRefreshList();
+        } else {
+          alert('创建失败: ' + (d.error || '权限或路径错误'));
+        }
+      });
+    }
+
+    function sdcardUploadText() {
+      const fname = document.getElementById('uploadFileName').value.trim();
+      const content = document.getElementById('uploadFileContent').value;
+      if (!fname) { alert('请输入目标文件名'); return; }
+      const target = (curSdPath === '/' ? '' : curSdPath) + '/' + fname;
+      fetch('/api/sdcard/upload', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: target, content: content})
+      }).then(r => r.json()).then(d => {
+        if (d.success) {
+          showToast('✅ 文件已写入 TF 卡');
+          document.getElementById('uploadFileName').value = '';
+          document.getElementById('uploadFileContent').value = '';
+          sdcardRefreshList();
+        } else {
+          alert('保存失败: ' + (d.error || '未知错误'));
+        }
+      });
+    }
+
+    function handleLocalFileSelected(input) {
+      if (input.files && input.files[0]) {
+        const file = input.files[0];
+        document.getElementById('uploadFileName').value = file.name;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById('uploadFileContent').value = e.target.result;
+        };
+        reader.readAsText(file);
+      }
+    }
+
+    function sdcardDelete(p, isDir) {
+      if (!confirm(`确认永久删除该${isDir ? '目录' : '文件'}：\n${p} ？`)) return;
+      fetch('/api/sdcard/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: p})
+      }).then(r => r.json()).then(d => {
+        if (d.success) sdcardRefreshList();
+        else alert('删除失败: ' + (d.error || '非空或权限不足'));
+      });
+    }
+
+    /* ========================================================
+     * 实时系统日志终端 (Live Terminal) - 按需轮询
+     * ======================================================== */
+    let logCursor = 0;
+    let logIsPaused = false;
+    let logAutoScroll = true;
+    let logLinesData = [];
+    const MAX_LOG_LINES = 1500;
+
+    function startLogPolling() {
+      if (!logPollTimer) {
+        fetchLogs();
+        logPollTimer = setInterval(fetchLogs, 900);
+      }
+    }
+
+    function stopLogPolling() {
+      if (logPollTimer) {
+        clearInterval(logPollTimer);
+        logPollTimer = null;
+      }
+    }
+
+    function parseLogLine(raw) {
+      if (!raw) return null;
+      let level = 'I';
+      if (raw.includes('[E]') || raw.includes('ERROR') || raw.includes('<3>')) level = 'E';
+      else if (raw.includes('[W]') || raw.includes('WARN') || raw.includes('<4>')) level = 'W';
+      else if (raw.includes('[D]') || raw.includes('DEBUG') || raw.includes('<7>')) level = 'D';
+      else if (raw.includes('[V]') || raw.includes('VERBOSE')) level = 'V';
+      else if (raw.includes('[I]') || raw.includes('INFO') || raw.includes('<6>')) level = 'I';
+      return { raw: raw, level: level };
+    }
+
+    function renderLogEntry(entry) {
+      const div = document.createElement('div');
+      div.className = 'log-line';
+      div.innerHTML = `<span class="log-lvl-${entry.level}">${escapeHtml(entry.raw)}</span>`;
+      return div;
+    }
+
+    function fetchLogs() {
+      if (logIsPaused) return;
+      fetch('/api/logs?cursor=' + logCursor)
+        .then(r => r.json())
+        .then(d => {
+          if (d.cursor !== undefined) {
+            logCursor = d.cursor;
+            document.getElementById('logCursorTag').innerText = 'Cursor: ' + logCursor + ' B';
+          }
+          if (d.logs && d.logs.length > 0) {
+            const lines = d.logs.split('\n');
+            const term = document.getElementById('terminalWindow');
+            const kw = document.getElementById('logFilterInput').value.trim().toLowerCase();
+            const minLvl = document.getElementById('logLevelSelect').value;
+
+            for (let line of lines) {
+              if (!line.trim()) continue;
+              const entry = parseLogLine(line);
+              logLinesData.push(entry);
+              if (logLinesData.length > MAX_LOG_LINES) logLinesData.shift();
+
+              if (matchesFilter(entry, kw, minLvl)) {
+                term.appendChild(renderLogEntry(entry));
+              }
+            }
+
+            while (term.children.length > MAX_LOG_LINES) {
+              term.removeChild(term.firstChild);
+            }
+
+            if (logAutoScroll) term.scrollTop = term.scrollHeight;
+          }
+        })
+        .catch(() => {});
+    }
+
+    function matchesFilter(entry, kw, minLvl) {
+      if (kw && !entry.raw.toLowerCase().includes(kw)) return false;
+      if (minLvl === 'all') return true;
+      const order = { 'DEBUG': 1, 'INFO': 2, 'WARN': 3, 'ERROR': 4 };
+      const entryVal = { 'D': 1, 'V': 1, 'I': 2, 'W': 3, 'E': 4 }[entry.level] || 2;
+      const targetVal = order[minLvl] || 0;
+      return entryVal >= targetVal;
+    }
+
+    function applyLogFilter() {
+      const term = document.getElementById('terminalWindow');
+      term.innerHTML = '';
+      const kw = document.getElementById('logFilterInput').value.trim().toLowerCase();
+      const minLvl = document.getElementById('logLevelSelect').value;
+      const frag = document.createDocumentFragment();
+
+      for (let entry of logLinesData) {
+        if (matchesFilter(entry, kw, minLvl)) {
+          frag.appendChild(renderLogEntry(entry));
+        }
+      }
+      term.appendChild(frag);
+      if (logAutoScroll) term.scrollTop = term.scrollHeight;
+    }
+
+    function changeLogLevel(val) {
+      applyLogFilter();
+      if (val !== 'all') {
+        fetch('/api/logs/level', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({level: val})
+        }).catch(() => {});
+      }
+    }
+
+    function toggleAutoScroll() {
+      logAutoScroll = !logAutoScroll;
+      const btn = document.getElementById('autoScrollBtn');
+      btn.innerText = logAutoScroll ? '⏬ 滚屏: 开' : '⏸️ 滚屏: 关';
+      btn.style.borderColor = logAutoScroll ? 'var(--accent)' : 'var(--border)';
+    }
+
+    function toggleLogPause() {
+      logIsPaused = !logIsPaused;
+      const btn = document.getElementById('pauseLogBtn');
+      const badge = document.getElementById('logStreamBadge');
+      if (logIsPaused) {
+        btn.innerText = '▶️ 继续';
+        badge.innerText = '⏸️ 已暂停';
+        badge.style.color = 'var(--muted)';
+      } else {
+        btn.innerText = '⏸️ 暂停';
+        badge.innerText = '● 实时监听中';
+        badge.style.color = 'var(--accent-sub)';
+      }
+    }
+
+    function clearLocalLogs() {
+      logLinesData = [];
+      document.getElementById('terminalWindow').innerHTML = '<div class="log-line" style="color:var(--muted)">[UI] 视图已清空</div>';
+    }
+
+    function clearDeviceLogs() {
+      if (!confirm('确认清空端侧循环日志缓冲区？')) return;
+      fetch('/api/logs/clear', {method: 'POST'})
+        .then(r => r.json())
+        .then(() => {
+          clearLocalLogs();
+          logCursor = 0;
+          document.getElementById('logCursorTag').innerText = 'Cursor: 0 B';
+        })
+        .catch(() => alert('清空失败'));
+    }
+
+    function exportLogs() {
+      const text = logLinesData.map(e => e.raw).join('\n');
+      const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'phoenix_logs_' + new Date().toISOString().replace(/[:.]/g, '-') + '.log';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    /* ========================================================
+     * 工具与辅助函数
+     * ======================================================== */
+    function formatBytes(b) {
+      if (!b || b === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(b) / Math.log(k));
+      return (b / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+    }
+
+    function escapeHtml(s) {
+      if (!s) return '';
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function syncClientTimeToDevice() {
+      const ts = Math.floor(Date.now() / 1000);
+      fetch('/api/system/time', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({timestamp: ts})
+      }).catch(() => {});
+    }
+
+    // 页面可见性挂起策略：离开浏览器前台时降频轮询
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        if (statusPollTimer) clearInterval(statusPollTimer);
+        statusPollTimer = setInterval(refreshStatus, 5000);
+      } else {
+        if (statusPollTimer) clearInterval(statusPollTimer);
+        statusPollTimer = setInterval(refreshStatus, 2000);
+        refreshStatus();
+      }
+    });
+
+    // 初始启动
+    refreshStatus();
+    statusPollTimer = setInterval(refreshStatus, 2000);
+    loadAgentConfig();
     refreshAgentTools();
-    refreshAgentMemory();
+    syncClientTimeToDevice();
   </script>
 </body>
 </html>
