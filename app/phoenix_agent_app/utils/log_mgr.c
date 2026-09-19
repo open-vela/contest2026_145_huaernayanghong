@@ -367,7 +367,7 @@ void phoenix_log_vwrite(int level, const char *tag, const char *fmt, va_list arg
     char full_line[PHOENIX_LOG_LINE_MAX + 64];
     int line_len = snprintf(full_line, sizeof(full_line),
                             "[%5u.%03u] [%s:%s] %s\n",
-                            sec, msec, tag, lvl_char, msg_buf);
+                            (unsigned int)sec, (unsigned int)msec, tag, lvl_char, msg_buf);
 
     pthread_mutex_lock(&s_log_lock);
 
@@ -397,7 +397,7 @@ void phoenix_log_vwrite(int level, const char *tag, const char *fmt, va_list arg
         char ansi_line[PHOENIX_LOG_LINE_MAX + 128];
         snprintf(ansi_line, sizeof(ansi_line),
                  COLOR_GRAY "[%5u.%03u]" COLOR_RESET " %s[%s:%s]%s %s\n",
-                 sec, msec, color_code, tag, lvl_char, COLOR_RESET, msg_buf);
+                 (unsigned int)sec, (unsigned int)msec, color_code, tag, lvl_char, COLOR_RESET, msg_buf);
         fputs(ansi_line, stdout);
         fflush(stdout);
     }
@@ -533,7 +533,7 @@ void phoenix_log_write_ratelimited(int level, const char *tag, uint32_t interval
 
     if (suppressed > 0) {
         char final_msg[PHOENIX_LOG_LINE_MAX + 64];
-        snprintf(final_msg, sizeof(final_msg), "%s (抑制了 %u 条频繁日志)", buf, suppressed);
+        snprintf(final_msg, sizeof(final_msg), "%s (抑制了 %u 条频繁日志)", buf, (unsigned int)suppressed);
         phoenix_log_write(level, tag, "%s", final_msg);
     } else {
         phoenix_log_write(level, tag, "%s", buf);
