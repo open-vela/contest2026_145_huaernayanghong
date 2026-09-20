@@ -269,6 +269,6 @@ static int tool_pomodoro_exec(const char *args_json, char *result_out, size_t ma
 const phoenix_tool_desc_t g_tool_pomodoro = {
     .name = "manage_pomodoro",
     .description = "管理桌面开发者沉浸专注流番茄钟（支持开启start、停止stop、暂停pause、恢复resume、重置reset或查看状态status）",
-    .parameters_schema = "{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\",\"enum\":[\"start\",\"stop\",\"pause\",\"resume\",\"reset\",\"status\"],\"description\":\"动作类型：start(开启), stop(停止), pause(暂停), resume(恢复), reset(重置), status(查看状态)\"},\"duration_minutes\":{\"type\":\"integer\",\"description\":\"专注时长(分钟)，默认为25\"},\"minutes\":{\"type\":\"integer\",\"description\":\"专注时长别名(分钟)\"}},\"required\":[]}",
+    .parameters_schema = "{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\",\"enum\":[\"start\",\"stop\",\"pause\",\"resume\",\"reset\",\"status\"],\"description\":\"动作类型：start(开启), stop(停止), pause(暂停), resume(恢复), reset(重置), status(查看状态)\"},\"duration_minutes\":{\"type\":\"integer\",\"description\":\"专注时长(分钟)，默认为25\"},\"minutes\":{\"type\":\"integer\",\"description\":\"专注时长别名(分钟)\"}},\"required\":[\"action\"]}",
     .execute = tool_pomodoro_exec
 };

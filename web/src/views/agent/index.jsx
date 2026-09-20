@@ -2,12 +2,26 @@ import React, { useState, useEffect, useRef } from 'react';
 import { agentApi } from '../../api/agent.js';
 import { showToast } from '../../utils/toast.js';
 import { copyText, formatBytes } from '../../utils/helpers.js';
+import {
+  listSessions,
+  getActiveSessionId,
+  loadSessionMessages,
+  saveSessionMessages,
+  createNewSession,
+  switchActiveSession,
+  clearSessionMessages,
+  deleteSession
+} from '../../utils/sessionStore.js';
 
 export function Agent({ onOpenToolModal, pausePolling, resumePolling }) {
   const [messages, setMessages] = useState([]);
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [onlineState, setOnlineState] = useState('IDLE');
+
+  // 多会话管理状态
+  const [sessions, setSessions] = useState([]);
+  const [activeSessionId, setActiveSessionId] = useState('');
 
   // 工具池
   const [tools, setTools] = useState([]);
@@ -36,9 +50,37 @@ export function Agent({ onOpenToolModal, pausePolling, resumePolling }) {
     } catch (e) {}
   };
 
+  // 初始化会话与水合机制
   useEffect(() => {
     loadTools();
     loadMemory();
+
+    const allSessions = listSessions();
+    const currentId = getActiveSessionId();
+    setSessions(allSessions);
+    setActiveSessionId(currentId);
+
+    const saved = loadSessionMessages(currentId);
+    if (saved && saved.length > 0) {
+      setMessages(saved);
+    } else {
+      // 本地冷启动为空态，尝试从设备端两级记忆中兜底水合
+      agentApi.getMemory().then(d => {
+        if (d && d.success && d.messages && d.messages.length > 0) {
+          const hydrated = d.messages.map((m, idx) => ({
+            id: 'dev_' + idx + '_' + Date.now(),
+            role: m.role === 'assistant' ? 'agent' : m.role,
+            content: m.content,
+            answer: m.role === 'assistant' ? m.content : undefined,
+            time: '硬件同步',
+            state: 'IDLE'
+          }));
+          setMessages(hydrated);
+          saveSessionMessages(currentId, hydrated);
+          setSessions(listSessions());
+        }
+      }).catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
@@ -46,6 +88,46 @@ export function Agent({ onOpenToolModal, pausePolling, resumePolling }) {
       timelineRef.current.scrollTop = timelineRef.current.scrollHeight;
     }
   }, [messages, loading]);
+
+  // 切换活跃会话
+  const handleSwitchSession = (sessionId) => {
+    if (sessionId === activeSessionId) return;
+    switchActiveSession(sessionId);
+    setActiveSessionId(sessionId);
+    const msgs = loadSessionMessages(sessionId);
+    setMessages(msgs);
+    setSessions(listSessions());
+  };
+
+  // 开启新会话
+  const handleNewSession = async () => {
+    const newMeta = createNewSession('新话题');
+    setActiveSessionId(newMeta.id);
+    setMessages([]);
+    setSessions(listSessions());
+
+    // 重置设备端运行时上下文，确保纯净心智
+    try {
+      await agentApi.clearMemory();
+      loadMemory();
+    } catch (e) {}
+    showToast('✨ 已开启新话题，设备端记忆已重置');
+  };
+
+  // 清空当前会话
+  const handleClearCurrentSession = async () => {
+    if (!confirm('确认清空当前话题对话记录？设备端短期记忆也将同步重置。')) return;
+    try {
+      await agentApi.clearMemory();
+      clearSessionMessages(activeSessionId);
+      setMessages([]);
+      setSessions(listSessions());
+      loadMemory();
+      showToast('✅ 当前话题记录与设备端记忆已清空！');
+    } catch (e) {
+      showToast('清空失败: ' + e.message);
+    }
+  };
 
   const handleSendChat = async (textToSend) => {
     const text = (textToSend || prompt).trim();
@@ -55,14 +137,17 @@ export function Agent({ onOpenToolModal, pausePolling, resumePolling }) {
     setLoading(true);
     setOnlineState('THINKING');
 
-    // 追加用户消息
+    // 追加用户消息并实时本地持久化
     const userMsg = {
       id: Date.now() + '_user',
       role: 'user',
       content: text,
       time: new Date().toLocaleTimeString()
     };
-    setMessages(prev => [...prev, userMsg]);
+    const afterUserMsgs = [...messages, userMsg];
+    setMessages(afterUserMsgs);
+    saveSessionMessages(activeSessionId, afterUserMsgs);
+    setSessions(listSessions());
 
     if (pausePolling) pausePolling();
 
@@ -81,7 +166,11 @@ export function Agent({ onOpenToolModal, pausePolling, resumePolling }) {
         metrics: d.metrics
       };
 
-      setMessages(prev => [...prev, agentMsg]);
+      const finalMsgs = [...afterUserMsgs, agentMsg];
+      setMessages(finalMsgs);
+      saveSessionMessages(activeSessionId, finalMsgs);
+      setSessions(listSessions());
+
       setOnlineState(d.state || 'IDLE');
       loadMemory();
     } catch (e) {
@@ -92,23 +181,41 @@ export function Agent({ onOpenToolModal, pausePolling, resumePolling }) {
     }
   };
 
-  const handleClearMemory = async () => {
-    if (!confirm('确认清空 Agent 当前会话历史与前情摘要？设备将重置为初始纯净状态。')) return;
-    try {
-      await agentApi.clearMemory();
-      showToast('✅ Agent 会话记忆已清空！');
-      setMessages([]);
-      loadMemory();
-    } catch (e) {
-      showToast('清空失败');
-    }
-  };
-
   return (
     <div className="card highlight">
       <div className="card-head">
         <div className="card-title">🤖 具身灵眸 Agent 极客工作台 (ReAct 对话流)</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* 会话管理工具栏 */}
+          <div className="session-bar">
+            <select
+              className="session-select"
+              value={activeSessionId}
+              onChange={(e) => handleSwitchSession(e.target.value)}
+              title="切换历史会话"
+            >
+              {sessions.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.title} ({s.messageCount || 0})
+                </option>
+              ))}
+            </select>
+            <button
+              className="btn-session-action"
+              onClick={handleNewSession}
+              title="开启全新话题并重置设备端上下文"
+            >
+              ➕ 新话题
+            </button>
+            <button
+              className="btn-session-action"
+              onClick={handleClearCurrentSession}
+              title="清空当前话题与设备端记忆"
+            >
+              🧹 清空
+            </button>
+          </div>
+
           <span className="status-badge" id="agentModelBadge">DeepSeek-Chat / 端云协同</span>
           <span className="status-badge" style={{
             background: '#091b2c',
@@ -116,9 +223,6 @@ export function Agent({ onOpenToolModal, pausePolling, resumePolling }) {
           }}>
             ● {onlineState}
           </span>
-          <button className="btn-secondary" style={{ padding: '4px 10px', fontSize: '11px' }} onClick={handleClearMemory}>
-            🧹 清空会话
-          </button>
         </div>
       </div>
 

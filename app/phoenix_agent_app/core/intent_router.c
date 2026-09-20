@@ -45,7 +45,8 @@ phoenix_intent_result_t phoenix_intent_route(const char *input_text)
         is_fast_directive = true;
         cmd_ptr = input_text + 7;
     } else if (contains_str(input_text, "快敲") || contains_str(input_text, "快速巡检") ||
-               contains_str(input_text, "极客伴工") || contains_str(input_text, "直达")) {
+               contains_str(input_text, "极客伴工") || contains_str(input_text, "直达") ||
+               contains_str(input_text, "快速番茄") || contains_str(input_text, "极速番茄")) {
         is_fast_directive = true;
     }
 

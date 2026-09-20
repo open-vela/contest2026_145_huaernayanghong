@@ -250,3 +250,46 @@
   font-size: 11px;
   color: var(--muted);
 }
+
+/* 会话管理工具条与选择器 */
+.session-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.session-select {
+  background: #0d182b;
+  border: 1px solid #1f355a;
+  color: #c0d6f3;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  max-width: 180px;
+}
+.session-select:hover, .session-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 6px rgba(0, 229, 255, 0.2);
+}
+
+.btn-session-action {
+  background: #111d33;
+  border: 1px solid #233b66;
+  color: #9bb7dd;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+.btn-session-action:hover {
+  background: #1a2c4e;
+  border-color: var(--accent);
+  color: #ffffff;
+}
