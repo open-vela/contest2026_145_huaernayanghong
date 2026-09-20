@@ -31,6 +31,7 @@ extern "C" {
  */
 typedef enum {
     BLE_PROV_STATE_IDLE = 0,
+    BLE_PROV_STATE_STARTING,       /**< 正在使能底层蓝牙适配器与初始化 GATT */
     BLE_PROV_STATE_ADVERTISING,    /**< 正在广播等待网页连接 */
     BLE_PROV_STATE_CONNECTED,      /**< 网页蓝牙已建立 GATT 连接 */
     BLE_PROV_STATE_PROVISIONING,   /**< 收到配网凭证，正在尝试加入 Wi-Fi */
@@ -39,11 +40,18 @@ typedef enum {
 } ble_prov_state_t;
 
 /**
- * @brief 初始化并启动 BLE 配网服务
+ * @brief 初始化并启动 BLE 配网服务 (同步阻塞等待就绪)
  * @param custom_dev_name 自定义广播设备名 (为 NULL 则使用默认 Phoenix-Setup)
  * @return 0 成功, 负数失败
  */
 int ble_prov_service_init(const char *custom_dev_name);
+
+/**
+ * @brief 异步启动 BLE 配网服务 (非阻塞，适用于 UI 事件驱动，后台线程等待蓝牙就绪)
+ * @param custom_dev_name 自定义广播设备名 (为 NULL 则使用默认 Phoenix-Setup)
+ * @return 0 成功启动后台任务, 负数失败
+ */
+int ble_prov_service_start_async(const char *custom_dev_name);
 
 /**
  * @brief 停止并注销 BLE 配网服务

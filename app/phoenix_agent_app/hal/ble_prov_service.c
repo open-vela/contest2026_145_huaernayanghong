@@ -331,6 +331,26 @@ static void handle_rx_payload(const uint8_t *payload, uint16_t length)
 
 #if (defined(CONFIG_BLUETOOTH_SERVER) || defined(CONFIG_BLUETOOTH)) && !defined(HOST_TEST_RUNNER)
 static bt_instance_t *s_bt_ins = NULL;
+static void *s_adapter_cb_handle = NULL;
+static pthread_cond_t s_adapter_cond = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t s_adapter_lock = PTHREAD_MUTEX_INITIALIZER;
+static volatile bt_adapter_state_t s_curr_adapter_state = BT_ADAPTER_STATE_OFF;
+
+static void on_adapter_state_changed_cb(void *cookie, bt_adapter_state_t state)
+{
+    (void)cookie;
+    LOG_I(TAG, "Bluetooth Adapter state changed: %d", state);
+    pthread_mutex_lock(&s_adapter_lock);
+    s_curr_adapter_state = state;
+    if (state == BT_ADAPTER_STATE_ON || state == BT_ADAPTER_STATE_BLE_ON) {
+        pthread_cond_broadcast(&s_adapter_cond);
+    }
+    pthread_mutex_unlock(&s_adapter_lock);
+}
+
+static const adapter_callbacks_t s_adapter_cbs = {
+    .on_adapter_state_changed = on_adapter_state_changed_cb,
+};
 #endif
 
 int ble_prov_service_init(const char *custom_dev_name)
@@ -344,6 +364,8 @@ int ble_prov_service_init(const char *custom_dev_name)
         return 0;
     }
 
+    s_ble_state = BLE_PROV_STATE_STARTING;
+
     if (custom_dev_name && strlen(custom_dev_name) > 0) {
         strncpy(s_dev_name, custom_dev_name, sizeof(s_dev_name) - 1);
     }
@@ -353,61 +375,101 @@ int ble_prov_service_init(const char *custom_dev_name)
         s_bt_ins = bluetooth_create_instance();
         if (!s_bt_ins) {
             LOG_E(TAG, "bluetooth_create_instance failed");
+            s_ble_state = BLE_PROV_STATE_STOPPED;
             pthread_mutex_unlock(&s_lock);
             return -1;
         }
     }
 
-    /* 1. 检查并确保适配器处于开启状态 (兼容全局就绪 ON 与 BLE 单模就绪 BLE_ON) */
+    /* 1. 注册适配器状态机事件监听回调 (遵循 OpenVela 异步规范) */
+    if (!s_adapter_cb_handle) {
+        s_adapter_cb_handle = bt_adapter_register_callback(s_bt_ins, &s_adapter_cbs);
+        if (!s_adapter_cb_handle) {
+            LOG_W(TAG, "bt_adapter_register_callback returned NULL, fallback to IPC polling");
+        }
+    }
+
+    /* 2. 检查并确保适配器处于开启状态 (兼容全局就绪 ON 与 BLE 单模就绪 BLE_ON) */
     bt_adapter_state_t state = bt_adapter_get_state(s_bt_ins);
+    s_curr_adapter_state = state;
+
     if (state != BT_ADAPTER_STATE_ON && state != BT_ADAPTER_STATE_BLE_ON) {
         LOG_I(TAG, "蓝牙适配器尚未开启 (state=%d)，正在使能...", state);
-        bt_adapter_enable(s_bt_ins);
 
-        /* 轮询等待底层固件加载与控制器就绪 (最多等待 3 秒) */
-        int wait_count = 0;
-        while (wait_count < 60) {
-            usleep(50000); /* 50ms */
-            state = bt_adapter_get_state(s_bt_ins);
+        int retry = 0;
+        bool is_ready = false;
+
+        while (retry < 3 && !is_ready) {
+            bt_status_t en_ret = bt_adapter_enable(s_bt_ins);
+            if (en_ret != BT_STATUS_SUCCESS) {
+                LOG_W(TAG, "bt_adapter_enable returned %d (retry=%d), waiting for HCI Controller...", en_ret, retry);
+            }
+
+            /* 等待底层驱动加载固件与适配器状态机流转 (单次最多等待 4 秒) */
+            struct timespec ts;
+            clock_gettime(CLOCK_REALTIME, &ts);
+            ts.tv_sec += 4;
+
+            pthread_mutex_lock(&s_adapter_lock);
+            while (s_curr_adapter_state != BT_ADAPTER_STATE_ON &&
+                   s_curr_adapter_state != BT_ADAPTER_STATE_BLE_ON) {
+                int wait_ret = pthread_cond_timedwait(&s_adapter_cond, &s_adapter_lock, &ts);
+                if (wait_ret != 0) {
+                    break; /* 超时 */
+                }
+            }
+            state = s_curr_adapter_state;
+            pthread_mutex_unlock(&s_adapter_lock);
+
+            /* 二次确认最新状态 (避免 IPC 回调滞后) */
+            if (state != BT_ADAPTER_STATE_ON && state != BT_ADAPTER_STATE_BLE_ON) {
+                state = bt_adapter_get_state(s_bt_ins);
+            }
+
             if (state == BT_ADAPTER_STATE_ON || state == BT_ADAPTER_STATE_BLE_ON) {
-                LOG_I(TAG, "蓝牙适配器已就绪 (耗时 %d ms, state=%d)", (wait_count + 1) * 50, state);
+                is_ready = true;
+                LOG_I(TAG, "蓝牙适配器已就绪 (state=%d, retry=%d)", state, retry);
                 break;
             }
-            wait_count++;
+
+            retry++;
+            if (retry < 3) {
+                LOG_W(TAG, "底层驱动暂未就绪 (当前状态: %d)，等待 1s 后再次重试使能...", state);
+                sleep(1);
+            }
         }
 
-        if (state != BT_ADAPTER_STATE_ON && state != BT_ADAPTER_STATE_BLE_ON) {
-            LOG_E(TAG, "蓝牙适配器使能超时 (最终状态: %d)，底层驱动可能未就绪", state);
-            bluetooth_delete_instance(s_bt_ins);
-            s_bt_ins = NULL;
+        if (!is_ready) {
+            LOG_E(TAG, "蓝牙适配器使能超时 (最终状态: %d)，底层 RTL8723FS 固件或驱动未响应", state);
+            s_ble_state = BLE_PROV_STATE_STOPPED;
             pthread_mutex_unlock(&s_lock);
             return -1;
         }
     }
 
-    /* 2. 配置广播参数与可见性 (duration 传入 180 秒) */
+    /* 3. 配置广播参数与可见性 (duration 传入 180 秒) */
     bt_adapter_set_name(s_bt_ins, s_dev_name);
     bt_adapter_set_scan_mode(s_bt_ins, BT_SCAN_MODE_CONNECTABLE_DISCOVERABLE, 180);
 
-    /* 3. 适配器就绪后再注册 GATT 服务 */
-    bt_status_t ret = bt_gatts_register_service(s_bt_ins, &s_gatts_handle, &s_gatts_cbs);
-    if (ret != BT_STATUS_SUCCESS) {
-        LOG_E(TAG, "Failed to register GATT service, ret: %d", ret);
-        bluetooth_delete_instance(s_bt_ins);
-        s_bt_ins = NULL;
-        pthread_mutex_unlock(&s_lock);
-        return -1;
-    }
+    /* 4. 适配器就绪后再注册 GATT 服务 */
+    if (!s_gatts_handle) {
+        bt_status_t ret = bt_gatts_register_service(s_bt_ins, &s_gatts_handle, &s_gatts_cbs);
+        if (ret != BT_STATUS_SUCCESS) {
+            LOG_E(TAG, "Failed to register GATT service, ret: %d", ret);
+            s_ble_state = BLE_PROV_STATE_STOPPED;
+            pthread_mutex_unlock(&s_lock);
+            return -1;
+        }
 
-    ret = bt_gatts_add_attr_table(s_gatts_handle, &s_prov_service_db);
-    if (ret != BT_STATUS_SUCCESS) {
-        LOG_E(TAG, "Failed to add GATT attribute table, ret: %d", ret);
-        bt_gatts_unregister_service(s_gatts_handle);
-        s_gatts_handle = NULL;
-        bluetooth_delete_instance(s_bt_ins);
-        s_bt_ins = NULL;
-        pthread_mutex_unlock(&s_lock);
-        return -1;
+        ret = bt_gatts_add_attr_table(s_gatts_handle, &s_prov_service_db);
+        if (ret != BT_STATUS_SUCCESS) {
+            LOG_E(TAG, "Failed to add GATT attribute table, ret: %d", ret);
+            bt_gatts_unregister_service(s_gatts_handle);
+            s_gatts_handle = NULL;
+            s_ble_state = BLE_PROV_STATE_STOPPED;
+            pthread_mutex_unlock(&s_lock);
+            return -1;
+        }
     }
 
     LOG_I(TAG, "BLE Provisioning GATT service started successfully (Device: %s)", s_dev_name);
@@ -417,6 +479,70 @@ int ble_prov_service_init(const char *custom_dev_name)
 
     s_ble_state = BLE_PROV_STATE_ADVERTISING;
     pthread_mutex_unlock(&s_lock);
+    return 0;
+}
+
+typedef struct {
+    char name[64];
+} ble_async_start_args_t;
+
+static void *ble_start_worker_thread(void *arg)
+{
+    ble_async_start_args_t *args = (ble_async_start_args_t *)arg;
+    LOG_I(TAG, "BLE Provisioning async worker thread started");
+    int ret = ble_prov_service_init(args ? args->name : NULL);
+    if (ret != 0) {
+        LOG_W(TAG, "BLE Provisioning async worker init failed: %d", ret);
+    } else {
+        LOG_I(TAG, "BLE Provisioning async worker init completed successfully");
+    }
+    if (args) free(args);
+    return NULL;
+}
+
+int ble_prov_service_start_async(const char *custom_dev_name)
+{
+    pthread_mutex_lock(&s_lock);
+    if (s_ble_state == BLE_PROV_STATE_ADVERTISING ||
+        s_ble_state == BLE_PROV_STATE_CONNECTED ||
+        s_ble_state == BLE_PROV_STATE_PROVISIONING) {
+        pthread_mutex_unlock(&s_lock);
+        return 0;
+    }
+    if (s_ble_state == BLE_PROV_STATE_STARTING) {
+        pthread_mutex_unlock(&s_lock);
+        return 0;
+    }
+
+    s_ble_state = BLE_PROV_STATE_STARTING;
+    pthread_mutex_unlock(&s_lock);
+
+    ble_async_start_args_t *args = (ble_async_start_args_t *)malloc(sizeof(ble_async_start_args_t));
+    if (args) {
+        memset(args, 0, sizeof(*args));
+        if (custom_dev_name) {
+            strncpy(args->name, custom_dev_name, sizeof(args->name) - 1);
+        }
+    }
+
+    pthread_t tid;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+#if defined(__NUTTX__)
+    pthread_attr_setstacksize(&attr, 8192);
+#endif
+    int ret = pthread_create(&tid, &attr, ble_start_worker_thread, args);
+    pthread_attr_destroy(&attr);
+    if (ret != 0) {
+        LOG_E(TAG, "Failed to create ble start worker thread: %d", ret);
+        if (args) free(args);
+        pthread_mutex_lock(&s_lock);
+        s_ble_state = BLE_PROV_STATE_STOPPED;
+        pthread_mutex_unlock(&s_lock);
+        return -1;
+    }
+
     return 0;
 }
 
@@ -430,6 +556,10 @@ void ble_prov_service_deinit(void)
         s_gatts_handle = NULL;
     }
     if (s_bt_ins) {
+        if (s_adapter_cb_handle) {
+            bt_adapter_unregister_callback(s_bt_ins, s_adapter_cb_handle);
+            s_adapter_cb_handle = NULL;
+        }
         bluetooth_delete_instance(s_bt_ins);
         s_bt_ins = NULL;
     }
@@ -457,7 +587,8 @@ int ble_prov_service_get_dev_name(char *buf, size_t max_len)
 bool ble_prov_service_is_active(void)
 {
     pthread_mutex_lock(&s_lock);
-    bool active = (s_ble_state == BLE_PROV_STATE_ADVERTISING ||
+    bool active = (s_ble_state == BLE_PROV_STATE_STARTING ||
+                   s_ble_state == BLE_PROV_STATE_ADVERTISING ||
                    s_ble_state == BLE_PROV_STATE_CONNECTED ||
                    s_ble_state == BLE_PROV_STATE_PROVISIONING);
     pthread_mutex_unlock(&s_lock);

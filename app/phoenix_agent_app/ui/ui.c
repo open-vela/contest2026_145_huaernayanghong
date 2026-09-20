@@ -513,6 +513,11 @@ static void heartbeat_timer_cb(lv_timer_t *timer)
     if (!ui->cached_env_valid && ui->capsule) {
         refresh_status_capsule(ui);
     }
+
+    /* 当抽屉展开处于前台时，每秒自动刷新遥测与蓝牙/Wi-Fi实时状态 */
+    if (ui->settings && ui->settings->is_open) {
+        ui_settings_refresh_data(ui->settings);
+    }
 }
 
 phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)

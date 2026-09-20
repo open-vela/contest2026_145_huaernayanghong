@@ -1070,6 +1070,18 @@ void ui_settings_refresh_data(ui_settings_t *settings)
             lv_label_set_text(settings->lbl_ble_status, "● 蓝牙状态: 正在接收 Wi-Fi 凭证...");
             lv_obj_set_style_text_color(settings->lbl_ble_status, lv_color_hex(0xFFB700), 0);
         }
+    } else if (bst == BLE_PROV_STATE_STARTING) {
+        if (settings->lbl_ble_status) {
+            lv_label_set_text(settings->lbl_ble_status, "● 蓝牙状态: 正在使能与初始化...");
+            lv_obj_set_style_text_color(settings->lbl_ble_status, lv_color_hex(0x00E5FF), 0);
+        }
+        if (settings->lbl_ble_toggle) {
+            lv_label_set_text(settings->lbl_ble_toggle, "[⏳ 蓝牙初始化中...]");
+            lv_obj_set_style_text_color(settings->lbl_ble_toggle, lv_color_hex(0x7E92AD), 0);
+        }
+        if (settings->btn_ble_toggle) {
+            lv_obj_set_style_border_color(settings->btn_ble_toggle, lv_color_hex(0x7E92AD), 0);
+        }
     } else if (bst == BLE_PROV_STATE_PROVISIONED) {
         if (settings->lbl_ble_status) {
             lv_label_set_text(settings->lbl_ble_status, "● 蓝牙状态: 配网完成");
@@ -1417,12 +1429,17 @@ static void on_ble_toggle_clicked(lv_event_t *e)
     ui_settings_t *s = (ui_settings_t *)lv_event_get_user_data(e);
     if (!s) return;
 
+    if (ble_prov_service_get_state() == BLE_PROV_STATE_STARTING) {
+        LOG_I(TAG, "蓝牙正在使能初始化中，请稍候...");
+        return;
+    }
+
     if (ble_prov_service_is_active()) {
         LOG_I(TAG, "用户点击停止蓝牙广播");
         ble_prov_service_deinit();
     } else {
-        LOG_I(TAG, "用户点击启动蓝牙配网广播");
-        int ret = ble_prov_service_init(NULL);
+        LOG_I(TAG, "用户点击启动蓝牙配网广播 (异步非阻塞)");
+        int ret = ble_prov_service_start_async(NULL);
         if (ret != 0) {
             LOG_E(TAG, "启动蓝牙配网广播失败, ret: %d", ret);
         }
