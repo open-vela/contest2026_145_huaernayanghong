@@ -1,0 +1,14 @@
+:root {
+  --bg: #070a12;
+  --card: #0f1626;
+  --card-inner: #0a0f1c;
+  --border: #1c2a44;
+  --border-light: rgba(255, 255, 255, 0.08);
+  --accent: #00e5ff;
+  --accent-sub: #00ff88;
+  --accent-warn: #f1fa8c;
+  --accent-danger: #ff5555;
+  --text: #e6edf8;
+  --muted: #8397b2;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+}

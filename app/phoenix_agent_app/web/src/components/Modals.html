@@ -1,0 +1,24 @@
+<!-- 单步具身驱动直调模态框 (Glass Modal) -->
+<div class="modal-overlay" id="toolExecModal">
+  <div class="modal-dialog">
+    <div class="modal-head">
+      <div class="modal-title" id="modalToolTitle">⚡ 调试端侧具身驱动</div>
+      <button class="modal-close" id="btnCloseToolModal">✕</button>
+    </div>
+    <div style="font-size:12px; color:var(--muted); margin-bottom:10px;" id="modalToolDesc">--</div>
+    <div style="font-size:11px; color:#a2b9d5; margin-bottom:4px; font-weight:600;">输入驱动入参 (JSON 格式):</div>
+    <textarea id="modalToolArgs" rows="4" style="font-family:var(--font-mono); font-size:12px; margin-bottom:10px;"></textarea>
+    
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-bottom:12px;">
+      <button class="btn-secondary" style="padding:6px 12px; font-size:11.5px;" id="btnFormatModalArgs">📐 格式化 JSON</button>
+      <button id="modalExecBtn" style="padding:6px 14px; font-size:11.5px;">🚀 立即触发执行</button>
+    </div>
+
+    <div id="modalResultSection" style="display:none; border-top:1px solid var(--border-light); padding-top:10px;">
+      <div style="font-size:11px; font-weight:600; color:var(--accent-sub); margin-bottom:4px;">📥 硬件驱动返回 (Observation):</div>
+      <pre id="modalToolResult" style="background:#05080f; padding:10px; border-radius:6px; font-family:var(--font-mono); font-size:11.5px; color:#8be9fd; max-height:180px; overflow-y:auto; margin:0;"></pre>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toastMsg"></div>

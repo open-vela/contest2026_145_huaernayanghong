@@ -1,0 +1,73 @@
+<div class="card highlight">
+  <div class="card-head">
+    <div class="card-title">📁 外置 MicroSD / TF 卡存储系统</div>
+    <span class="status-badge" id="sdcardMountBadge">探测中...</span>
+  </div>
+
+  <!-- 容量进度条 -->
+  <div style="background:var(--card-inner); border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:16px;">
+    <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:8px;">
+      <span style="color:var(--muted)">挂载目录: <b id="sdcardMountPoint" style="color:var(--accent)">/mnt/sdcard</b></span>
+      <span style="color:var(--muted)">已用: <b id="sdcardUsedPct" style="color:var(--accent-sub)">--%</b> (<span id="sdcardUsedMb">0</span> MB / <span id="sdcardTotalMb">0</span> MB)</span>
+    </div>
+    <div style="height:8px; background:#141c2c; border-radius:4px; overflow:hidden;">
+      <div id="sdcardProgressBar" style="width:0%; height:100%; background:linear-gradient(90deg, var(--accent), var(--accent-sub)); transition:width 0.4s ease;"></div>
+    </div>
+    <div style="display:flex; gap:12px; margin-top:10px; font-size:11px; color:var(--muted);">
+      <span>📌 持久配置: <code id="dataBaseDir" style="color:#9bc0e7">/data/phoenix</code></span>
+      <span>⚡ 中间分片: <code id="tempBaseDir" style="color:#9bc0e7">/tmp/phoenix</code></span>
+    </div>
+  </div>
+
+  <!-- 目录导航与路径跳转 -->
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+    <div style="display:flex; align-items:center; gap:6px;">
+      <span style="font-size:12px; color:var(--muted)">当前路径:</span>
+      <code id="currentPathDisplay" style="background:#182842; color:var(--accent); padding:4px 8px; border-radius:6px; font-size:12px; font-weight:bold;">/</code>
+      <button class="btn-secondary" id="btnSdcardGoUp" style="margin:0; padding:4px 10px; font-size:11px;">⬆️ 上一级</button>
+      <button class="btn-secondary" id="btnSdcardRefresh" style="margin:0; padding:4px 10px; font-size:11px;">🔄 刷新</button>
+    </div>
+    <div style="display:flex; gap:6px;">
+      <button class="btn-secondary" data-quick-path="/sounds" style="margin:0; padding:4px 10px; font-size:11px;">🎵 sounds</button>
+      <button class="btn-secondary" data-quick-path="/logs" style="margin:0; padding:4px 10px; font-size:11px;">📜 logs</button>
+      <button class="btn-secondary" data-quick-path="/docs" style="margin:0; padding:4px 10px; font-size:11px;">📑 docs</button>
+    </div>
+  </div>
+
+  <!-- 文件列表 -->
+  <div style="background:var(--card-inner); border:1px solid var(--border); border-radius:8px; max-height:280px; overflow-y:auto; margin-bottom:16px;">
+    <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:left;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border); color:var(--muted);">
+          <th style="padding:8px 12px;">文件名称</th>
+          <th style="padding:8px 12px; width:90px;">大小</th>
+          <th style="padding:8px 12px; width:120px; text-align:right;">操作</th>
+        </tr>
+      </thead>
+      <tbody id="sdcardFileList">
+        <tr><td colspan="3" style="padding:16px; text-align:center; color:var(--muted)">正在读取 TF 卡文件系统...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 新建与上传 -->
+  <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px;">
+    <div style="background:var(--card-inner); padding:12px; border-radius:8px; border:1px solid var(--border-light);">
+      <div style="font-size:12px; color:var(--accent); font-weight:600; margin-bottom:6px;">📁 新建子目录</div>
+      <div style="display:flex; gap:8px;">
+        <input id="newDirName" type="text" placeholder="目录名称 (如 music)" style="padding:8px; font-size:12px;">
+        <button id="btnSdcardMkdir" style="margin:0; padding:8px 14px; font-size:12px; white-space:nowrap;">新建</button>
+      </div>
+    </div>
+    <div style="background:var(--card-inner); padding:12px; border-radius:8px; border:1px solid var(--border-light);">
+      <div style="font-size:12px; color:var(--accent-sub); font-weight:600; margin-bottom:6px;">✍️ 写入文本 / 上传文件</div>
+      <input id="uploadFileName" type="text" placeholder="目标文件名 (如 memo.txt)" style="padding:8px; font-size:12px; margin-bottom:6px;">
+      <textarea id="uploadFileContent" rows="2" placeholder="输入文件文本内容..." style="margin-bottom:6px; resize:none;"></textarea>
+      <div style="display:flex; gap:8px;">
+        <input type="file" id="localFileInput" style="display:none;">
+        <button class="btn-secondary" id="btnSelectLocalFile" style="margin:0; padding:6px 12px; font-size:11px;">📂 选本地文件</button>
+        <button id="btnUploadText" style="margin:0; padding:6px 12px; font-size:11px; flex:1;">🚀 保存并写入 TF 卡</button>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,35 @@
+<div class="card highlight">
+  <div class="card-head">
+    <div class="card-title">📜 实时系统日志终端 (Live Kernel & App Logs)</div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span class="status-badge" id="logStreamBadge">● 按需监听中</span>
+      <span style="font-size:11px; color:var(--muted)" id="logCursorTag">Cursor: 0 B</span>
+    </div>
+  </div>
+
+  <!-- 日志工具栏 -->
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+    <div style="display:flex; align-items:center; gap:6px; flex:1; min-width:280px;">
+      <select id="logLevelSelect" style="width:auto; padding:6px 10px; font-size:12px;">
+        <option value="all">🔍 显示: 全部级别</option>
+        <option value="INFO">🟢 仅 INFO 及以上</option>
+        <option value="WARN">🟡 仅 WARN 及以上</option>
+        <option value="ERROR">🔴 仅 ERROR 错误</option>
+        <option value="DEBUG">🔵 DEBUG 及以上</option>
+      </select>
+      <input id="logFilterInput" type="text" placeholder="关键词检索过滤..." style="padding:6px 10px; font-size:12px; flex:1;">
+    </div>
+    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+      <button class="btn-secondary" id="autoScrollBtn" style="padding:6px 10px; font-size:11px;">⏬ 滚屏: 开</button>
+      <button class="btn-secondary" id="pauseLogBtn" style="padding:6px 10px; font-size:11px;">⏸️ 暂停</button>
+      <button class="btn-secondary" id="btnClearLocalLogs" style="padding:6px 10px; font-size:11px;">🧹 清屏</button>
+      <button class="btn-warn" id="btnClearDeviceLogs" style="padding:6px 10px; font-size:11px;">🗑️ 清空端侧缓存</button>
+      <button class="btn-secondary" id="btnExportLogs" style="padding:6px 10px; font-size:11px;">💾 导出日志</button>
+    </div>
+  </div>
+
+  <!-- 终端控制台 -->
+  <div class="terminal-window" id="terminalWindow">
+    <div class="log-line" style="color:var(--muted)">[SYSTEM] 连接到 Phoenix HoloDesk-S1 实时日志流 (增量游标已对齐)...</div>
+  </div>
+</div>

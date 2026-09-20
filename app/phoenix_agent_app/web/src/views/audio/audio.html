@@ -1,0 +1,92 @@
+<div class="card highlight">
+  <div class="card-head">
+    <div class="card-title">🎙️ 全志 R528-S3 声学实验室 (Audio Diagnostics Lab)</div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span class="status-badge" id="audioStateBadge">● 状态: 空闲 (IDLE)</span>
+    </div>
+  </div>
+  <div style="font-size:12px; color:var(--muted); margin-bottom:16px;">
+    硬件节点: 拾音 <code style="color:var(--accent); font-family:var(--font-mono)">/dev/audio/pcm0c</code> | 放音 <code style="color:var(--accent-sub); font-family:var(--font-mono)">/dev/audio/pcm0p</code> (16kHz 16-bit Mono 标准语音管线)
+  </div>
+
+  <div class="grid-2">
+    <!-- 录音测试卡片 -->
+    <div class="card" style="background:var(--card-inner); border-color:#20314f; margin-bottom:0;">
+      <div style="font-size:14px; font-weight:600; color:var(--accent); margin-bottom:12px; display:flex; justify-content:space-between;">
+        <span>🎤 麦克风录音与能量拾音分析</span>
+        <span style="font-size:12px; color:var(--muted)" id="audioRecordDurTxt">已录: 0.0s / 10.0s</span>
+      </div>
+
+      <!-- 实时能量音量柱 -->
+      <div style="margin-bottom:14px;">
+        <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-bottom:4px;">
+          <span>实时输入能量 (RMS)</span>
+          <span id="audioEnergyVal" style="font-family:var(--font-mono); color:var(--accent);">0%</span>
+        </div>
+        <div style="background:#070a12; border:1px solid #1c2a44; border-radius:6px; height:18px; position:relative; overflow:hidden;">
+          <div id="audioEnergyBar" style="width:0%; height:100%; background:linear-gradient(90deg, #00ff88 0%, #f1fa8c 70%, #ff5555 100%); transition:width 0.1s linear;"></div>
+        </div>
+      </div>
+
+      <!-- 录音控制按钮组 -->
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+        <button class="btn-warn" id="btnRecStart5" style="flex:1; min-width:110px;">🔴 录音 5 秒</button>
+        <button class="btn-warn" id="btnRecStart10" style="flex:1; min-width:110px;">🔴 录音 10 秒</button>
+        <button class="btn-secondary" id="btnRecStop" style="flex:1; min-width:90px;">⏹️ 停止录音</button>
+      </div>
+
+      <!-- 录音回放与下载 -->
+      <div style="border-top:1px solid var(--border-light); padding-top:12px;">
+        <div style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:8px;">🎧 录音数据操作与试听</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+          <button class="btn-primary" id="btnPlayRec" style="flex:1; min-width:130px;">▶️ 设备端扬声器回放</button>
+          <button class="btn-secondary" id="btnDownloadWav" style="flex:1; min-width:130px;">💾 下载 WAV 录音文件</button>
+        </div>
+        <audio id="browserAudioPlayer" controls style="width:100%; height:36px; outline:none; border-radius:6px;"></audio>
+      </div>
+    </div>
+
+    <!-- 放音与耳返测试卡片 -->
+    <div class="card" style="background:var(--card-inner); border-color:#20314f; margin-bottom:0;">
+      <div style="font-size:14px; font-weight:600; color:var(--accent-sub); margin-bottom:12px;">
+        🔊 扬声器放音、蜂鸣纯音与实时耳返
+      </div>
+
+      <!-- 1000Hz 纯音测试 -->
+      <div style="margin-bottom:14px;">
+        <div style="font-size:12px; color:var(--muted); margin-bottom:6px;">DAC / 功放通道通断检测 (1000Hz 正弦纯音):</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn-secondary" id="btnTone1s" style="flex:1; min-width:110px;">🔔 纯音 1 秒 (1kHz)</button>
+          <button class="btn-secondary" id="btnTone3s" style="flex:1; min-width:110px;">🔔 纯音 3 秒 (1kHz)</button>
+          <button class="btn-secondary" id="btnToneStop" style="flex:1; min-width:90px;">⏹️ 停止放音</button>
+        </div>
+      </div>
+
+      <!-- 实时耳返回环开关 -->
+      <div style="background:#0b1120; border:1px solid #1f355a; border-radius:8px; padding:12px; margin-bottom:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-size:13px; font-weight:600; color:var(--text);">🎧 实时麦克风耳返 (Loopback)</div>
+            <div style="font-size:11px; color:var(--muted);">麦克风输入直通扬声器输出，零延迟检验端侧音频通路</div>
+          </div>
+          <button class="btn-secondary" id="btnLoopbackToggle" style="padding:6px 14px; font-size:12px;">开启耳返</button>
+        </div>
+      </div>
+
+      <!-- 主硬件音量控制 -->
+      <div style="border-top:1px solid var(--border-light); padding-top:12px;">
+        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:6px;">
+          <span>硬件主音量调节</span>
+          <span id="audioVolumeTxt" style="font-family:var(--font-mono); color:var(--accent);">80%</span>
+        </div>
+        <input type="range" id="audioVolumeSlider" min="0" max="100" value="80" style="width:100%; margin-bottom:8px;">
+        <div style="display:flex; gap:6px;">
+          <button class="btn-secondary" data-vol-preset="0" style="flex:1; padding:4px; font-size:11px;">静音 (0%)</button>
+          <button class="btn-secondary" data-vol-preset="50" style="flex:1; padding:4px; font-size:11px;">50%</button>
+          <button class="btn-secondary" data-vol-preset="80" style="flex:1; padding:4px; font-size:11px;">80%</button>
+          <button class="btn-secondary" data-vol-preset="100" style="flex:1; padding:4px; font-size:11px;">100%</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

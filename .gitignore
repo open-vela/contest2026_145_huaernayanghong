@@ -13,3 +13,7 @@ Make.dep
 ._*
 .DS_Store
 .depend
+node_modules
+__pycache__
+dist
+package-lock.json

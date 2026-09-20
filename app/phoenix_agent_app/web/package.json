@@ -1,0 +1,15 @@
+{
+  "name": "phoenix-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Phoenix HoloDesk-S1 Geek Dashboard (OpenVela Embedded Web Companion)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && cp dist/index.html dashboard.html && python3 sync_assets.py"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0",
+    "vite-plugin-singlefile": "^2.1.0"
+  }
+}

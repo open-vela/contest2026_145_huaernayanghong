@@ -1,0 +1,73 @@
+<div class="card highlight">
+  <div class="card-head">
+    <div class="card-title">🤖 具身灵眸 Agent 极客工作台 (ReAct 对话流)</div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span class="status-badge" id="agentModelBadge">DeepSeek-Chat / 端云协同</span>
+      <span class="status-badge" id="agentOnlineStateBadge" style="background:#091b2c; color:var(--accent-sub);">● IDLE 待命</span>
+      <button class="btn-secondary" id="btnClearAgentMemory" style="padding:4px 10px; font-size:11px;">🧹 清空会话</button>
+    </div>
+  </div>
+
+  <!-- 现代化 ReAct 对话时间线 -->
+  <div class="chat-timeline" id="agentChatTimeline">
+    <div class="chat-welcome-card" id="agentWelcomeCard">
+      <div class="chat-welcome-title">✨ Phoenix HoloDesk-S1 具身数字生命体已就绪</div>
+      <div class="chat-welcome-desc">
+        采用 DeepSeek 端云协同大模型驱动，具备 ReAct 自主决策闭环与全志 R528-S3 板载外设驱动调用能力。<br>
+        支持自然语言实时多轮对话、深度思维链胶囊折叠、端侧具身动作卡片与两级长程记忆滚动。
+      </div>
+    </div>
+  </div>
+
+  <!-- 对话输入中枢 (Dock) -->
+  <div class="agent-dock">
+    <!-- 快捷意图芯片 -->
+    <div style="display:flex; flex-wrap:wrap; gap:6px;">
+      <span class="chip" data-quick-prompt="帮我敲3下赛博木鱼积攒功德">📿 敲木鱼 (功德+3)</span>
+      <span class="chip" data-quick-prompt="检查一下开发板当前的内存和CPU负载">🩺 硬件健康遥测</span>
+      <span class="chip" data-quick-prompt="开启一个25分钟的专注番茄钟">⏱️ 25分钟番茄专注</span>
+      <span class="chip" data-quick-prompt="切换眼球微表情为开心状态">😊 灵眸开心表情</span>
+      <span class="chip" data-quick-prompt="用一句话介绍你的具身智能与端侧能力">🤖 具身人设自我介绍</span>
+    </div>
+
+    <!-- 弹性自适应输入行 -->
+    <div class="agent-dock-input-row">
+      <textarea id="agentPromptInput" rows="1" placeholder="输入自然语言指令，调度具身智能与端侧工具闭环 (Enter 发送，Shift+Enter 换行)..."></textarea>
+      <button id="sendAgentBtn" style="white-space:nowrap; padding:10px 18px; height:42px;">🚀 调度 Agent</button>
+    </div>
+
+    <div class="agent-dock-hint">
+      <span>💡 提示：按 <b>Enter</b> 发送，<b>Shift + Enter</b> 换行。端侧硬件调用与思维链透明可见。</span>
+      <span id="agentCharCount" style="color:#637996;">ReAct 闭环就绪</span>
+    </div>
+  </div>
+
+  <!-- 工具池 Playground -->
+  <div style="margin-top:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <div style="font-size:13px; font-weight:bold; color:var(--accent);">🛠️ 端侧具身工具池与单步直调 (Tool Playground)</div>
+      <button class="btn-secondary" id="btnRefreshTools" style="margin:0; padding:4px 10px; font-size:11px;">🔄 刷新工具</button>
+    </div>
+    <div id="agentToolsGrid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px;">
+      <div style="color:var(--muted); font-size:12px;">正在加载已注册端侧工具...</div>
+    </div>
+  </div>
+
+  <!-- 两级记忆自省 -->
+  <div style="margin-top:16px; background:#090d16; border:1px solid var(--border); border-radius:8px; padding:12px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="memoryHeaderBar">
+      <div style="font-size:12px; font-weight:bold; color:#c0d2e8; display:flex; align-items:center; gap:6px;">
+        <span>🧠 两级长程记忆自省 (Two-Tier Memory)</span>
+        <span class="status-badge" id="memCountBadge">0 轮会话</span>
+        <span style="font-size:11px; color:var(--muted);" id="memWatermarkBadge">0 B</span>
+      </div>
+      <span style="font-size:11px; color:var(--accent)" id="memToggleTxt">▼ 展开记忆详情</span>
+    </div>
+    <div id="memoryDrawer" style="display:none; margin-top:10px; border-top:1px solid var(--border-light); padding-top:8px;">
+      <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">前情增量摘要卡片 (context_summary):</div>
+      <div id="memSummaryBox" style="background:#05080f; padding:8px; border-radius:6px; font-size:11.5px; color:#f1fa8c; margin-bottom:8px; word-break:break-all;">(暂无前情摘要，记忆仍在近程滑动窗口内)</div>
+      <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">滑动窗口上下文消息:</div>
+      <div id="memMessagesList" style="max-height:160px; overflow-y:auto; font-size:11.5px; display:flex; flex-direction:column; gap:6px;"></div>
+    </div>
+  </div>
+</div>
