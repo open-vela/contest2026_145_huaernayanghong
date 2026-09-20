@@ -30,8 +30,6 @@
 
 #define TAG "CartridgeZen"
 
-LV_FONT_DECLARE(lv_font_montserrat_32);
-
 typedef struct {
     lv_obj_t *container;
     lv_obj_t *lbl_merit_title;
@@ -85,11 +83,12 @@ static int zen_on_load(lv_obj_t *stage_parent)
     lv_obj_set_style_text_color(s_ui.lbl_merit_title, lv_color_hex(0xA89360), 0);
     if (font_cn) lv_obj_set_style_text_font(s_ui.lbl_merit_title, font_cn, 0);
 
-    /* 2. 核心大字号功德数值 (32px Montserrat 大数字) */
+    /* 2. 核心大字号功德数值 (30px Montserrat 大数字) */
     s_ui.lbl_merit = lv_label_create(s_ui.container);
     lv_obj_align(s_ui.lbl_merit, LV_ALIGN_CENTER, 0, -44);
     lv_obj_set_style_text_color(s_ui.lbl_merit, lv_color_hex(0xFFD700), 0);
-    lv_obj_set_style_text_font(s_ui.lbl_merit, &lv_font_montserrat_32, 0);
+    const lv_font_t *font_large = phoenix_ui_get_font_large();
+    if (font_large) lv_obj_set_style_text_font(s_ui.lbl_merit, font_large, 0);
     update_merit_text(&s_ui);
 
     /* 3. 外层光晕底座 (直径 98px) */

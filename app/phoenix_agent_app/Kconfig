@@ -8,6 +8,6 @@ config LVX_USE_DEMO_CONTEST2026_145_PHOENIX_AGENT_APP
 	default n
 	depends on GRAPHICS_LVGL
 	select LIBUV
-	select LV_FONT_MONTSERRAT_32
+	select LV_FONT_MONTSERRAT_30
 	---help---
 		Enable the Phoenix Agent (AI IoT Assistant) LVGL application.

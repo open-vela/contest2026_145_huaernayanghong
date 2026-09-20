@@ -37,8 +37,6 @@
 
 #define TAG "CartridgeHome"
 
-LV_FONT_DECLARE(lv_font_montserrat_32);
-
 #define COLOR_CARD_BG        lv_color_hex(0x0a101d)
 #define COLOR_CARD_BORDER    lv_color_hex(0x1a2638)
 #define COLOR_TEXT_WHITE     lv_color_hex(0xffffff)
@@ -408,10 +406,11 @@ static void home_enter(cartridge_t *cart, void *stage)
     lv_obj_clear_flag(u->panel_left, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(u->panel_left, LV_OBJ_FLAG_EVENT_BUBBLE);
 
-    /* 1.1 大字时间 (Montserrat 32px) */
+    /* 1.1 大字时间 (Montserrat 30px) */
     u->lbl_time = lv_label_create(u->panel_left);
     lv_obj_align(u->lbl_time, LV_ALIGN_TOP_MID, 0, 4);
-    lv_obj_set_style_text_font(u->lbl_time, &lv_font_montserrat_32, 0);
+    const lv_font_t *font_large = phoenix_ui_get_font_large();
+    if (font_large) lv_obj_set_style_text_font(u->lbl_time, font_large, 0);
     lv_obj_set_style_text_color(u->lbl_time, COLOR_TEXT_WHITE, 0);
     lv_label_set_text(u->lbl_time, "16:08");
 
@@ -453,7 +452,7 @@ static void home_enter(cartridge_t *cart, void *stage)
     /* 醒目大号温度 */
     u->lbl_weather_temp = lv_label_create(u->card_weather);
     lv_obj_align(u->lbl_weather_temp, LV_ALIGN_TOP_MID, 0, 24);
-    lv_obj_set_style_text_font(u->lbl_weather_temp, &lv_font_montserrat_32, 0);
+    if (font_large) lv_obj_set_style_text_font(u->lbl_weather_temp, font_large, 0);
     lv_obj_set_style_text_color(u->lbl_weather_temp, COLOR_TEXT_WHITE, 0);
     lv_label_set_text(u->lbl_weather_temp, "24°");
 

@@ -34,8 +34,6 @@
 
 #define TAG "CartridgePomodoro"
 
-LV_FONT_DECLARE(lv_font_montserrat_32);
-
 #define COLOR_BG_DARK        lv_color_hex(0x070B14)
 #define COLOR_PANEL_BG       lv_color_hex(0x0E1726)
 #define COLOR_BORDER_DARK    lv_color_hex(0x1B2A40)
@@ -404,7 +402,8 @@ static int clock_on_load(lv_obj_t *stage_parent)
     /* 3.3 环内核心倒计时大字 */
     s_ui.lbl_time = lv_label_create(s_ui.dial_container);
     lv_obj_align(s_ui.lbl_time, LV_ALIGN_CENTER, 0, -2);
-    lv_obj_set_style_text_font(s_ui.lbl_time, &lv_font_montserrat_32, 0);
+    const lv_font_t *font_large = phoenix_ui_get_font_large();
+    if (font_large) lv_obj_set_style_text_font(s_ui.lbl_time, font_large, 0);
     lv_obj_set_style_text_color(s_ui.lbl_time, COLOR_TEXT_WHITE, 0);
 
     /* 3.4 环内下方番茄战绩 */

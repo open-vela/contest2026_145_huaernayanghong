@@ -22,6 +22,7 @@ typedef struct lv_event_s lv_event_t;
 
 #define LV_FONT_DECLARE(font_name)
 static const lv_font_t lv_font_montserrat_32 = {0};
+static const lv_font_t lv_font_montserrat_30 = {0};
 #define LV_SIZE_CONTENT 0
 #define LV_EVENT_CLICKED 1
 

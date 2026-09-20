@@ -13,10 +13,19 @@
 static inline const lv_font_t* phoenix_ui_get_font(void) {
     return (const lv_font_t*)1;
 }
+static inline const lv_font_t* phoenix_ui_get_font_large(void) {
+    return (const lv_font_t*)1;
+}
 #else
 LV_FONT_DECLARE(lv_font_chinese_16);
+LV_FONT_DECLARE(lv_font_montserrat_30);
+
 static inline const lv_font_t* phoenix_ui_get_font(void) {
     return &lv_font_chinese_16;
+}
+
+static inline const lv_font_t* phoenix_ui_get_font_large(void) {
+    return &lv_font_montserrat_30;
 }
 #endif
 
