@@ -1585,6 +1585,34 @@ void ui_settings_refresh_wifi_list(ui_settings_t *settings)
         return;
     }
 
+    /* 3.1 排序策略：
+     * (1) 若当前已连接 Wi-Fi，置顶排在第 1 位
+     * (2) 其余热点严格按照信号强度 RSSI 由强到弱降序排列 (例如 -45dBm > -65dBm > -85dBm)
+     */
+    for (int i = 0; i < count - 1; i++) {
+        for (int j = 0; j < count - 1 - i; j++) {
+            bool j_is_conn = (cur_mode == NET_MODE_STA_CONNECTED && strcmp(cur_ssid, aps[j].ssid) == 0);
+            bool next_is_conn = (cur_mode == NET_MODE_STA_CONNECTED && strcmp(cur_ssid, aps[j + 1].ssid) == 0);
+
+            bool need_swap = false;
+            if (next_is_conn && !j_is_conn) {
+                /* 已连接热点优先置顶 */
+                need_swap = true;
+            } else if (!next_is_conn && !j_is_conn) {
+                /* 其余按 RSSI 降序排列 (信号强/数值大者排在前面) */
+                if (aps[j].rssi < aps[j + 1].rssi) {
+                    need_swap = true;
+                }
+            }
+
+            if (need_swap) {
+                net_wifi_ap_info_t tmp = aps[j];
+                aps[j] = aps[j + 1];
+                aps[j + 1] = tmp;
+            }
+        }
+    }
+
     if (settings->lbl_wifi_empty) {
         lv_obj_add_flag(settings->lbl_wifi_empty, LV_OBJ_FLAG_HIDDEN);
     }
@@ -1628,7 +1656,7 @@ void ui_settings_refresh_wifi_list(ui_settings_t *settings)
             lv_obj_set_style_text_color(lbl_name, lv_color_hex(0xE2E8F0), 0);
         }
 
-        /* 右侧: 加密锁或已连标识 */
+        /* 右侧: 加密锁与信号强度等级 */
         lv_obj_t *lbl_tag = lv_label_create(btn_ap);
         lv_obj_align(lbl_tag, LV_ALIGN_RIGHT_MID, -6, 0);
         if (settings->font) lv_obj_set_style_text_font(lbl_tag, settings->font, 0);
@@ -1636,12 +1664,13 @@ void ui_settings_refresh_wifi_list(ui_settings_t *settings)
         if (is_connected) {
             lv_label_set_text(lbl_tag, "[已连接]");
             lv_obj_set_style_text_color(lbl_tag, lv_color_hex(0x00FF88), 0);
-        } else if (aps[i].auth[0] != '\0' && strstr(aps[i].auth, "OPEN") == NULL) {
-            lv_label_set_text(lbl_tag, "🔒");
-            lv_obj_set_style_text_color(lbl_tag, lv_color_hex(0x7E92AD), 0);
         } else {
-            lv_label_set_text(lbl_tag, "开放");
-            lv_obj_set_style_text_color(lbl_tag, lv_color_hex(0x8B9EB5), 0);
+            char tag_buf[24];
+            bool is_locked = (aps[i].auth[0] != '\0' && strstr(aps[i].auth, "OPEN") == NULL);
+            const char *sig_str = (aps[i].rssi >= -60) ? "强" : (aps[i].rssi >= -75) ? "中" : "弱";
+            snprintf(tag_buf, sizeof(tag_buf), "%s %s", is_locked ? "🔒" : "开放", sig_str);
+            lv_label_set_text(lbl_tag, tag_buf);
+            lv_obj_set_style_text_color(lbl_tag, is_locked ? lv_color_hex(0x7E92AD) : lv_color_hex(0x8B9EB5), 0);
         }
     }
 }
