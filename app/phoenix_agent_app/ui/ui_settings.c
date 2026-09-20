@@ -27,6 +27,14 @@ static void on_hotspot_action_clicked(lv_event_t *e);
 static void on_hotspot_reset_clicked(lv_event_t *e);
 static void on_ble_toggle_clicked(lv_event_t *e);
 static void on_prog_done_clicked(lv_event_t *e);
+static void on_wifi_refresh_clicked(lv_event_t *e);
+static void on_wifi_item_clicked(lv_event_t *e);
+static void on_pwd_connect_clicked(lv_event_t *e);
+static void on_pwd_close_clicked(lv_event_t *e);
+static void on_pwd_eye_clicked(lv_event_t *e);
+static void on_pwd_kb_event(lv_event_t *e);
+static void on_wifi_forget_clicked(lv_event_t *e);
+static void on_wifi_ap_mode_clicked(lv_event_t *e);
 
 /* ========================================================================= */
 /*                              生命周期接口                                 */
@@ -210,157 +218,195 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     lv_obj_add_flag(s->view_detail_area, LV_OBJ_FLAG_HIDDEN);
 
     /* =====================================================================
-     * 4. 统一网络配网面板 (Magic Provisioning: SoftAP + BLE 一体)
+     * 4. 统一 Wi-Fi 网络直连与搜索面板 (Native UI Search & Connect)
      * ===================================================================== */
-    s->panel_hotspot = lv_obj_create(s->body_area);
-    lv_obj_set_size(s->panel_hotspot, 266, 176);
-    lv_obj_align(s->panel_hotspot, LV_ALIGN_TOP_MID, 0, 0);
-    lv_obj_set_style_bg_opa(s->panel_hotspot, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(s->panel_hotspot, 0, 0);
-    lv_obj_set_style_pad_all(s->panel_hotspot, 0, 0);
-    lv_obj_clear_flag(s->panel_hotspot, LV_OBJ_FLAG_SCROLLABLE);
+    s->panel_wifi = lv_obj_create(s->body_area);
+    s->panel_hotspot = s->panel_wifi; /* 兼容历史别名 */
+    lv_obj_set_size(s->panel_wifi, 266, 176);
+    lv_obj_align(s->panel_wifi, LV_ALIGN_TOP_MID, 0, 0);
+    lv_obj_set_style_bg_opa(s->panel_wifi, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(s->panel_wifi, 0, 0);
+    lv_obj_set_style_pad_all(s->panel_wifi, 0, 0);
+    lv_obj_clear_flag(s->panel_wifi, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* 4.1 常规/已连/广播待配网卡片 */
-    s->box_hotspot_idle = lv_obj_create(s->panel_hotspot);
-    lv_obj_set_size(s->box_hotspot_idle, 266, 176);
-    lv_obj_set_pos(s->box_hotspot_idle, 0, 0);
-    lv_obj_set_style_bg_opa(s->box_hotspot_idle, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(s->box_hotspot_idle, 0, 0);
-    lv_obj_set_style_pad_all(s->box_hotspot_idle, 0, 0);
-    lv_obj_clear_flag(s->box_hotspot_idle, LV_OBJ_FLAG_SCROLLABLE);
+    /* 4.1 顶部状态与刷新操作栏 (高 26px) */
+    s->box_wifi_header = lv_obj_create(s->panel_wifi);
+    lv_obj_set_size(s->box_wifi_header, 260, 26);
+    lv_obj_align(s->box_wifi_header, LV_ALIGN_TOP_MID, 0, 0);
+    lv_obj_set_style_bg_opa(s->box_wifi_header, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(s->box_wifi_header, 0, 0);
+    lv_obj_set_style_pad_all(s->box_wifi_header, 0, 0);
+    lv_obj_clear_flag(s->box_wifi_header, LV_OBJ_FLAG_SCROLLABLE);
 
-    s->card_hotspot_info = lv_obj_create(s->box_hotspot_idle);
-    lv_obj_set_size(s->card_hotspot_info, 260, 92);
-    lv_obj_align(s->card_hotspot_info, LV_ALIGN_TOP_MID, 0, 2);
-    lv_obj_set_style_bg_color(s->card_hotspot_info, lv_color_hex(0x0E1726), 0);
-    lv_obj_set_style_border_color(s->card_hotspot_info, lv_color_hex(0x1C2F4D), 0);
-    lv_obj_set_style_border_width(s->card_hotspot_info, 1, 0);
-    lv_obj_set_style_radius(s->card_hotspot_info, 6, 0);
-    lv_obj_set_style_pad_all(s->card_hotspot_info, 4, 0);
-    lv_obj_clear_flag(s->card_hotspot_info, LV_OBJ_FLAG_SCROLLABLE);
+    s->lbl_wifi_status = lv_label_create(s->box_wifi_header);
+    lv_obj_align(s->lbl_wifi_status, LV_ALIGN_LEFT_MID, 2, 0);
+    if (s->font) lv_obj_set_style_text_font(s->lbl_wifi_status, s->font, 0);
+    lv_label_set_text(s->lbl_wifi_status, "📶 未连接网络");
+    lv_obj_set_style_text_color(s->lbl_wifi_status, lv_color_hex(0x7E92AD), 0);
 
-    s->lbl_hotspot_ssid = lv_label_create(s->card_hotspot_info);
-    lv_obj_align(s->lbl_hotspot_ssid, LV_ALIGN_TOP_LEFT, 4, 2);
-    if (s->font) lv_obj_set_style_text_font(s->lbl_hotspot_ssid, s->font, 0);
-    lv_label_set_text(s->lbl_hotspot_ssid, "热点状态: 未开启 (点击启动)");
-    lv_obj_set_style_text_color(s->lbl_hotspot_ssid, lv_color_hex(0x7E92AD), 0);
+    s->btn_wifi_refresh = lv_btn_create(s->box_wifi_header);
+    lv_obj_set_size(s->btn_wifi_refresh, 58, 24);
+    lv_obj_align(s->btn_wifi_refresh, LV_ALIGN_RIGHT_MID, -2, 0);
+    lv_obj_set_style_bg_color(s->btn_wifi_refresh, lv_color_hex(0x13273F), 0);
+    lv_obj_set_style_border_color(s->btn_wifi_refresh, lv_color_hex(0x00E5FF), 0);
+    lv_obj_set_style_border_width(s->btn_wifi_refresh, 1, 0);
+    lv_obj_set_style_radius(s->btn_wifi_refresh, 4, 0);
+    lv_obj_add_event_cb(s->btn_wifi_refresh, on_wifi_refresh_clicked, LV_EVENT_CLICKED, s);
 
-    s->lbl_hotspot_ip = lv_label_create(s->card_hotspot_info);
-    lv_obj_align(s->lbl_hotspot_ip, LV_ALIGN_TOP_LEFT, 4, 24);
-    if (s->font) lv_obj_set_style_text_font(s->lbl_hotspot_ip, s->font, 0);
-    lv_label_set_text(s->lbl_hotspot_ip, "配网网址: 开启后访问 192.168.4.1");
-    lv_obj_set_style_text_color(s->lbl_hotspot_ip, lv_color_hex(0x7E92AD), 0);
+    s->lbl_wifi_refresh = lv_label_create(s->btn_wifi_refresh);
+    lv_obj_center(s->lbl_wifi_refresh);
+    if (s->font) lv_obj_set_style_text_font(s->lbl_wifi_refresh, s->font, 0);
+    lv_label_set_text(s->lbl_wifi_refresh, "刷新");
+    lv_obj_set_style_text_color(s->lbl_wifi_refresh, lv_color_hex(0x00E5FF), 0);
 
-    s->lbl_hotspot_hint = lv_label_create(s->card_hotspot_info);
-    lv_obj_align(s->lbl_hotspot_hint, LV_ALIGN_TOP_LEFT, 4, 46);
-    if (s->font) lv_obj_set_style_text_font(s->lbl_hotspot_hint, s->font, 0);
-    lv_label_set_text(s->lbl_hotspot_hint, "● 热点配网默认关闭\n点击下方按钮即可手动拉起热点");
-    lv_obj_set_style_text_color(s->lbl_hotspot_hint, lv_color_hex(0x8B9EB5), 0);
+    /* 4.2 Wi-Fi 列表滚动视窗 (宽 260px, 高 116px, 纵向平滑滚动) */
+    s->list_wifi = lv_obj_create(s->panel_wifi);
+    lv_obj_set_size(s->list_wifi, 260, 116);
+    lv_obj_align(s->list_wifi, LV_ALIGN_TOP_MID, 0, 28);
+    lv_obj_set_style_bg_color(s->list_wifi, lv_color_hex(0x080E18), 0);
+    lv_obj_set_style_border_color(s->list_wifi, lv_color_hex(0x1C2F4D), 0);
+    lv_obj_set_style_border_width(s->list_wifi, 1, 0);
+    lv_obj_set_style_radius(s->list_wifi, 6, 0);
+    lv_obj_set_style_pad_all(s->list_wifi, 3, 0);
+    lv_obj_set_scroll_dir(s->list_wifi, LV_DIR_VER);
 
-    /* 重启/开启热点按钮 */
-    s->btn_hotspot_action = lv_btn_create(s->box_hotspot_idle);
-    lv_obj_set_size(s->btn_hotspot_action, 260, 34);
-    lv_obj_align(s->btn_hotspot_action, LV_ALIGN_TOP_MID, 0, 98);
-    lv_obj_set_style_bg_color(s->btn_hotspot_action, lv_color_hex(0x13273F), 0);
-    lv_obj_set_style_border_color(s->btn_hotspot_action, lv_color_hex(0x00E5FF), 0);
-    lv_obj_set_style_border_width(s->btn_hotspot_action, 1, 0);
-    lv_obj_set_style_radius(s->btn_hotspot_action, 6, 0);
-    lv_obj_add_event_cb(s->btn_hotspot_action, on_hotspot_action_clicked, LV_EVENT_CLICKED, s);
+    s->lbl_wifi_empty = lv_label_create(s->list_wifi);
+    lv_obj_align(s->lbl_wifi_empty, LV_ALIGN_CENTER, 0, 0);
+    if (s->font) lv_obj_set_style_text_font(s->lbl_wifi_empty, s->font, 0);
+    lv_label_set_text(s->lbl_wifi_empty, "📡 正在搜索周边 Wi-Fi...");
+    lv_obj_set_style_text_color(s->lbl_wifi_empty, lv_color_hex(0x7E92AD), 0);
 
-    s->lbl_hotspot_action = lv_label_create(s->btn_hotspot_action);
-    lv_obj_center(s->lbl_hotspot_action);
-    if (s->font) lv_obj_set_style_text_font(s->lbl_hotspot_action, s->font, 0);
-    lv_label_set_text(s->lbl_hotspot_action, "[📡 开启热点配网]");
-    lv_obj_set_style_text_color(s->lbl_hotspot_action, lv_color_hex(0x00E5FF), 0);
+    /* 4.3 底部辅助操作栏 (高 26px) */
+    s->box_wifi_footer = lv_obj_create(s->panel_wifi);
+    lv_obj_set_size(s->box_wifi_footer, 260, 26);
+    lv_obj_align(s->box_wifi_footer, LV_ALIGN_TOP_MID, 0, 146);
+    lv_obj_set_style_bg_opa(s->box_wifi_footer, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(s->box_wifi_footer, 0, 0);
+    lv_obj_set_style_pad_all(s->box_wifi_footer, 0, 0);
+    lv_obj_clear_flag(s->box_wifi_footer, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* 重置网络配置按钮 */
-    s->btn_hotspot_reset = lv_btn_create(s->box_hotspot_idle);
-    lv_obj_set_size(s->btn_hotspot_reset, 260, 32);
-    lv_obj_align(s->btn_hotspot_reset, LV_ALIGN_TOP_MID, 0, 138);
-    lv_obj_set_style_bg_color(s->btn_hotspot_reset, lv_color_hex(0x151B27), 0);
-    lv_obj_set_style_border_color(s->btn_hotspot_reset, lv_color_hex(0x28384E), 0);
-    lv_obj_set_style_border_width(s->btn_hotspot_reset, 1, 0);
-    lv_obj_set_style_radius(s->btn_hotspot_reset, 6, 0);
-    lv_obj_add_event_cb(s->btn_hotspot_reset, on_hotspot_reset_clicked, LV_EVENT_CLICKED, s);
+    s->btn_wifi_forget = lv_btn_create(s->box_wifi_footer);
+    lv_obj_set_size(s->btn_wifi_forget, 126, 24);
+    lv_obj_align(s->btn_wifi_forget, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_set_style_bg_color(s->btn_wifi_forget, lv_color_hex(0x151B27), 0);
+    lv_obj_set_style_border_color(s->btn_wifi_forget, lv_color_hex(0x28384E), 0);
+    lv_obj_set_style_border_width(s->btn_wifi_forget, 1, 0);
+    lv_obj_set_style_radius(s->btn_wifi_forget, 4, 0);
+    lv_obj_add_event_cb(s->btn_wifi_forget, on_wifi_forget_clicked, LV_EVENT_CLICKED, s);
 
-    s->lbl_hotspot_reset = lv_label_create(s->btn_hotspot_reset);
-    lv_obj_center(s->lbl_hotspot_reset);
-    if (s->font) lv_obj_set_style_text_font(s->lbl_hotspot_reset, s->font, 0);
-    lv_label_set_text(s->lbl_hotspot_reset, "[清空网络配置]");
-    lv_obj_set_style_text_color(s->lbl_hotspot_reset, lv_color_hex(0x7E92AD), 0);
+    s->lbl_wifi_forget = lv_label_create(s->btn_wifi_forget);
+    lv_obj_center(s->lbl_wifi_forget);
+    if (s->font) lv_obj_set_style_text_font(s->lbl_wifi_forget, s->font, 0);
+    lv_label_set_text(s->lbl_wifi_forget, "清空配置");
+    lv_obj_set_style_text_color(s->lbl_wifi_forget, lv_color_hex(0x7E92AD), 0);
 
-    /* 4.2 热点配网步进状态机进度卡片 */
-    s->box_hotspot_progress = lv_obj_create(s->panel_hotspot);
-    lv_obj_set_size(s->box_hotspot_progress, 266, 176);
-    lv_obj_set_pos(s->box_hotspot_progress, 0, 0);
-    lv_obj_set_style_bg_opa(s->box_hotspot_progress, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(s->box_hotspot_progress, 0, 0);
-    lv_obj_set_style_pad_all(s->box_hotspot_progress, 0, 0);
-    lv_obj_clear_flag(s->box_hotspot_progress, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(s->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN);
+    s->btn_wifi_ap_mode = lv_btn_create(s->box_wifi_footer);
+    lv_obj_set_size(s->btn_wifi_ap_mode, 126, 24);
+    lv_obj_align(s->btn_wifi_ap_mode, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_set_style_bg_color(s->btn_wifi_ap_mode, lv_color_hex(0x151B27), 0);
+    lv_obj_set_style_border_color(s->btn_wifi_ap_mode, lv_color_hex(0x28384E), 0);
+    lv_obj_set_style_border_width(s->btn_wifi_ap_mode, 1, 0);
+    lv_obj_set_style_radius(s->btn_wifi_ap_mode, 4, 0);
+    lv_obj_add_event_cb(s->btn_wifi_ap_mode, on_wifi_ap_mode_clicked, LV_EVENT_CLICKED, s);
 
-    s->lbl_prog_title = lv_label_create(s->box_hotspot_progress);
-    lv_obj_align(s->lbl_prog_title, LV_ALIGN_TOP_LEFT, 4, 2);
-    if (s->font) lv_obj_set_style_text_font(s->lbl_prog_title, s->font, 0);
-    lv_label_set_text(s->lbl_prog_title, "[>>] 正在加入网络...");
-    lv_obj_set_style_text_color(s->lbl_prog_title, lv_color_hex(0xFFB700), 0);
+    s->lbl_wifi_ap_mode = lv_label_create(s->btn_wifi_ap_mode);
+    lv_obj_center(s->lbl_wifi_ap_mode);
+    if (s->font) lv_obj_set_style_text_font(s->lbl_wifi_ap_mode, s->font, 0);
+    lv_label_set_text(s->lbl_wifi_ap_mode, "热点模式");
+    lv_obj_set_style_text_color(s->lbl_wifi_ap_mode, lv_color_hex(0x7E92AD), 0);
 
-    s->lbl_prog_step1 = lv_label_create(s->box_hotspot_progress);
-    lv_obj_align(s->lbl_prog_step1, LV_ALIGN_TOP_LEFT, 4, 24);
-    if (s->font) lv_obj_set_style_text_font(s->lbl_prog_step1, s->font, 0);
-    lv_label_set_text(s->lbl_prog_step1, "[✓] 1. 收到网页指令，已关闭热点");
-    lv_obj_set_style_text_color(s->lbl_prog_step1, lv_color_hex(0x00FF88), 0);
+    /* =====================================================================
+     * 4.4 全屏密码输入模态对话框与 LVGL 软键盘 (320x240, 顶层悬浮)
+     * ===================================================================== */
+    s->dlg_pwd_modal = lv_obj_create(parent);
+    lv_obj_set_size(s->dlg_pwd_modal, 320, 240);
+    lv_obj_set_pos(s->dlg_pwd_modal, 0, 0);
+    lv_obj_set_style_bg_color(s->dlg_pwd_modal, lv_color_hex(0x060A12), 0);
+    lv_obj_set_style_bg_opa(s->dlg_pwd_modal, LV_OPA_90, 0);
+    lv_obj_set_style_border_width(s->dlg_pwd_modal, 0, 0);
+    lv_obj_set_style_pad_all(s->dlg_pwd_modal, 0, 0);
+    lv_obj_clear_flag(s->dlg_pwd_modal, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(s->dlg_pwd_modal, LV_OBJ_FLAG_HIDDEN);
 
-    s->lbl_prog_step2 = lv_label_create(s->box_hotspot_progress);
-    lv_obj_align(s->lbl_prog_step2, LV_ALIGN_TOP_LEFT, 4, 44);
-    if (s->font) lv_obj_set_style_text_font(s->lbl_prog_step2, s->font, 0);
-    lv_label_set_text(s->lbl_prog_step2, "[..] 2. 正在关联目标 Wi-Fi 路由...");
-    lv_obj_set_style_text_color(s->lbl_prog_step2, lv_color_hex(0xFFB700), 0);
+    /* 顶部标题与关闭 (0~28px) */
+    s->lbl_pwd_target = lv_label_create(s->dlg_pwd_modal);
+    lv_obj_align(s->lbl_pwd_target, LV_ALIGN_TOP_LEFT, 10, 6);
+    if (s->font) lv_obj_set_style_text_font(s->lbl_pwd_target, s->font, 0);
+    lv_label_set_text(s->lbl_pwd_target, "📶 连接到 Wi-Fi");
+    lv_obj_set_style_text_color(s->lbl_pwd_target, lv_color_hex(0x00E5FF), 0);
 
-    s->lbl_prog_step3 = lv_label_create(s->box_hotspot_progress);
-    lv_obj_align(s->lbl_prog_step3, LV_ALIGN_TOP_LEFT, 4, 64);
-    if (s->font) lv_obj_set_style_text_font(s->lbl_prog_step3, s->font, 0);
-    lv_label_set_text(s->lbl_prog_step3, "[..] 3. 申请 DHCP 局域网 IP 租约...");
-    lv_obj_set_style_text_color(s->lbl_prog_step3, lv_color_hex(0x7E92AD), 0);
+    s->btn_pwd_close = lv_btn_create(s->dlg_pwd_modal);
+    lv_obj_set_size(s->btn_pwd_close, 36, 24);
+    lv_obj_align(s->btn_pwd_close, LV_ALIGN_TOP_RIGHT, -6, 4);
+    lv_obj_set_style_bg_color(s->btn_pwd_close, lv_color_hex(0x2A1515), 0);
+    lv_obj_set_style_border_color(s->btn_pwd_close, lv_color_hex(0xFF5555), 0);
+    lv_obj_set_style_border_width(s->btn_pwd_close, 1, 0);
+    lv_obj_set_style_radius(s->btn_pwd_close, 4, 0);
+    lv_obj_add_event_cb(s->btn_pwd_close, on_pwd_close_clicked, LV_EVENT_CLICKED, s);
 
-    /* 结果大卡片 */
-    s->card_prog_result = lv_obj_create(s->box_hotspot_progress);
-    lv_obj_set_size(s->card_prog_result, 260, 56);
-    lv_obj_align(s->card_prog_result, LV_ALIGN_TOP_MID, 0, 86);
-    lv_obj_set_style_bg_color(s->card_prog_result, lv_color_hex(0x101726), 0);
-    lv_obj_set_style_border_color(s->card_prog_result, lv_color_hex(0x1C2F4D), 0);
-    lv_obj_set_style_border_width(s->card_prog_result, 1, 0);
-    lv_obj_set_style_radius(s->card_prog_result, 6, 0);
-    lv_obj_set_style_pad_all(s->card_prog_result, 4, 0);
-    lv_obj_clear_flag(s->card_prog_result, LV_OBJ_FLAG_SCROLLABLE);
+    s->lbl_pwd_close = lv_label_create(s->btn_pwd_close);
+    lv_obj_center(s->lbl_pwd_close);
+    lv_label_set_text(s->lbl_pwd_close, "X");
+    lv_obj_set_style_text_color(s->lbl_pwd_close, lv_color_hex(0xFF8888), 0);
 
-    s->lbl_prog_result_ip = lv_label_create(s->card_prog_result);
-    lv_obj_align(s->lbl_prog_result_ip, LV_ALIGN_TOP_LEFT, 4, 2);
-    if (s->font) lv_obj_set_style_text_font(s->lbl_prog_result_ip, s->font, 0);
-    lv_label_set_text(s->lbl_prog_result_ip, "正在与网关握手...");
-    lv_obj_set_style_text_color(s->lbl_prog_result_ip, lv_color_hex(0xFFB700), 0);
+    /* 输入栏: textarea (宽 190) + 眼睛 (宽 36) + 连接 (宽 66) */
+    s->ta_pwd_input = lv_textarea_create(s->dlg_pwd_modal);
+    lv_obj_set_size(s->ta_pwd_input, 190, 32);
+    lv_obj_set_pos(s->ta_pwd_input, 8, 32);
+    lv_textarea_set_password_mode(s->ta_pwd_input, true);
+    lv_textarea_set_one_line(s->ta_pwd_input, true);
+    lv_textarea_set_max_length(s->ta_pwd_input, 63);
+    lv_textarea_set_placeholder_text(s->ta_pwd_input, "输入密码");
+    lv_obj_set_style_bg_color(s->ta_pwd_input, lv_color_hex(0x0E1726), 0);
+    lv_obj_set_style_border_color(s->ta_pwd_input, lv_color_hex(0x00E5FF), 0);
+    lv_obj_set_style_border_width(s->ta_pwd_input, 1, 0);
+    lv_obj_set_style_radius(s->ta_pwd_input, 4, 0);
+    lv_obj_set_style_text_color(s->ta_pwd_input, lv_color_hex(0xFFFFFF), 0);
+    s->is_pwd_obscure = true;
 
-    s->lbl_prog_result_url = lv_label_create(s->card_prog_result);
-    lv_obj_align(s->lbl_prog_result_url, LV_ALIGN_TOP_LEFT, 4, 24);
-    if (s->font) lv_obj_set_style_text_font(s->lbl_prog_result_url, s->font, 0);
-    lv_label_set_text(s->lbl_prog_result_url, "请稍候，连网完成后将更新 IP");
-    lv_obj_set_style_text_color(s->lbl_prog_result_url, lv_color_hex(0x8B9EB5), 0);
+    s->btn_pwd_eye = lv_btn_create(s->dlg_pwd_modal);
+    lv_obj_set_size(s->btn_pwd_eye, 36, 32);
+    lv_obj_set_pos(s->btn_pwd_eye, 204, 32);
+    lv_obj_set_style_bg_color(s->btn_pwd_eye, lv_color_hex(0x13273F), 0);
+    lv_obj_set_style_border_color(s->btn_pwd_eye, lv_color_hex(0x1C2F4D), 0);
+    lv_obj_set_style_border_width(s->btn_pwd_eye, 1, 0);
+    lv_obj_set_style_radius(s->btn_pwd_eye, 4, 0);
+    lv_obj_add_event_cb(s->btn_pwd_eye, on_pwd_eye_clicked, LV_EVENT_CLICKED, s);
 
-    /* 步进操作按钮 */
-    s->btn_prog_done = lv_btn_create(s->box_hotspot_progress);
-    lv_obj_set_size(s->btn_prog_done, 260, 32);
-    lv_obj_align(s->btn_prog_done, LV_ALIGN_TOP_MID, 0, 144);
-    lv_obj_set_style_bg_color(s->btn_prog_done, lv_color_hex(0x13273F), 0);
-    lv_obj_set_style_border_color(s->btn_prog_done, lv_color_hex(0x00E5FF), 0);
-    lv_obj_set_style_border_width(s->btn_prog_done, 1, 0);
-    lv_obj_set_style_radius(s->btn_prog_done, 6, 0);
-    lv_obj_add_event_cb(s->btn_prog_done, on_prog_done_clicked, LV_EVENT_CLICKED, s);
+    s->lbl_pwd_eye = lv_label_create(s->btn_pwd_eye);
+    lv_obj_center(s->lbl_pwd_eye);
+    lv_label_set_text(s->lbl_pwd_eye, "密");
+    if (s->font) lv_obj_set_style_text_font(s->lbl_pwd_eye, s->font, 0);
+    lv_obj_set_style_text_color(s->lbl_pwd_eye, lv_color_hex(0x7E92AD), 0);
 
-    s->lbl_prog_done = lv_label_create(s->btn_prog_done);
-    lv_obj_center(s->lbl_prog_done);
-    if (s->font) lv_obj_set_style_text_font(s->lbl_prog_done, s->font, 0);
-    lv_label_set_text(s->lbl_prog_done, "[✓ 连网中...]");
-    lv_obj_set_style_text_color(s->lbl_prog_done, lv_color_hex(0x00E5FF), 0);
+    s->btn_pwd_connect = lv_btn_create(s->dlg_pwd_modal);
+    lv_obj_set_size(s->btn_pwd_connect, 66, 32);
+    lv_obj_set_pos(s->btn_pwd_connect, 246, 32);
+    lv_obj_set_style_bg_color(s->btn_pwd_connect, lv_color_hex(0x007ACC), 0);
+    lv_obj_set_style_border_color(s->btn_pwd_connect, lv_color_hex(0x00E5FF), 0);
+    lv_obj_set_style_border_width(s->btn_pwd_connect, 1, 0);
+    lv_obj_set_style_radius(s->btn_pwd_connect, 4, 0);
+    lv_obj_add_event_cb(s->btn_pwd_connect, on_pwd_connect_clicked, LV_EVENT_CLICKED, s);
+
+    s->lbl_pwd_connect = lv_label_create(s->btn_pwd_connect);
+    lv_obj_center(s->lbl_pwd_connect);
+    if (s->font) lv_obj_set_style_text_font(s->lbl_pwd_connect, s->font, 0);
+    lv_label_set_text(s->lbl_pwd_connect, "连接");
+    lv_obj_set_style_text_color(s->lbl_pwd_connect, lv_color_hex(0xFFFFFF), 0);
+
+    /* 提示信息标签 (高 18px) */
+    s->lbl_pwd_hint = lv_label_create(s->dlg_pwd_modal);
+    lv_obj_align(s->lbl_pwd_hint, LV_ALIGN_TOP_LEFT, 10, 68);
+    if (s->font) lv_obj_set_style_text_font(s->lbl_pwd_hint, s->font, 0);
+    lv_label_set_text(s->lbl_pwd_hint, "请输入 Wi-Fi 密码 (不少于8位)");
+    lv_obj_set_style_text_color(s->lbl_pwd_hint, lv_color_hex(0x8B9EB5), 0);
+
+    /* 底部软键盘 lv_keyboard (宽 320, 高 144, 贴底) */
+    s->kb_pwd = lv_keyboard_create(s->dlg_pwd_modal);
+    lv_obj_set_size(s->kb_pwd, 320, 144);
+    lv_obj_align(s->kb_pwd, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_keyboard_set_textarea(s->kb_pwd, s->ta_pwd_input);
+    lv_obj_add_event_cb(s->kb_pwd, on_pwd_kb_event, LV_EVENT_ALL, s);
 
     /* =====================================================================
      * 5. 独立标签页 2: 蓝牙配网 (兼容保留)
@@ -650,6 +696,7 @@ void ui_settings_close(ui_settings_t *settings)
 {
     if (!settings || !settings->container) return;
 
+    ui_settings_close_password_dialog(settings);
     settings->is_open = false;
     lv_obj_add_flag(settings->container, LV_OBJ_FLAG_HIDDEN);
 
@@ -738,6 +785,9 @@ void ui_settings_enter_detail(ui_settings_t *settings, ui_settings_tab_t tab)
     }
 
     ui_settings_refresh_data(settings);
+    if (tab == UI_SETTINGS_TAB_NET) {
+        ui_settings_refresh_wifi_list(settings);
+    }
     LOG_I(TAG, "已下钻进入二级设置详情: [%s]", tab_titles[(int)tab]);
 }
 
@@ -745,6 +795,7 @@ void ui_settings_back_to_menu(ui_settings_t *settings)
 {
     if (!settings) return;
 
+    ui_settings_close_password_dialog(settings);
     settings->is_in_detail = false;
 
     /* 1. 顶栏恢复为主菜单模式: [ X ] 与 系统设置 */
@@ -944,90 +995,47 @@ void ui_settings_refresh_data(ui_settings_t *settings)
     net_mgr_get_ip(ip_buf, sizeof(ip_buf));
     net_mgr_get_ssid(ssid_buf, sizeof(ssid_buf));
 
-    /* 1. 刷新热点页面 */
-    if (mode == NET_MODE_STA_CONNECTING) {
-        ui_settings_update_net_progress(settings, NET_MODE_STA_CONNECTING, ssid_buf, ip_buf, NULL);
-    } else if (mode == NET_MODE_STA_CONNECTED) {
-        ui_settings_update_net_progress(settings, NET_MODE_STA_CONNECTED, ssid_buf, ip_buf, NULL);
-        if (!settings->box_hotspot_progress || lv_obj_has_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN)) {
-            if (settings->box_hotspot_idle) lv_obj_clear_flag(settings->box_hotspot_idle, LV_OBJ_FLAG_HIDDEN);
-            if (settings->box_hotspot_progress) lv_obj_add_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN);
-        }
-
-        if (settings->lbl_hotspot_ssid) {
+    /* 1. 刷新 Wi-Fi 网络页面 */
+    if (settings->lbl_wifi_status) {
+        if (mode == NET_MODE_STA_CONNECTING) {
             char buf[64];
-            snprintf(buf, sizeof(buf), "已连网络: %s", ssid_buf[0] ? ssid_buf : "已连网");
-            lv_label_set_text(settings->lbl_hotspot_ssid, buf);
-            lv_obj_set_style_text_color(settings->lbl_hotspot_ssid, lv_color_hex(0x00FF88), 0);
-        }
-        if (settings->lbl_hotspot_ip) {
+            snprintf(buf, sizeof(buf), "⏳ 正在连接: %s", ssid_buf[0] ? ssid_buf : "目标路由");
+            lv_label_set_text(settings->lbl_wifi_status, buf);
+            lv_obj_set_style_text_color(settings->lbl_wifi_status, lv_color_hex(0xFFB700), 0);
+        } else if (mode == NET_MODE_STA_CONNECTED) {
             char buf[64];
-            snprintf(buf, sizeof(buf), "本机 IP: %s", ip_buf[0] ? ip_buf : "127.0.0.1");
-            lv_label_set_text(settings->lbl_hotspot_ip, buf);
-            lv_obj_set_style_text_color(settings->lbl_hotspot_ip, lv_color_hex(0x00E5FF), 0);
-        }
-        if (settings->lbl_hotspot_hint) {
-            lv_label_set_text(settings->lbl_hotspot_hint, "● 网络已连通；若需更换 Wi-Fi 可开启热点\n或在伴侣看板中直接配置");
-            lv_obj_set_style_text_color(settings->lbl_hotspot_hint, lv_color_hex(0x8B9EB5), 0);
-        }
-        if (settings->lbl_hotspot_action) {
-            lv_label_set_text(settings->lbl_hotspot_action, "[📡 开启热点配网]");
-            lv_obj_set_style_text_color(settings->lbl_hotspot_action, lv_color_hex(0x00E5FF), 0);
-        }
-        if (settings->btn_hotspot_action) {
-            lv_obj_set_style_border_color(settings->btn_hotspot_action, lv_color_hex(0x00E5FF), 0);
-        }
-    } else if (mode == NET_MODE_SOFTAP_CONFIG) {
-        if (settings->box_hotspot_idle) lv_obj_clear_flag(settings->box_hotspot_idle, LV_OBJ_FLAG_HIDDEN);
-        if (settings->box_hotspot_progress) lv_obj_add_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN);
-
-        if (settings->lbl_hotspot_ssid) {
+            snprintf(buf, sizeof(buf), "📶 已连: %s", ssid_buf[0] ? ssid_buf : "已连网");
+            lv_label_set_text(settings->lbl_wifi_status, buf);
+            lv_obj_set_style_text_color(settings->lbl_wifi_status, lv_color_hex(0x00FF88), 0);
+        } else if (mode == NET_MODE_SOFTAP_CONFIG) {
             char buf[64];
-            snprintf(buf, sizeof(buf), "热点: %s (广播中)", ssid_buf[0] ? ssid_buf : "Gemini-Agent-Setup");
-            lv_label_set_text(settings->lbl_hotspot_ssid, buf);
-            lv_obj_set_style_text_color(settings->lbl_hotspot_ssid, lv_color_hex(0x00FF88), 0);
+            snprintf(buf, sizeof(buf), "📡 热点中: %s", ssid_buf[0] ? ssid_buf : "Gemini-Setup");
+            lv_label_set_text(settings->lbl_wifi_status, buf);
+            lv_obj_set_style_text_color(settings->lbl_wifi_status, lv_color_hex(0x00E5FF), 0);
+        } else {
+            if (net_mgr_is_scanning()) {
+                lv_label_set_text(settings->lbl_wifi_status, "📡 正在搜索周边 Wi-Fi...");
+                lv_obj_set_style_text_color(settings->lbl_wifi_status, lv_color_hex(0xFFB700), 0);
+            } else {
+                lv_label_set_text(settings->lbl_wifi_status, "📶 未连接网络 (请选Wi-Fi)");
+                lv_obj_set_style_text_color(settings->lbl_wifi_status, lv_color_hex(0x7E92AD), 0);
+            }
         }
-        if (settings->lbl_hotspot_ip) {
-            lv_label_set_text(settings->lbl_hotspot_ip, "配网网址: http://192.168.4.1/");
-            lv_obj_set_style_text_color(settings->lbl_hotspot_ip, lv_color_hex(0x00E5FF), 0);
-        }
-        if (settings->lbl_hotspot_hint) {
-            lv_label_set_text(settings->lbl_hotspot_hint, "● 手机连此热点进入网页配网\n内嵌 MiniDHCP 服务已就绪");
-            lv_obj_set_style_text_color(settings->lbl_hotspot_hint, lv_color_hex(0x8B9EB5), 0);
-        }
-        if (settings->lbl_hotspot_action) {
-            lv_label_set_text(settings->lbl_hotspot_action, "[🛑 关闭热点配网]");
-            lv_obj_set_style_text_color(settings->lbl_hotspot_action, lv_color_hex(0xFF7043), 0);
-        }
-        if (settings->btn_hotspot_action) {
-            lv_obj_set_style_border_color(settings->btn_hotspot_action, lv_color_hex(0xFF7043), 0);
-        }
-    } else {
-        /* NET_MODE_DISCONNECTED 未开启热点态 */
-        if (!settings->box_hotspot_progress || lv_obj_has_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN)) {
-            if (settings->box_hotspot_idle) lv_obj_clear_flag(settings->box_hotspot_idle, LV_OBJ_FLAG_HIDDEN);
-            if (settings->box_hotspot_progress) lv_obj_add_flag(settings->box_hotspot_progress, LV_OBJ_FLAG_HIDDEN);
-        }
+    }
 
-        if (settings->lbl_hotspot_ssid) {
-            lv_label_set_text(settings->lbl_hotspot_ssid, "热点状态: 未开启 (点击启动)");
-            lv_obj_set_style_text_color(settings->lbl_hotspot_ssid, lv_color_hex(0x7E92AD), 0);
+    if (settings->lbl_wifi_ap_mode) {
+        if (mode == NET_MODE_SOFTAP_CONFIG) {
+            lv_label_set_text(settings->lbl_wifi_ap_mode, "关闭热点");
+            lv_obj_set_style_text_color(settings->lbl_wifi_ap_mode, lv_color_hex(0xFF7043), 0);
+        } else {
+            lv_label_set_text(settings->lbl_wifi_ap_mode, "热点模式");
+            lv_obj_set_style_text_color(settings->lbl_wifi_ap_mode, lv_color_hex(0x7E92AD), 0);
         }
-        if (settings->lbl_hotspot_ip) {
-            lv_label_set_text(settings->lbl_hotspot_ip, "配网网址: 开启后访问 192.168.4.1");
-            lv_obj_set_style_text_color(settings->lbl_hotspot_ip, lv_color_hex(0x7E92AD), 0);
-        }
-        if (settings->lbl_hotspot_hint) {
-            lv_label_set_text(settings->lbl_hotspot_hint, "● 热点配网默认关闭\n点击下方按钮即可手动拉起热点");
-            lv_obj_set_style_text_color(settings->lbl_hotspot_hint, lv_color_hex(0x8B9EB5), 0);
-        }
-        if (settings->lbl_hotspot_action) {
-            lv_label_set_text(settings->lbl_hotspot_action, "[📡 开启热点配网]");
-            lv_obj_set_style_text_color(settings->lbl_hotspot_action, lv_color_hex(0x00E5FF), 0);
-        }
-        if (settings->btn_hotspot_action) {
-            lv_obj_set_style_border_color(settings->btn_hotspot_action, lv_color_hex(0x00E5FF), 0);
-        }
+    }
+
+    /* 兼容保留历史步进状态机提示 */
+    if (mode == NET_MODE_STA_CONNECTING || mode == NET_MODE_STA_CONNECTED) {
+        ui_settings_update_net_progress(settings, mode, ssid_buf, ip_buf, NULL);
     }
 
     /* 2. 刷新蓝牙配网页面 */
@@ -1482,3 +1490,283 @@ void ui_settings_set_switch_home_cb(ui_settings_t *settings, void (*cb)(void *),
     settings->on_switch_home_cb = cb;
     settings->switch_home_user_data = user_data;
 }
+
+/* ========================================================================= */
+/*                   Wi-Fi 扫描列表与软键盘密码弹窗实现                       */
+/* ========================================================================= */
+
+void ui_settings_show_password_dialog(ui_settings_t *settings, const char *ssid)
+{
+    if (!settings || !settings->dlg_pwd_modal || !ssid) return;
+
+    strncpy(settings->selected_ssid, ssid, sizeof(settings->selected_ssid) - 1);
+    settings->selected_ssid[sizeof(settings->selected_ssid) - 1] = '\0';
+
+    if (settings->lbl_pwd_target) {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "📶 连接: %s", settings->selected_ssid);
+        lv_label_set_text(settings->lbl_pwd_target, buf);
+    }
+
+    if (settings->ta_pwd_input) {
+        lv_textarea_set_text(settings->ta_pwd_input, "");
+        lv_textarea_set_password_mode(settings->ta_pwd_input, true);
+        settings->is_pwd_obscure = true;
+    }
+
+    if (settings->lbl_pwd_eye) {
+        lv_label_set_text(settings->lbl_pwd_eye, "密");
+        lv_obj_set_style_text_color(settings->lbl_pwd_eye, lv_color_hex(0x7E92AD), 0);
+    }
+
+    if (settings->lbl_pwd_hint) {
+        lv_label_set_text(settings->lbl_pwd_hint, "请输入 Wi-Fi 密码 (不少于8位)");
+        lv_obj_set_style_text_color(settings->lbl_pwd_hint, lv_color_hex(0x8B9EB5), 0);
+    }
+
+    lv_obj_clear_flag(settings->dlg_pwd_modal, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(settings->dlg_pwd_modal);
+}
+
+void ui_settings_close_password_dialog(ui_settings_t *settings)
+{
+    if (!settings || !settings->dlg_pwd_modal) return;
+    lv_obj_add_flag(settings->dlg_pwd_modal, LV_OBJ_FLAG_HIDDEN);
+}
+
+void ui_settings_refresh_wifi_list(ui_settings_t *settings)
+{
+    if (!settings || !settings->list_wifi) return;
+
+    /* 1. 清除旧列表项 (保留 lbl_wifi_empty) */
+    uint32_t child_cnt = lv_obj_get_child_cnt(settings->list_wifi);
+    for (int i = (int)child_cnt - 1; i >= 0; i--) {
+        lv_obj_t *child = lv_obj_get_child(settings->list_wifi, i);
+        if (child && child != settings->lbl_wifi_empty) {
+            lv_obj_delete(child);
+        }
+    }
+
+    /* 2. 获取扫描快照 */
+    net_wifi_ap_info_t aps[20];
+    int count = net_mgr_get_cached_scan_results(aps, 20);
+
+    /* 3. 获取当前已连接 SSID */
+    char cur_ssid[34] = {0};
+    net_mgr_get_ssid(cur_ssid, sizeof(cur_ssid));
+    net_mode_t cur_mode = net_mgr_get_mode();
+
+    if (count <= 0) {
+        if (settings->lbl_wifi_empty) {
+            lv_obj_clear_flag(settings->lbl_wifi_empty, LV_OBJ_FLAG_HIDDEN);
+            if (net_mgr_is_scanning()) {
+                lv_label_set_text(settings->lbl_wifi_empty, "📡 正在搜索周边 Wi-Fi...");
+                lv_obj_set_style_text_color(settings->lbl_wifi_empty, lv_color_hex(0xFFB700), 0);
+            } else {
+                lv_label_set_text(settings->lbl_wifi_empty, "未搜索到 Wi-Fi，请点击右上角刷新");
+                lv_obj_set_style_text_color(settings->lbl_wifi_empty, lv_color_hex(0x7E92AD), 0);
+                /* 自动触发一次后台扫描 */
+                net_mgr_trigger_async_scan();
+            }
+        }
+        return;
+    }
+
+    if (settings->lbl_wifi_empty) {
+        lv_obj_add_flag(settings->lbl_wifi_empty, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    /* 4. 遍历创建 Wi-Fi 列表条目 */
+    for (int i = 0; i < count; i++) {
+        if (aps[i].ssid[0] == '\0') continue;
+
+        lv_obj_t *btn_ap = lv_btn_create(settings->list_wifi);
+        lv_obj_set_size(btn_ap, 248, 30);
+        lv_obj_set_style_radius(btn_ap, 4, 0);
+        lv_obj_set_style_pad_all(btn_ap, 2, 0);
+
+        bool is_connected = (cur_mode == NET_MODE_STA_CONNECTED && strcmp(cur_ssid, aps[i].ssid) == 0);
+        if (is_connected) {
+            lv_obj_set_style_bg_color(btn_ap, lv_color_hex(0x0C2B22), 0);
+            lv_obj_set_style_border_color(btn_ap, lv_color_hex(0x00FF88), 0);
+            lv_obj_set_style_border_width(btn_ap, 1, 0);
+        } else {
+            lv_obj_set_style_bg_color(btn_ap, lv_color_hex(0x0E1726), 0);
+            lv_obj_set_style_border_color(btn_ap, lv_color_hex(0x1C2F4D), 0);
+            lv_obj_set_style_border_width(btn_ap, 1, 0);
+        }
+
+        lv_obj_add_event_cb(btn_ap, on_wifi_item_clicked, LV_EVENT_CLICKED, settings);
+
+        /* 左侧: SSID 与信号 */
+        lv_obj_t *lbl_name = lv_label_create(btn_ap);
+        lv_obj_align(lbl_name, LV_ALIGN_LEFT_MID, 6, 0);
+        if (settings->font) lv_obj_set_style_text_font(lbl_name, settings->font, 0);
+
+        char title_buf[48];
+        snprintf(title_buf, sizeof(title_buf), "📶 %s", aps[i].ssid);
+        lv_label_set_text(lbl_name, title_buf);
+        if (is_connected) {
+            lv_obj_set_style_text_color(lbl_name, lv_color_hex(0x00FF88), 0);
+        } else {
+            lv_obj_set_style_text_color(lbl_name, lv_color_hex(0xE2E8F0), 0);
+        }
+
+        /* 右侧: 加密锁或已连标识 */
+        lv_obj_t *lbl_tag = lv_label_create(btn_ap);
+        lv_obj_align(lbl_tag, LV_ALIGN_RIGHT_MID, -6, 0);
+        if (settings->font) lv_obj_set_style_text_font(lbl_tag, settings->font, 0);
+
+        if (is_connected) {
+            lv_label_set_text(lbl_tag, "[已连接]");
+            lv_obj_set_style_text_color(lbl_tag, lv_color_hex(0x00FF88), 0);
+        } else if (aps[i].auth[0] != '\0' && strstr(aps[i].auth, "OPEN") == NULL) {
+            lv_label_set_text(lbl_tag, "🔒");
+            lv_obj_set_style_text_color(lbl_tag, lv_color_hex(0x7E92AD), 0);
+        } else {
+            lv_label_set_text(lbl_tag, "开放");
+            lv_obj_set_style_text_color(lbl_tag, lv_color_hex(0x8B9EB5), 0);
+        }
+    }
+}
+
+static void on_wifi_refresh_clicked(lv_event_t *e)
+{
+    (void)e;
+    ui_settings_t *s = (ui_settings_t *)lv_event_get_user_data(e);
+    if (!s) return;
+
+    LOG_I(TAG, "用户手动点击刷新 Wi-Fi 扫描");
+    net_mgr_trigger_async_scan();
+    if (s->lbl_wifi_status) {
+        lv_label_set_text(s->lbl_wifi_status, "📡 正在搜索周边 Wi-Fi...");
+        lv_obj_set_style_text_color(s->lbl_wifi_status, lv_color_hex(0xFFB700), 0);
+    }
+    ui_settings_refresh_wifi_list(s);
+}
+
+static void on_wifi_item_clicked(lv_event_t *e)
+{
+    lv_obj_t *btn = (lv_obj_t *)lv_event_get_target(e);
+    ui_settings_t *s = (ui_settings_t *)lv_event_get_user_data(e);
+    if (!btn || !s) return;
+
+    /* 获取第 1 个子控件 label */
+    lv_obj_t *lbl = lv_obj_get_child(btn, 0);
+    if (!lbl) return;
+    const char *text = lv_label_get_text(lbl);
+    if (!text) return;
+
+    /* 跳过开头的 "📶 " */
+    const char *ssid = text;
+    const char *p = strchr(text, ' ');
+    if (p) {
+        ssid = p + 1;
+    }
+
+    char cur_ssid[34] = {0};
+    net_mgr_get_ssid(cur_ssid, sizeof(cur_ssid));
+    if (net_mgr_get_mode() == NET_MODE_STA_CONNECTED && strcmp(cur_ssid, ssid) == 0) {
+        LOG_I(TAG, "当前已连该 Wi-Fi: %s", ssid);
+        return;
+    }
+
+    LOG_I(TAG, "用户选择目标 Wi-Fi: [%s], 弹出全屏输入软键盘", ssid);
+    ui_settings_show_password_dialog(s, ssid);
+}
+
+static void on_pwd_connect_clicked(lv_event_t *e)
+{
+    (void)e;
+    ui_settings_t *s = (ui_settings_t *)lv_event_get_user_data(e);
+    if (!s || !s->ta_pwd_input) return;
+
+    const char *pwd = lv_textarea_get_text(s->ta_pwd_input);
+    size_t pwd_len = pwd ? strlen(pwd) : 0;
+
+    if (pwd_len > 0 && pwd_len < 8) {
+        if (s->lbl_pwd_hint) {
+            lv_label_set_text(s->lbl_pwd_hint, "⚠️ 密码长度不能少于 8 位");
+            lv_obj_set_style_text_color(s->lbl_pwd_hint, lv_color_hex(0xFF5555), 0);
+        }
+        return;
+    }
+
+    if (s->lbl_pwd_hint) {
+        lv_label_set_text(s->lbl_pwd_hint, "⏳ 正在发起连接，请稍候...");
+        lv_obj_set_style_text_color(s->lbl_pwd_hint, lv_color_hex(0x00FF88), 0);
+    }
+
+    LOG_I(TAG, "用户在界面输入密码并触发连接 Wi-Fi: [%s]", s->selected_ssid);
+    net_mgr_connect_sta(s->selected_ssid, pwd ? pwd : "");
+
+    ui_settings_close_password_dialog(s);
+    ui_settings_refresh_data(s);
+}
+
+static void on_pwd_close_clicked(lv_event_t *e)
+{
+    (void)e;
+    ui_settings_t *s = (ui_settings_t *)lv_event_get_user_data(e);
+    if (s) {
+        ui_settings_close_password_dialog(s);
+    }
+}
+
+static void on_pwd_eye_clicked(lv_event_t *e)
+{
+    (void)e;
+    ui_settings_t *s = (ui_settings_t *)lv_event_get_user_data(e);
+    if (!s || !s->ta_pwd_input) return;
+
+    s->is_pwd_obscure = !s->is_pwd_obscure;
+    lv_textarea_set_password_mode(s->ta_pwd_input, s->is_pwd_obscure);
+    if (s->lbl_pwd_eye) {
+        lv_label_set_text(s->lbl_pwd_eye, s->is_pwd_obscure ? "密" : "明");
+        lv_obj_set_style_text_color(s->lbl_pwd_eye,
+            s->is_pwd_obscure ? lv_color_hex(0x7E92AD) : lv_color_hex(0x00E5FF), 0);
+    }
+}
+
+static void on_pwd_kb_event(lv_event_t *e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    ui_settings_t *s = (ui_settings_t *)lv_event_get_user_data(e);
+    if (!s) return;
+
+    if (code == LV_EVENT_READY) {
+        on_pwd_connect_clicked(e);
+    } else if (code == LV_EVENT_CANCEL) {
+        ui_settings_close_password_dialog(s);
+    }
+}
+
+static void on_wifi_forget_clicked(lv_event_t *e)
+{
+    (void)e;
+    ui_settings_t *s = (ui_settings_t *)lv_event_get_user_data(e);
+    if (!s) return;
+
+    LOG_I(TAG, "用户点击清除已存 Wi-Fi 配置");
+    net_mgr_clear_config();
+    ui_settings_refresh_data(s);
+    ui_settings_refresh_wifi_list(s);
+}
+
+static void on_wifi_ap_mode_clicked(lv_event_t *e)
+{
+    (void)e;
+    ui_settings_t *s = (ui_settings_t *)lv_event_get_user_data(e);
+    if (!s) return;
+
+    net_mode_t mode = net_mgr_get_mode();
+    if (mode == NET_MODE_SOFTAP_CONFIG) {
+        LOG_I(TAG, "用户在 Wi-Fi 面板手动关闭 SoftAP 热点");
+        net_mgr_stop_softap();
+    } else {
+        LOG_I(TAG, "用户在 Wi-Fi 面板手动启动 SoftAP 应急热点");
+        net_mgr_start_softap("Gemini-Agent-Setup");
+    }
+    ui_settings_refresh_data(s);
+}
+

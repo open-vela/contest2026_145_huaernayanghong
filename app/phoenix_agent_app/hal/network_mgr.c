@@ -738,12 +738,13 @@ int net_mgr_init(void)
         LOG_I(TAG, "检测到已保存的 Wi-Fi 配置: [%s]，尝试连入局域网...", saved_ssid);
         return net_mgr_connect_sta(saved_ssid, saved_psk);
     } else {
-        LOG_I(TAG, "本地无 Wi-Fi 配置，默认关闭热点配网与蓝牙配网，保持未连网状态 (需在设置中手动开启)");
+        LOG_I(TAG, "本地无 Wi-Fi 配置，后台触发异步 Wi-Fi 预扫描以便用户进入设置时即开即选...");
+        net_mgr_trigger_async_scan();
         pthread_mutex_lock(&s_lock);
         s_mode = NET_MODE_DISCONNECTED;
         s_current_ip[0] = '\0';
         s_current_ssid[0] = '\0';
-        notify_state_changed_with_msg_unlocked("未配置网络 (热点已关闭)");
+        notify_state_changed_with_msg_unlocked("未配置网络 (请在界面选择Wi-Fi)");
         pthread_mutex_unlock(&s_lock);
         return 0;
     }
@@ -1737,3 +1738,74 @@ int net_mgr_scan_wifi(net_wifi_ap_info_t *aps_out, size_t max_count)
     pthread_mutex_unlock(&s_scan_lock);
     return 0;
 }
+
+static volatile bool s_is_scanning = false;
+
+static void* async_scan_worker_thread(void *arg)
+{
+    (void)arg;
+    LOG_I(TAG, "📡 [Async Scan] 后台异步 Wi-Fi 扫描开始抓包...");
+    net_wifi_ap_info_t temp[NET_SCAN_CACHE_MAX_APS];
+
+    pthread_mutex_lock(&s_scan_lock);
+    int count = net_mgr_do_hardware_scan_unlocked(temp, NET_SCAN_CACHE_MAX_APS);
+    if (count > 0) {
+        s_scan_cache_count = (size_t)count;
+        memcpy(s_scan_cache, temp, sizeof(net_wifi_ap_info_t) * s_scan_cache_count);
+        s_scan_cache_time = time(NULL);
+        LOG_I(TAG, "✅ [Async Scan] 异步扫描圆满完成，刷新全局缓存: %zu 个周边热点", s_scan_cache_count);
+    } else {
+        LOG_W(TAG, "⚠️ [Async Scan] 本轮异步扫描未获取到新热点，保留上一轮缓存");
+    }
+    s_is_scanning = false;
+    pthread_mutex_unlock(&s_scan_lock);
+    return NULL;
+}
+
+int net_mgr_trigger_async_scan(void)
+{
+    pthread_mutex_lock(&s_scan_lock);
+    if (s_is_scanning) {
+        pthread_mutex_unlock(&s_scan_lock);
+        LOG_I(TAG, "已有 Wi-Fi 扫描任务在后台进行中，无需重复触发");
+        return 0;
+    }
+    s_is_scanning = true;
+    pthread_mutex_unlock(&s_scan_lock);
+
+    pthread_t tid;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    pthread_attr_setstacksize(&attr, 8192);
+
+    int ret = pthread_create(&tid, &attr, async_scan_worker_thread, NULL);
+    pthread_attr_destroy(&attr);
+
+    if (ret != 0) {
+        LOG_E(TAG, "创建后台扫描线程失败: %d", ret);
+        pthread_mutex_lock(&s_scan_lock);
+        s_is_scanning = false;
+        pthread_mutex_unlock(&s_scan_lock);
+        return -1;
+    }
+    return 0;
+}
+
+bool net_mgr_is_scanning(void)
+{
+    return s_is_scanning;
+}
+
+int net_mgr_get_cached_scan_results(net_wifi_ap_info_t *aps_out, size_t max_count)
+{
+    if (!aps_out || max_count == 0) return 0;
+    pthread_mutex_lock(&s_scan_lock);
+    size_t copy_cnt = (s_scan_cache_count < max_count) ? s_scan_cache_count : max_count;
+    if (copy_cnt > 0) {
+        memcpy(aps_out, s_scan_cache, sizeof(net_wifi_ap_info_t) * copy_cnt);
+    }
+    pthread_mutex_unlock(&s_scan_lock);
+    return (int)copy_cnt;
+}
+

@@ -172,6 +172,26 @@ int net_mgr_set_web_enabled(bool enabled);
  */
 bool net_mgr_is_web_enabled(void);
 
+/**
+ * @brief 触发后台异步 Wi-Fi 硬件扫描 (非阻塞，扫描结果将写入内部缓存)
+ * @return 0 成功启动扫描或已有扫描进行中, 负数失败
+ */
+int net_mgr_trigger_async_scan(void);
+
+/**
+ * @brief 查询当前是否正在后台执行 Wi-Fi 扫描
+ * @return true 正在扫描中, false 空闲
+ */
+bool net_mgr_is_scanning(void);
+
+/**
+ * @brief 获取最新扫描到的周边 Wi-Fi 热点缓存快照 (立即返回，绝不阻塞)
+ * @param aps_out 输出热点数组
+ * @param max_count 数组最大容纳数量
+ * @return 实际返回的热点数量 (>= 0)
+ */
+int net_mgr_get_cached_scan_results(net_wifi_ap_info_t *aps_out, size_t max_count);
+
 #ifdef __cplusplus
 }
 #endif

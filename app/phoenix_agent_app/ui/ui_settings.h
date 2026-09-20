@@ -95,8 +95,38 @@ typedef struct {
     lv_obj_t *lbl_header_title;
     lv_obj_t *body_area;
 
-    /* 2.1 独立热点配网面板 */
-    lv_obj_t *panel_hotspot;
+    /* 2.1 独立热点与 Wi-Fi 扫描直连面板 */
+    lv_obj_t *panel_hotspot;      /**< 兼容指针 */
+    lv_obj_t *panel_wifi;         /**< 扫描与直连主面板 */
+    lv_obj_t *box_wifi_header;    /**< 顶部状态与刷新条 */
+    lv_obj_t *lbl_wifi_status;    /**< 状态: 已连 / 未连接 / 正在连接 */
+    lv_obj_t *btn_wifi_refresh;   /**< 刷新扫描按钮 */
+    lv_obj_t *lbl_wifi_refresh;
+    lv_obj_t *list_wifi;          /**< 扫描到的热点纵向滚动列表容器 */
+    lv_obj_t *lbl_wifi_empty;     /**< 扫描中/无热点提示标签 */
+    lv_obj_t *box_wifi_footer;    /**< 底部辅助工具栏 */
+    lv_obj_t *btn_wifi_forget;    /**< 清空已存网络按钮 */
+    lv_obj_t *lbl_wifi_forget;
+    lv_obj_t *btn_wifi_ap_mode;   /**< 应急热点模式切换按钮 */
+    lv_obj_t *lbl_wifi_ap_mode;
+
+    /* 2.1.1 全屏密码输入模态对话框与 LVGL 软键盘 (320x240) */
+    lv_obj_t *dlg_pwd_modal;      /**< 全屏遮罩容器 (parent: lv_screen_active) */
+    lv_obj_t *lbl_pwd_target;     /**< 目标 SSID 标签 */
+    lv_obj_t *btn_pwd_close;      /**< 弹窗右上角关闭按钮 */
+    lv_obj_t *lbl_pwd_close;
+    lv_obj_t *ta_pwd_input;       /**< 密码输入文本域 (lv_textarea) */
+    lv_obj_t *btn_pwd_eye;        /**< 密码明/密文切换按钮 */
+    lv_obj_t *lbl_pwd_eye;
+    lv_obj_t *btn_pwd_connect;    /**< 提交连接按钮 */
+    lv_obj_t *lbl_pwd_connect;
+    lv_obj_t *lbl_pwd_hint;       /**< 错误/连接中状态提示 */
+    lv_obj_t *kb_pwd;             /**< 底部全尺寸软键盘 (lv_keyboard) */
+    char     selected_ssid[34];   /**< 当前选中的目标 SSID */
+    bool     is_pwd_obscure;      /**< 密码当前是否密文遮蔽 */
+    uint32_t last_scan_req_time;  /**< 上次请求扫描时间戳，防止过频刷新 */
+
+    /* 兼容历史指针保留 */
     lv_obj_t *box_hotspot_idle;
     lv_obj_t *card_hotspot_info;
     lv_obj_t *lbl_hotspot_ssid;
@@ -263,6 +293,25 @@ void ui_settings_refresh_data(ui_settings_t *settings);
  * @param msg 阶段消息
  */
 void ui_settings_update_net_progress(ui_settings_t *settings, int mode, const char *ssid, const char *ip, const char *msg);
+
+/**
+ * @brief 弹出全屏密码输入软键盘对话框
+ * @param settings 设置对象
+ * @param ssid 目标 Wi-Fi SSID
+ */
+void ui_settings_show_password_dialog(ui_settings_t *settings, const char *ssid);
+
+/**
+ * @brief 关闭全屏密码输入软键盘对话框
+ * @param settings 设置对象
+ */
+void ui_settings_close_password_dialog(ui_settings_t *settings);
+
+/**
+ * @brief 刷新 Wi-Fi 热点列表展示
+ * @param settings 设置对象
+ */
+void ui_settings_refresh_wifi_list(ui_settings_t *settings);
 
 /**
  * @brief 注册设置中心关闭回调
