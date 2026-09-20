@@ -13,7 +13,7 @@ description: "OpenVela / 全志 R528-S3 (Gemini-S1) 音频链路开发、录音�
 
 OpenVela 采用标准的 NuttX 音频分层模型（Upper-Half / Lower-Half）：
 * **Upper-Half**：提供标准字符设备接口与 `ioctl` 命令管理。
-* **Lower-Half**：对接全志芯片音频 Codec 及 I2S DMA 硬件传输。
+* **Lower-Half**：由 `sunxi_alsa.c` 桥接全志底层 `aw-alsa-lib` 库与 R528 Codec/I2S DMA 硬件传输（详见驱动开发指南：[openvela-audio-driver](file:///Volumes/LaCie/OpenVela/contest2026_145_huaernayanghong/.agents/skills/openvela-audio-driver/SKILL.md)）。
 
 ### 1.1 核心设备节点
 * **音频播放输出**：`/dev/audio/pcm0p`（PCM Playback）
