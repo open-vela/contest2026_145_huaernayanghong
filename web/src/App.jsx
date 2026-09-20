@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header.jsx';
 import { NavTabs } from './components/NavTabs.jsx';
 import { ToolExecModal } from './components/ToolExecModal.jsx';
-import { Overview } from './views/Overview/index.jsx';
-import { Agent } from './views/Agent/index.jsx';
-import { Settings } from './views/Settings/index.jsx';
-import { Storage } from './views/Storage/index.jsx';
-import { Terminal } from './views/Terminal/index.jsx';
-import { Audio } from './views/Audio/index.jsx';
+import { Overview } from './views/overview/index.jsx';
+import { Agent } from './views/agent/index.jsx';
+import { Settings } from './views/settings/index.jsx';
+import { Storage } from './views/storage/index.jsx';
+import { Terminal } from './views/terminal/index.jsx';
+import { Audio } from './views/audio/index.jsx';
 import { systemApi } from './api/system.js';
 
 export function App() {

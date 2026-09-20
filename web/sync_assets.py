@@ -156,13 +156,21 @@ size_t phoenix_web_asset_get_dashboard_html_len(void)
 }}
 """
 
-    with open(HEADER_OUT, 'w', encoding='utf-8') as f:
-        f.write(header_content)
-    with open(SOURCE_OUT, 'w', encoding='utf-8') as f:
-        f.write(source_content)
+    def write_if_changed(path, content):
+        if os.path.exists(path):
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    if f.read() == content:
+                        print(f"⏩ [WebAssets] Unchanged: {os.path.basename(path)}")
+                        return
+            except Exception:
+                pass
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print(f"✅ Generated {path}")
 
-    print(f"✅ Generated {HEADER_OUT}")
-    print(f"✅ Generated {SOURCE_OUT}")
+    write_if_changed(HEADER_OUT, header_content)
+    write_if_changed(SOURCE_OUT, source_content)
 
 if __name__ == '__main__':
     main()
