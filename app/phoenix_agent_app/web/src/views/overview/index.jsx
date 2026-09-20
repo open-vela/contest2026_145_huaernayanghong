@@ -274,12 +274,11 @@ export function Overview({ statusData, onRefreshStatus }) {
       {/* 真机屏幕卡带即时切换药丸栏 */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', overflowX: 'auto', paddingBottom: '4px' }}>
         {[
+          { id: 'agent', label: '🤖 灵眸AI' },
           { id: 'home', label: '🏠 极客主页' },
-          { id: 'familiar', label: '🐱 桌面使魔' },
-          { id: 'memo', label: '💡 灵感外脑' },
           { id: 'clock', label: '🍅 番茄时钟' },
           { id: 'zen', label: '🪷 赛博木鱼' },
-          { id: 'agent', label: '🤖 灵眸AI' },
+          { id: 'memo', label: '💡 灵感外脑' },
         ].map(item => (
           <button
             key={item.id}
@@ -293,24 +292,29 @@ export function Overview({ statusData, onRefreshStatus }) {
       </div>
 
       <div className="grid-2">
-        {/* 使魔 */}
+        {/* 灵眸具身智能体 */}
         <div className="card">
           <div className="card-head">
-            <div className="card-title">🐱 桌面使魔萌宠</div>
+            <div className="card-title">🤖 灵眸具身智能体</div>
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              <span className="status-badge">陪伴中</span>
-              <button className="btn-secondary" style={{ padding: '3px 8px', fontSize: '11px' }} onClick={() => handleCartridgeSwitch('familiar')}>
+              <span className="status-badge">{c.agent?.state || '待命守护'}</span>
+              <button className="btn-secondary" style={{ padding: '3px 8px', fontSize: '11px' }} onClick={() => handleCartridgeSwitch('agent')}>
                 📺 投到屏幕
               </button>
             </div>
           </div>
           <div className="metric-row">
-            <div className="m-block"><div className="m-lbl">使魔亲密度</div><div className="m-val">{c.familiar?.affinity ?? 88}</div></div>
-            <div className="m-block"><div className="m-lbl">饱腹元气度</div><div className="m-val">96%</div></div>
+            <div className="m-block"><div className="m-lbl">灵眸亲密度</div><div className="m-val">{c.agent?.affinity ?? c.familiar?.affinity ?? 100}</div></div>
+            <div className="m-block"><div className="m-lbl">赛博功德数</div><div className="m-val">{c.agent?.total_merit ?? c.zen?.total_merit ?? 0}</div></div>
           </div>
-          <button className="btn-secondary" style={{ width: '100%' }} onClick={() => handleCartridgeAction('pet')}>
-            🐾 远程轻抚使魔撒娇
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn-secondary" style={{ flex: 1 }} onClick={() => handleCartridgeAction('pet')}>
+              ✨ 轻戳眼球互动
+            </button>
+            <button style={{ flex: 1 }} onClick={() => handleCartridgeSwitch('agent')}>
+              🎙️ 唤醒语音对话
+            </button>
+          </div>
         </div>
 
         {/* 灵感外脑 */}

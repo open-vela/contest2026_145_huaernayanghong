@@ -12,7 +12,6 @@
 #include "tool_registry.h"
 #include "cartridge_mgr.h"
 #include "../cartridges/cartridge_home.h"
-#include "../cartridges/cartridge_familiar.h"
 #include "../cartridges/cartridge_clock.h"
 #include "../cartridges/cartridge_zen.h"
 #include "../cartridges/cartridge_memo.h"
@@ -181,18 +180,17 @@ int phoenix_app_init(const phoenix_app_config_t *config)
         phoenix_web_portal_start(config->web_port, NULL);
     }
 
-    /* 11. Cartridge Plugin & Orchestrator Engine (全量注册 6 大卡带，以灵眸伴侣为首发默认) */
+    /* 11. Cartridge Plugin & Orchestrator Engine (注册 5 大卡带，以灵眸具身智能体为首发默认) */
     cartridge_mgr_init(NULL);
-    cartridge_familiar_register();
+    cartridge_agent_register();
     cartridge_home_register();
     cartridge_clock_register();
     cartridge_zen_register();
     cartridge_memo_register();
-    cartridge_agent_register();
-    cartridge_mgr_switch_to("familiar");
+    cartridge_mgr_switch_to("agent");
 
     g_app_initialized = true;
-    LOG_I(TAG, "✅ All Phoenix subsystems initialized successfully (6 Cartridges active).");
+    LOG_I(TAG, "✅ All Phoenix subsystems initialized successfully (5 Cartridges active, Default: agent).");
     return 0;
 }
 

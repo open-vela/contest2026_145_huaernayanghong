@@ -25,7 +25,7 @@ static const char *get_cartridge_icon(const char *id) {
   if (strcmp(id, "memo") == 0)
     return "记";
   if (strcmp(id, "agent") == 0)
-    return "AI";
+    return "眸";
   if (strcmp(id, "familiar") == 0)
     return "宠";
   if (strcmp(id, "voice") == 0 || strcmp(id, "audio") == 0)

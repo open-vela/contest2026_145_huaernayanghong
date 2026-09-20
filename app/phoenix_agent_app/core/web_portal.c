@@ -254,8 +254,15 @@ static void handle_single_client(int client_fd, char *req_buf, char *resp_buf)
         } else {
             strncpy(req_summary, req_buf, sizeof(req_summary) - 1);
         }
-        LOG_I(TAG, "📥 Client connected: %s (Total: %zu bytes, Body: %d bytes)",
-              req_summary, total_read, content_length > 0 ? content_length : 0);
+        /* 过滤高频只读轮询（如 /api/status, /api/audio/status 等），降级为 LOG_D 避免刷屏 */
+        bool is_polling = (strncmp(req_summary, "GET /api/", 9) == 0);
+        if (is_polling) {
+            LOG_D(TAG, "📥 Client connected: %s (Total: %zu bytes, Body: %d bytes)",
+                  req_summary, total_read, content_length > 0 ? content_length : 0);
+        } else {
+            LOG_I(TAG, "📥 Client connected: %s (Total: %zu bytes, Body: %d bytes)",
+                  req_summary, total_read, content_length > 0 ? content_length : 0);
+        }
 
         int resp_len = phoenix_web_portal_handle_request(req_buf, resp_buf, PHOENIX_WEB_MAX_RESP_SIZE);
         if (resp_len > 0) {
@@ -265,7 +272,7 @@ static void handle_single_client(int client_fd, char *req_buf, char *resp_buf)
                 if (s <= 0) break;
                 total_sent += s;
             }
-            LOG_I(TAG, "📤 Sent %zd/%d bytes", total_sent, resp_len);
+            LOG_D(TAG, "📤 Sent %zd/%d bytes", total_sent, resp_len);
         }
     }
 
