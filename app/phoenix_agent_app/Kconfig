@@ -9,5 +9,106 @@ config LVX_USE_DEMO_CONTEST2026_145_PHOENIX_AGENT_APP
 	depends on GRAPHICS_LVGL
 	select LIBUV
 	select LV_FONT_MONTSERRAT_30
+	select NETUTILS_CJSON
+	select CRYPTO_MBEDTLS
+	select NETUTILS_WEBCLIENT
 	---help---
 		Enable the Phoenix Agent (AI IoT Assistant) LVGL application.
+
+if LVX_USE_DEMO_CONTEST2026_145_PHOENIX_AGENT_APP
+
+menu "Phoenix Agent Task & Runtime Settings"
+
+config PHOENIX_AGENT_PRIORITY
+	int "Agent main task priority"
+	default 100
+	---help---
+		RTOS task priority for Phoenix Agent application thread.
+
+config PHOENIX_AGENT_STACKSIZE
+	int "Agent main task stack size"
+	default 32768
+	---help---
+		Stack size in bytes (>= 32KB recommended for TLS/HTTPS and Agent ReAct loop).
+
+endmenu
+
+menu "Hardware & Peripheral Subsystems"
+
+config PHOENIX_ENABLE_SENSORS
+	bool "Enable on-board IIO sensors (Temp/Humi/Light/Tap)"
+	default y
+	---help---
+		Enable polling and driver interactions with /dev/sensor/* nodes.
+
+config PHOENIX_ENABLE_BLE_PROV
+	bool "Enable BLE Wi-Fi provisioning service"
+	default y
+	depends on BLUETOOTH
+	---help---
+		Enable BLE GATT service for smartphone Wi-Fi network distribution.
+
+config PHOENIX_ENABLE_AUDIO_PIPELINE
+	bool "Enable audio recorder & player pipeline"
+	default y
+	---help---
+		Enable ALSA/NxAudio playback and recording capabilities.
+
+config PHOENIX_SOUNDS_DATA_PATH
+	string "Audio prompt sound root directory"
+	default "/data/sounds"
+	depends on PHOENIX_ENABLE_AUDIO_PIPELINE
+	---help---
+		Directory path where system notification and voice prompt WAV files are stored.
+
+config PHOENIX_DEFAULT_VOLUME
+	int "Default hardware volume (0-100)"
+	default 80
+	range 0 100
+	---help---
+		Default startup sound output volume.
+
+config PHOENIX_DEFAULT_BRIGHTNESS
+	int "Default display brightness (0-100)"
+	default 90
+	range 0 100
+	---help---
+		Default startup screen backlight brightness.
+
+config PHOENIX_ENABLE_WEB_PORTAL
+	bool "Enable HTTP Companion Web Dashboard"
+	default y
+	---help---
+		Embedded micro HTTP web portal for remote dashboard, chat, and configuration.
+
+endmenu
+
+menu "AI Model Default Parameters"
+
+config PHOENIX_DEFAULT_LLM_MODEL
+	string "Default LLM model name"
+	default "deepseek-chat"
+
+config PHOENIX_DEFAULT_LLM_BASE_URL
+	string "Default LLM API endpoint URL"
+	default "https://api.deepseek.com/v1/chat/completions"
+
+config PHOENIX_DEFAULT_LLM_API_KEY
+	string "Factory default LLM API key"
+	default ""
+	---help---
+		Optional compile-time API key (can also be configured at runtime via web portal or BLE).
+
+config PHOENIX_DEFAULT_PROACTIVE_EN
+	bool "Enable proactive AI greetings & suggestions on startup"
+	default y
+
+config PHOENIX_DEFAULT_PROACTIVE_TIMEOUT_S
+	int "Proactive AI prompt interval (seconds)"
+	default 2700
+	---help---
+		Idle interval before the agent proactively suggests actions or checks in (default: 45 minutes).
+
+endmenu
+
+endif # LVX_USE_DEMO_CONTEST2026_145_PHOENIX_AGENT_APP

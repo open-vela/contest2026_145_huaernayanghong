@@ -9,6 +9,38 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __NUTTX__
+#include <nuttx/config.h>
+#endif
+
+#ifndef CONFIG_PHOENIX_DEFAULT_VOLUME
+#define CONFIG_PHOENIX_DEFAULT_VOLUME 80
+#endif
+
+#ifndef CONFIG_PHOENIX_DEFAULT_BRIGHTNESS
+#define CONFIG_PHOENIX_DEFAULT_BRIGHTNESS 90
+#endif
+
+#ifndef CONFIG_PHOENIX_DEFAULT_PROACTIVE_EN
+#define CONFIG_PHOENIX_DEFAULT_PROACTIVE_EN 1
+#endif
+
+#ifndef CONFIG_PHOENIX_DEFAULT_PROACTIVE_TIMEOUT_S
+#define CONFIG_PHOENIX_DEFAULT_PROACTIVE_TIMEOUT_S 2700
+#endif
+
+#ifndef CONFIG_PHOENIX_DEFAULT_LLM_BASE_URL
+#define CONFIG_PHOENIX_DEFAULT_LLM_BASE_URL "https://api.deepseek.com/v1/chat/completions"
+#endif
+
+#ifndef CONFIG_PHOENIX_DEFAULT_LLM_MODEL
+#define CONFIG_PHOENIX_DEFAULT_LLM_MODEL "deepseek-chat"
+#endif
+
+#ifndef CONFIG_PHOENIX_DEFAULT_LLM_API_KEY
+#define CONFIG_PHOENIX_DEFAULT_LLM_API_KEY ""
+#endif
+
 #define MAX_CONFIG_ENTRIES 32
 #define MAX_KEY_LEN        32
 #define MAX_VAL_LEN        256
@@ -55,14 +87,14 @@ static config_entry_t* alloc_entry(const char *key)
 
 void phoenix_config_reset_defaults(void)
 {
-    phoenix_config_set_int(PHOENIX_CFG_VOLUME, 80);
-    phoenix_config_set_int(PHOENIX_CFG_BRIGHTNESS, 90);
-    phoenix_config_set_int(PHOENIX_CFG_PROACTIVE_EN, 1);
-    phoenix_config_set_int(PHOENIX_CFG_PROACTIVE_TIMEOUT, 2700);
+    phoenix_config_set_int(PHOENIX_CFG_VOLUME, CONFIG_PHOENIX_DEFAULT_VOLUME);
+    phoenix_config_set_int(PHOENIX_CFG_BRIGHTNESS, CONFIG_PHOENIX_DEFAULT_BRIGHTNESS);
+    phoenix_config_set_int(PHOENIX_CFG_PROACTIVE_EN, CONFIG_PHOENIX_DEFAULT_PROACTIVE_EN ? 1 : 0);
+    phoenix_config_set_int(PHOENIX_CFG_PROACTIVE_TIMEOUT, CONFIG_PHOENIX_DEFAULT_PROACTIVE_TIMEOUT_S);
     phoenix_config_set_str(PHOENIX_CFG_BACKEND, "mock");
-    phoenix_config_set_str(PHOENIX_CFG_BASE_URL, "https://api.deepseek.com/v1/chat/completions");
-    phoenix_config_set_str(PHOENIX_CFG_MODEL, "deepseek-chat");
-    phoenix_config_set_str(PHOENIX_CFG_API_KEY, "");
+    phoenix_config_set_str(PHOENIX_CFG_BASE_URL, CONFIG_PHOENIX_DEFAULT_LLM_BASE_URL);
+    phoenix_config_set_str(PHOENIX_CFG_MODEL, CONFIG_PHOENIX_DEFAULT_LLM_MODEL);
+    phoenix_config_set_str(PHOENIX_CFG_API_KEY, CONFIG_PHOENIX_DEFAULT_LLM_API_KEY);
 }
 
 const char* phoenix_config_get_path(void)

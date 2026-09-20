@@ -40,8 +40,16 @@ static bool s_board_sensor_probed = false;
 #include <audioutils/nxaudio.h>
 #endif
 
-static char g_board_sound_root[128] = "/data/sounds";
-static uint8_t g_board_volume = 80;
+#ifndef CONFIG_PHOENIX_SOUNDS_DATA_PATH
+#define CONFIG_PHOENIX_SOUNDS_DATA_PATH "/data/sounds"
+#endif
+
+#ifndef CONFIG_PHOENIX_DEFAULT_VOLUME
+#define CONFIG_PHOENIX_DEFAULT_VOLUME 80
+#endif
+
+static char g_board_sound_root[128] = CONFIG_PHOENIX_SOUNDS_DATA_PATH;
+static uint8_t g_board_volume = CONFIG_PHOENIX_DEFAULT_VOLUME;
 
 static uint64_t board_get_time_ms(void)
 {
