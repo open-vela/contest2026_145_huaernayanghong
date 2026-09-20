@@ -157,23 +157,33 @@ static int openvela_sensor_read_env(hal_env_data_t *out_env)
     out_env->is_valid = false;
 
     /* 
-     * 遵循 OpenVela Sensor IIO 框架规范：
-     * 首次开机探测节点并在存在时激活 (SNIOC_ACTIVATE)，保持持久句柄杜绝重复 open/close 冲击 VFS
+     * 遵循 OpenVela uORB Sensor 框架规范：
+     * 首次开机探测节点并在存在时配置采样周期 (SNIOC_SET_INTERVAL)，保持持久句柄杜绝重复 open/close
      */
     if (!s_board_sensor_probed) {
-        s_board_fd_temp = open("/dev/sensor/temp0", O_RDONLY | O_NONBLOCK);
+        /* 温度传感器优先尝试 sensor_temp0，备选 sensor_ambient_temp0 */
+        s_board_fd_temp = open("/dev/uorb/sensor_temp0", O_RDONLY | O_NONBLOCK);
+        if (s_board_fd_temp < 0) {
+            s_board_fd_temp = open("/dev/uorb/sensor_ambient_temp0", O_RDONLY | O_NONBLOCK);
+        }
         if (s_board_fd_temp >= 0) {
-#if defined(__NUTTX__) && defined(SNIOC_ACTIVATE)
-            ioctl(s_board_fd_temp, SNIOC_ACTIVATE, 1);
+#if defined(__NUTTX__) && defined(SNIOC_SET_INTERVAL)
             ioctl(s_board_fd_temp, SNIOC_SET_INTERVAL, 1000000);
 #endif
+            printf("[HAL:OpenVela] SHTC3 temperature sensor node opened: fd=%d\n", s_board_fd_temp);
+        } else {
+            printf("[HAL:OpenVela] SHTC3 temperature sensor node (/dev/uorb/sensor_temp0) not detected\n");
         }
-        s_board_fd_humi = open("/dev/sensor/humi0", O_RDONLY | O_NONBLOCK);
+
+        /* 湿度传感器标准节点 sensor_humi0 */
+        s_board_fd_humi = open("/dev/uorb/sensor_humi0", O_RDONLY | O_NONBLOCK);
         if (s_board_fd_humi >= 0) {
-#if defined(__NUTTX__) && defined(SNIOC_ACTIVATE)
-            ioctl(s_board_fd_humi, SNIOC_ACTIVATE, 1);
+#if defined(__NUTTX__) && defined(SNIOC_SET_INTERVAL)
             ioctl(s_board_fd_humi, SNIOC_SET_INTERVAL, 1000000);
 #endif
+            printf("[HAL:OpenVela] SHTC3 humidity sensor node opened: fd=%d\n", s_board_fd_humi);
+        } else {
+            printf("[HAL:OpenVela] SHTC3 humidity sensor node (/dev/uorb/sensor_humi0) not detected\n");
         }
         s_board_sensor_probed = true;
     }
@@ -183,15 +193,21 @@ static int openvela_sensor_read_env(hal_env_data_t *out_env)
         return 0;
     }
 
+    static float s_cached_temp = 26.0f;
+    static float s_cached_humi = 50.0f;
+    static uint64_t s_cached_time = 0;
+    static bool s_has_real_data = false;
+
     if (s_board_fd_temp >= 0) {
         struct {
             uint64_t timestamp;
             float temperature;
         } evt_t;
-        if (read(s_board_fd_temp, &evt_t, sizeof(evt_t)) == sizeof(evt_t)) {
-            out_env->temperature_c = evt_t.temperature;
-            out_env->timestamp_us = evt_t.timestamp;
-            out_env->is_valid = true;
+        ssize_t n = read(s_board_fd_temp, &evt_t, sizeof(evt_t));
+        if (n == sizeof(evt_t) && evt_t.temperature > -50.0f && evt_t.temperature < 150.0f) {
+            s_cached_temp = evt_t.temperature;
+            s_cached_time = evt_t.timestamp;
+            s_has_real_data = true;
         }
     }
 
@@ -200,10 +216,18 @@ static int openvela_sensor_read_env(hal_env_data_t *out_env)
             uint64_t timestamp;
             float humidity;
         } evt_h;
-        if (read(s_board_fd_humi, &evt_h, sizeof(evt_h)) == sizeof(evt_h)) {
-            out_env->humidity_pct = evt_h.humidity;
-            out_env->is_valid = true;
+        ssize_t n = read(s_board_fd_humi, &evt_h, sizeof(evt_h));
+        if (n == sizeof(evt_h) && evt_h.humidity >= 0.0f && evt_h.humidity <= 100.0f) {
+            s_cached_humi = evt_h.humidity;
+            s_has_real_data = true;
         }
+    }
+
+    if (s_has_real_data) {
+        out_env->temperature_c = s_cached_temp;
+        out_env->humidity_pct = s_cached_humi;
+        out_env->timestamp_us = s_cached_time > 0 ? s_cached_time : (board_get_time_ms() * 1000);
+        out_env->is_valid = true;
     }
 
     return 0;
