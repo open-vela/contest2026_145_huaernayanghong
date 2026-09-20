@@ -430,8 +430,8 @@ int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_inp
     /* 2. Set State to Thinking */
     phoenix_agent_set_state(ctx, AGENT_STATE_THINKING, "DeepSeek / MiMo 正在深度思考与规划工具链...");
 
-    /* 3. ReAct Execution Loop */
-    char *tools_schema = phoenix_tool_build_schema_json();
+    /* 3. ReAct Execution Loop: 零内存开销直通标记，由底座直挂 cJSON 树杜绝堆碎片化分配失败 */
+    const char *tools_schema = "auto";
 
     for (int turn = 0; turn < AGENT_MAX_TURNS; turn++) {
         phoenix_chat_resp_t resp;
@@ -558,10 +558,6 @@ int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_inp
 
         phoenix_llm_resp_free(&resp);
         break;
-    }
-
-    if (tools_schema) {
-        free(tools_schema);
     }
 
     if (trace_out) {

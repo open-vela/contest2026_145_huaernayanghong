@@ -468,10 +468,13 @@ static int cloud_backend_chat(phoenix_llm_backend_t *self,
 
     /* Add Tools Schema if requested by caller */
     if (tools_json && strlen(tools_json) > 0) {
-        /* 护城河：优先使用直接构造的 cJSON 对象，避开嵌入式平坦堆对大字符串二次反序列化失败的隐患 */
-        cJSON *tools_obj = phoenix_tool_build_schema_cjson();
-        if (!tools_obj) {
+        cJSON *tools_obj = NULL;
+        if (tools_json[0] == '[') {
             tools_obj = cJSON_Parse(tools_json);
+        }
+        if (!tools_obj) {
+            /* 优先使用直接构造的 cJSON 对象，避开嵌入式平坦堆对大字符串二次反序列化失败的隐患 */
+            tools_obj = phoenix_tool_build_schema_cjson();
         }
         if (tools_obj) {
             int tool_count = cJSON_GetArraySize(tools_obj);
@@ -479,7 +482,7 @@ static int cloud_backend_chat(phoenix_llm_backend_t *self,
             cJSON_AddStringToObject(payload, "tool_choice", "auto");
             LOG_I(TAG, "🔧 成功挂载 Tools Schema 到请求: 共 %d 个工具", tool_count);
         } else {
-            LOG_E(TAG, "❌ 挂载 Tools Schema 失败! 无法解析或构建 tools cJSON");
+            LOG_E(TAG, "❌ 挂载 Tools Schema 失败! 注册表无工具或内存不足");
         }
     }
 
