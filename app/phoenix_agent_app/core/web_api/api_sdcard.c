@@ -331,6 +331,19 @@ static const http_route_t g_web_api_routes[] = {
     { HTTP_METHOD_GET,  "/api/agent/memory",         false, handle_agent_memory },
     { HTTP_METHOD_POST, "/api/v1/agent/memory/clear",false, handle_agent_memory_clear },
     { HTTP_METHOD_POST, "/api/agent/memory/clear",   false, handle_agent_memory_clear },
+
+    /* 8. 网络天气服务 */
+    { HTTP_METHOD_GET,  "/api/weather/status",       false, handle_weather_status },
+    { HTTP_METHOD_GET,  "/api/weather",              false, handle_weather_status },
+    { HTTP_METHOD_POST, "/api/weather/config",       false, handle_weather_config },
+
+    /* 9. 今日待办事项管理 */
+    { HTTP_METHOD_GET,  "/api/todo/list",            false, handle_todo_list },
+    { HTTP_METHOD_GET,  "/api/todo",                 false, handle_todo_list },
+    { HTTP_METHOD_POST, "/api/todo/add",             false, handle_todo_add },
+    { HTTP_METHOD_POST, "/api/todo/toggle",          false, handle_todo_toggle },
+    { HTTP_METHOD_POST, "/api/todo/delete",          false, handle_todo_delete },
+    { HTTP_METHOD_POST, "/api/todo/clear_done",      false, handle_todo_clear_done },
 };
 
 void web_api_register_all(void)

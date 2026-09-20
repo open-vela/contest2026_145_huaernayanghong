@@ -714,7 +714,8 @@
 
       <!-- 真机屏幕卡带即时切换药丸栏 -->
       <div style="display:flex; gap:8px; margin-bottom:16px; overflow-x:auto; padding-bottom:4px;">
-        <button class="chip active" id="pill-cartridge-familiar" style="padding:7px 14px; font-size:12px;" onclick="switchCartridge('familiar')">🐱 桌面使魔</button>
+        <button class="chip active" id="pill-cartridge-home" style="padding:7px 14px; font-size:12px;" onclick="switchCartridge('home')">🏠 极客主页</button>
+        <button class="chip" id="pill-cartridge-familiar" style="padding:7px 14px; font-size:12px;" onclick="switchCartridge('familiar')">🐱 桌面使魔</button>
         <button class="chip" id="pill-cartridge-memo" style="padding:7px 14px; font-size:12px;" onclick="switchCartridge('memo')">💡 灵感外脑</button>
         <button class="chip" id="pill-cartridge-clock" style="padding:7px 14px; font-size:12px;" onclick="switchCartridge('clock')">⏰ 翻页时钟</button>
         <button class="chip" id="pill-cartridge-zen" style="padding:7px 14px; font-size:12px;" onclick="switchCartridge('zen')">🪷 赛博木鱼</button>
@@ -784,6 +785,69 @@
             <div class="m-block"><div class="m-lbl">LLM 消耗 Tokens</div><div class="m-val" id="tokensVal">0</div></div>
           </div>
           <button style="width:100%" onclick="doCartridgeAction('knock_fish')">🪷 敲击木鱼 (功德+1)</button>
+        </div>
+
+        <!-- 桌面极客天气卡片 -->
+        <div class="card" id="card-weather">
+          <div class="card-head">
+            <div class="card-title">🌤️ 桌面极客天气仪表盘</div>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <span class="status-badge" id="weatherSyncBadge" style="color:var(--accent);">连网自动同步</span>
+              <button class="btn-secondary" style="padding:3px 8px; font-size:11px;" onclick="syncWeatherFetch()">🔄 立即拉取</button>
+            </div>
+          </div>
+          <div class="metric-row">
+            <div class="m-block">
+              <div class="m-lbl">当前气温 & 状况</div>
+              <div class="m-val" style="color:var(--text); font-size:22px;" id="weatherTempTxt">--°C</div>
+              <div style="font-size:11px; color:var(--accent);" id="weatherCondTxt">上海 · 正在获取</div>
+            </div>
+            <div class="m-block">
+              <div class="m-lbl">气温区间 & 相对湿度</div>
+              <div class="m-val" style="font-size:16px; color:var(--accent-sub);" id="weatherRangeTxt">-- ~ --°C</div>
+              <div style="font-size:11px; color:var(--muted);" id="weatherHumiTxt">湿度: --%</div>
+            </div>
+          </div>
+          <!-- 城市配置与快捷选择 -->
+          <div style="background:var(--card-inner); padding:10px 12px; border-radius:8px; border:1px solid var(--border-light); margin-top:8px;">
+            <div style="font-size:11px; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between;">
+              <span>城市配置 (更改后硬件屏幕即时同步)</span>
+              <span id="weatherUpdatedTime" style="color:#5f7899;">-</span>
+            </div>
+            <div style="display:flex; gap:8px; margin-bottom:8px;">
+              <input id="weatherCityInput" type="text" placeholder="输入城市 (如 上海 / 北京 / 深圳)" value="上海" style="flex:1;">
+              <button class="btn-primary" style="white-space:nowrap; padding:6px 14px; font-size:12px;" onclick="saveWeatherCity()">💾 保存并同步</button>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:6px;">
+              <span class="chip" style="padding:3px 8px; font-size:11px;" onclick="setWeatherCity('上海')">上海</span>
+              <span class="chip" style="padding:3px 8px; font-size:11px;" onclick="setWeatherCity('北京')">北京</span>
+              <span class="chip" style="padding:3px 8px; font-size:11px;" onclick="setWeatherCity('深圳')">深圳</span>
+              <span class="chip" style="padding:3px 8px; font-size:11px;" onclick="setWeatherCity('广州')">广州</span>
+              <span class="chip" style="padding:3px 8px; font-size:11px;" onclick="setWeatherCity('杭州')">杭州</span>
+              <span class="chip" style="padding:3px 8px; font-size:11px;" onclick="setWeatherCity('成都')">成都</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 今日待办事项管理看板 -->
+        <div class="card" id="card-todo">
+          <div class="card-head">
+            <div class="card-title">📝 今日待办事项看板 (Todo List)</div>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <span class="status-badge" id="todoProgressBadge" style="color:var(--accent-sub);">0/0 达成</span>
+              <button class="btn-secondary" style="padding:3px 8px; font-size:11px;" onclick="clearDoneTodos()">🧹 清理已完成</button>
+            </div>
+          </div>
+          <!-- 动态待办列表 -->
+          <div id="todoListContainer" style="display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto; margin-bottom:10px; padding-right:2px;">
+            <div style="font-size:12px; color:var(--muted); text-align:center; padding:16px;">正在载入待办...</div>
+          </div>
+          <!-- 快速添加新待办 -->
+          <div style="display:flex; gap:6px; background:var(--card-inner); padding:8px; border-radius:8px; border:1px solid var(--border-light);">
+            <input id="todoTitleInput" type="text" placeholder="新增待办任务..." style="flex:1;" onkeydown="if(event.key==='Enter') addTodo()">
+            <input id="todoTimeInput" type="text" placeholder="时间 (如 16:00)" style="width:100px;" onkeydown="if(event.key==='Enter') addTodo()">
+            <button class="btn-primary" style="white-space:nowrap; padding:6px 14px; font-size:12px;" onclick="addTodo()">➕ 添加</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1200,8 +1264,178 @@
 
           // 存储状态
           if (d.storage) updateStorageInfo(d.storage);
+
+          // 天气与待办看板刷新
+          refreshWeather();
+          refreshTodos();
         })
         .catch(() => {});
+    }
+
+    /* ========================================================
+     * 极客天气与待办事项管理 (Weather & Todos)
+     * ======================================================== */
+    function refreshWeather() {
+      fetch('/api/weather/status')
+        .then(r => r.json())
+        .then(d => {
+          if (!d || !d.success) return;
+          const tempEl = document.getElementById('weatherTempTxt');
+          const condEl = document.getElementById('weatherCondTxt');
+          const rangeEl = document.getElementById('weatherRangeTxt');
+          const humiEl = document.getElementById('weatherHumiTxt');
+          const badgeEl = document.getElementById('weatherSyncBadge');
+          const inputEl = document.getElementById('weatherCityInput');
+          const timeEl = document.getElementById('weatherUpdatedTime');
+
+          if (tempEl) tempEl.innerText = d.is_valid ? (d.temp_c + '°C') : '--°C';
+          if (condEl) condEl.innerText = (d.city || '上海') + ' · ' + (d.condition || '晴');
+          if (rangeEl) rangeEl.innerText = d.is_valid ? `${d.temp_min}° ~ ${d.temp_max}°C` : '-- ~ --°C';
+          if (humiEl) humiEl.innerText = d.is_valid ? `相对湿度: ${d.humidity}%` : '相对湿度: --%';
+          if (badgeEl) {
+            badgeEl.innerText = d.is_fetching ? '同步中...' : (d.is_valid ? '实时同步' : '未连接');
+            badgeEl.style.color = d.is_fetching ? 'var(--accent-warn)' : 'var(--accent)';
+          }
+          if (inputEl && !inputEl.matches(':focus') && d.city) {
+            inputEl.value = d.city;
+          }
+          if (timeEl && d.update_time > 0) {
+            const dt = new Date(d.update_time * 1000);
+            timeEl.innerText = '更新于 ' + dt.toLocaleTimeString();
+          }
+        })
+        .catch(() => {});
+    }
+
+    function saveWeatherCity() {
+      const city = document.getElementById('weatherCityInput').value.trim();
+      if (!city) { showToast('请输入城市名'); return; }
+      fetch('/api/weather/config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({city: city})
+      })
+      .then(r => r.json())
+      .then(d => {
+        showToast('🌤️ 城市已变更为 [' + city + '], 硬件屏幕正同步拉取');
+        refreshWeather();
+      })
+      .catch(e => showToast('设置失败: ' + e));
+    }
+
+    function setWeatherCity(cityName) {
+      document.getElementById('weatherCityInput').value = cityName;
+      saveWeatherCity();
+    }
+
+    function syncWeatherFetch() {
+      showToast('🔄 正在向气象服务器获取最新数据...');
+      saveWeatherCity();
+    }
+
+    function refreshTodos() {
+      fetch('/api/todo/list')
+        .then(r => r.json())
+        .then(d => {
+          if (!d || !d.success) return;
+          const container = document.getElementById('todoListContainer');
+          const badge = document.getElementById('todoProgressBadge');
+          if (badge) {
+            badge.innerText = `${d.done_count || 0}/${d.total_count || 0} 达成`;
+          }
+          if (!container) return;
+
+          const todos = d.todos || [];
+          if (todos.length === 0) {
+            container.innerHTML = '<div style="font-size:12px; color:var(--muted); text-align:center; padding:16px;">暂无待办事项，在下方输入框添加吧！</div>';
+            return;
+          }
+
+          let html = '';
+          todos.forEach(it => {
+            const isDone = it.done;
+            html += `
+              <div style="display:flex; align-items:center; gap:8px; background:var(--card-inner); padding:8px 12px; border-radius:6px; border:1px solid ${isDone ? 'rgba(255,255,255,0.04)' : '#1e3352'}; transition:all 0.2s;">
+                <input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggleTodo(${it.id})" style="cursor:pointer; width:16px; height:16px;">
+                <span style="flex:1; font-size:13px; color:${isDone ? 'var(--muted)' : 'var(--text)'}; text-decoration:${isDone ? 'line-through' : 'none'}; font-weight:${isDone ? 'normal' : '600'};">
+                  ${escapeHtml(it.title)}
+                </span>
+                <span style="font-size:11px; color:${isDone ? 'var(--muted)' : 'var(--accent-warn)'}; background:#141f33; padding:2px 6px; border-radius:4px;">
+                  ${escapeHtml(it.time || '今日')}
+                </span>
+                <button class="btn-secondary" style="padding:2px 6px; font-size:11px; color:#ff5555; border-color:rgba(255,85,85,0.2);" onclick="deleteTodo(${it.id})">✕</button>
+              </div>
+            `;
+          });
+          container.innerHTML = html;
+        })
+        .catch(() => {});
+    }
+
+    function toggleTodo(id) {
+      fetch('/api/todo/toggle', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id: id})
+      })
+      .then(r => r.json())
+      .then(() => {
+        showToast('📝 待办状态已更新');
+        refreshTodos();
+      })
+      .catch(e => showToast('更新待办失败: ' + e));
+    }
+
+    function addTodo() {
+      const titleInput = document.getElementById('todoTitleInput');
+      const timeInput = document.getElementById('todoTimeInput');
+      const title = titleInput.value.trim();
+      const time = timeInput.value.trim();
+      if (!title) { showToast('请输入待办事项内容'); return; }
+
+      fetch('/api/todo/add', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title: title, time: time || '今日'})
+      })
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) {
+          titleInput.value = '';
+          timeInput.value = '';
+          showToast('➕ 待办添加成功，已推送到真机桌面');
+          refreshTodos();
+        } else {
+          showToast('添加失败: ' + (d.error || ''));
+        }
+      })
+      .catch(e => showToast('添加失败: ' + e));
+    }
+
+    function deleteTodo(id) {
+      fetch('/api/todo/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id: id})
+      })
+      .then(r => r.json())
+      .then(() => {
+        showToast('🗑️ 待办已删除');
+        refreshTodos();
+      })
+      .catch(e => showToast('删除失败: ' + e));
+    }
+
+    function clearDoneTodos() {
+      fetch('/api/todo/clear_done', {
+        method: 'POST'
+      })
+      .then(r => r.json())
+      .then(d => {
+        showToast(`🧹 已清理 ${d.cleared_count || 0} 条已完成待办`);
+        refreshTodos();
+      })
+      .catch(e => showToast('清理失败: ' + e));
     }
 
     function switchCartridge(id) {

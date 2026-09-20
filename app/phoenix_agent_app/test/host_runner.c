@@ -48,6 +48,8 @@
 #  include "../hal/hal_sdcard.h"
 #  include "../core/web_api/web_api.h"
 #  include "../core/web_api/api_agent.h"
+#  include "../core/weather_service.h"
+#  include "../core/todo_mgr.h"
 #else
 #  include "core/app.h"
 #  include "core/event_bus.h"
@@ -2477,6 +2479,143 @@ static void run_test_four_moats_hardening(void)
     printf("  -> Four-Moat Anti-Hang Architecture Hardening PASSED!\n");
 }
 
+static void run_test_todo_subsystem(void)
+{
+    printf("\n[TEST 34] Testing Todo Management Engine & Web RESTful APIs...\n");
+
+    const char *test_dir = "/tmp/test_phoenix_todos";
+    system("rm -rf /tmp/test_phoenix_todos && mkdir -p /tmp/test_phoenix_todos");
+
+    int ret = todo_mgr_init(test_dir);
+    assert(ret == 0);
+
+    /* 1. 验证默认待办项初始化 */
+    size_t done_cnt = 0;
+    size_t total = todo_mgr_get_counts(&done_cnt);
+    assert(total == 4);
+    assert(done_cnt == 1);
+    printf("  -> Default Todos Load (Total=%zu, Done=%zu) PASSED\n", total, done_cnt);
+
+    /* 2. 新增待办 */
+    int new_id = todo_mgr_add("单元测试新任务", "18:30");
+    assert(new_id > 0);
+    total = todo_mgr_get_counts(&done_cnt);
+    assert(total == 5);
+    printf("  -> todo_mgr_add (NewID=%d, Total=%zu) PASSED\n", new_id, total);
+
+    /* 3. 切换状态 */
+    ret = todo_mgr_toggle(new_id);
+    assert(ret == 0);
+    total = todo_mgr_get_counts(&done_cnt);
+    assert(done_cnt == 2);
+    printf("  -> todo_mgr_toggle (Done=%zu) PASSED\n", done_cnt);
+
+    /* 4. 测试 Web API handle_todo_list */
+    char resp_buf[2048];
+    http_req_t req;
+    http_resp_t resp;
+    memset(&req, 0, sizeof(req));
+    memset(&resp, 0, sizeof(resp));
+    resp.buf = resp_buf;
+    resp.max_len = sizeof(resp_buf);
+
+    ret = handle_todo_list(&req, &resp);
+    assert(ret == 0);
+    assert(resp.status_code == 200);
+    assert(strstr(resp_buf, "单元测试新任务") != NULL);
+    printf("  -> Web API GET /api/todo/list PASSED\n");
+
+    /* 5. 测试 Web API handle_todo_add */
+    memset(&req, 0, sizeof(req));
+    memset(&resp, 0, sizeof(resp));
+    resp.buf = resp_buf;
+    resp.max_len = sizeof(resp_buf);
+    req.body = "{\"title\":\"Web端添加的待办\",\"time\":\"21:00\"}";
+    req.body_len = strlen(req.body);
+
+    ret = handle_todo_add(&req, &resp);
+    assert(ret == 0);
+    assert(resp.status_code == 200);
+    assert(strstr(resp_buf, "待办添加成功") != NULL);
+    printf("  -> Web API POST /api/todo/add PASSED\n");
+
+    /* 6. 测试删除与清理 */
+    ret = todo_mgr_delete(new_id);
+    assert(ret == 0);
+    int cleared = todo_mgr_clear_done();
+    assert(cleared >= 1);
+    printf("  -> todo_mgr_delete & clear_done (Cleared=%d) PASSED\n", cleared);
+
+    todo_mgr_deinit();
+    system("rm -rf /tmp/test_phoenix_todos");
+    printf("  -> Todo Management Subsystem PASSED!\n");
+}
+
+static void run_test_weather_subsystem(void)
+{
+    printf("\n[TEST 35] Testing Weather Service Subsystem & Config Sync...\n");
+
+    phoenix_event_bus_init();
+    phoenix_config_init("/tmp/test_phoenix_weather_cfg");
+
+    int ret = weather_service_init();
+    assert(ret == 0);
+
+    /* 1. 验证默认城市为上海 */
+    const char *city = weather_service_get_city();
+    assert(strcmp(city, "上海") == 0);
+    printf("  -> Default Weather City [%s] PASSED\n", city);
+
+    /* 2. 验证获取天气快照 */
+    weather_info_t info;
+    memset(&info, 0, sizeof(info));
+    ret = weather_service_get_info(&info);
+    assert(ret == 0);
+    assert(strcmp(info.city, "上海") == 0);
+    printf("  -> Initial Weather Snapshot (City=%s, Temp=%dC) PASSED\n", info.city, info.temp_c);
+
+    /* 3. 切换城市 */
+    ret = weather_service_set_city("北京");
+    assert(ret == 0);
+    assert(strcmp(weather_service_get_city(), "北京") == 0);
+    printf("  -> weather_service_set_city ('北京') PASSED\n");
+
+    /* 4. 测试 Web API handle_weather_status */
+    char resp_buf[2048];
+    http_req_t req;
+    http_resp_t resp;
+    memset(&req, 0, sizeof(req));
+    memset(&resp, 0, sizeof(resp));
+    resp.buf = resp_buf;
+    resp.max_len = sizeof(resp_buf);
+
+    ret = handle_weather_status(&req, &resp);
+    assert(ret == 0);
+    assert(resp.status_code == 200);
+    assert(strstr(resp_buf, "北京") != NULL);
+    printf("  -> Web API GET /api/weather/status PASSED\n");
+
+    /* 5. 测试 Web API handle_weather_config */
+    memset(&req, 0, sizeof(req));
+    memset(&resp, 0, sizeof(resp));
+    resp.buf = resp_buf;
+    resp.max_len = sizeof(resp_buf);
+    req.body = "{\"city\":\"深圳\"}";
+    req.body_len = strlen(req.body);
+
+    ret = handle_weather_config(&req, &resp);
+    assert(ret == 0);
+    assert(resp.status_code == 200);
+    assert(strstr(resp_buf, "深圳") != NULL);
+    assert(strcmp(weather_service_get_city(), "深圳") == 0);
+    printf("  -> Web API POST /api/weather/config PASSED\n");
+
+    weather_service_deinit();
+    phoenix_config_deinit();
+    system("rm -rf /tmp/test_phoenix_weather_cfg");
+    printf("  -> Weather Service Subsystem PASSED!\n");
+}
+
 int main(int argc, char *argv[])
 {
     printf("====================================================\n");
@@ -2523,8 +2662,10 @@ int main(int argc, char *argv[])
     run_test_agent_web_api();
     run_test_env_sensor_subsystem();
     run_test_four_moats_hardening();
+    run_test_todo_subsystem();
+    run_test_weather_subsystem();
 
-    printf("\n🎉 ALL 33 UNIT TESTS PASSED SUCCESSFULLY!\n");
+    printf("\n🎉 ALL 35 UNIT TESTS PASSED SUCCESSFULLY!\n");
 
     /* If --repl or -i passed, enter interactive mode */
     if (argc > 1 && (strcmp(argv[1], "-i") == 0 || strcmp(argv[1], "--repl") == 0)) {

@@ -25,6 +25,7 @@ extern "C" {
 #define PHOENIX_CFG_MODEL             "llm_model"
 #define PHOENIX_CFG_PROACTIVE_EN      "proactive_en"
 #define PHOENIX_CFG_PROACTIVE_TIMEOUT "proactive_timeout_s"
+#define PHOENIX_CFG_WEATHER_CITY      "weather_city"
 
 /**
  * @brief Initialize configuration subsystem

@@ -38,6 +38,8 @@ typedef enum {
     PHOENIX_EVT_CARTRIDGE_SWITCHED, /**< Active cartridge switched */
     PHOENIX_EVT_NET_STATUS,       /**< Wi-Fi network mode, SSID, IP and state change */
     PHOENIX_EVT_HAL_ENV,          /**< On-board ambient temperature & humidity update */
+    PHOENIX_EVT_WEATHER_UPDATED,  /**< Network weather fetched or updated */
+    PHOENIX_EVT_TODO_CHANGED,     /**< Todo items added, removed, or status toggled */
     PHOENIX_EVT_COUNT
 } phoenix_event_type_t;
 
@@ -146,6 +148,23 @@ typedef struct {
             const char *ip;
             const char *msg;
         } net;
+
+        struct {
+            const char *city;
+            const char *condition;
+            int temp_c;
+            int temp_min;
+            int temp_max;
+            int humidity;
+            bool success;
+        } weather;
+
+        struct {
+            size_t total_count;
+            size_t done_count;
+            int last_action;
+            int target_id;
+        } todo;
     } data;
 } phoenix_event_data_t;
 

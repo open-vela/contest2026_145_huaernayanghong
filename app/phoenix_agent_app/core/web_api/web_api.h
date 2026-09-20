@@ -82,6 +82,21 @@ int handle_agent_tool_exec(const http_req_t *req, http_resp_t *resp);
 int handle_agent_memory(const http_req_t *req, http_resp_t *resp);
 int handle_agent_memory_clear(const http_req_t *req, http_resp_t *resp);
 
+/* =========================================================================
+ * 模块 8: 网络天气服务 (api_weather.c)
+ * ========================================================================= */
+int handle_weather_status(const http_req_t *req, http_resp_t *resp);
+int handle_weather_config(const http_req_t *req, http_resp_t *resp);
+
+/* =========================================================================
+ * 模块 9: 今日待办事项管理 (api_todo.c)
+ * ========================================================================= */
+int handle_todo_list(const http_req_t *req, http_resp_t *resp);
+int handle_todo_add(const http_req_t *req, http_resp_t *resp);
+int handle_todo_toggle(const http_req_t *req, http_resp_t *resp);
+int handle_todo_delete(const http_req_t *req, http_resp_t *resp);
+int handle_todo_clear_done(const http_req_t *req, http_resp_t *resp);
+
 /** 批量将上述所有 API 控制器注册到 web_router */
 void web_api_register_all(void);
 

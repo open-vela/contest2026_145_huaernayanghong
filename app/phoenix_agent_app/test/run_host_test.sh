@@ -45,6 +45,8 @@ $COMPILER -O2 -Wall -Wextra -std=gnu99 \
     "$APP_DIR/core/tool_registry.c" \
     "$APP_DIR/core/store.c" \
     "$APP_DIR/core/config.c" \
+    "$APP_DIR/core/weather_service.c" \
+    "$APP_DIR/core/todo_mgr.c" \
     "$APP_DIR/core/expression.c" \
     "$APP_DIR/core/intent_router.c" \
     "$APP_DIR/core/cartridge_mgr.c" \
@@ -63,6 +65,8 @@ $COMPILER -O2 -Wall -Wextra -std=gnu99 \
     "$APP_DIR/core/web_api/api_logs.c" \
     "$APP_DIR/core/web_api/api_sdcard.c" \
     "$APP_DIR/core/web_api/api_agent.c" \
+    "$APP_DIR/core/web_api/api_weather.c" \
+    "$APP_DIR/core/web_api/api_todo.c" \
     "$APP_DIR/core/web_portal.c" \
     "$APP_DIR/core/app.c" \
     "$APP_DIR/core/agent_core.c" \
