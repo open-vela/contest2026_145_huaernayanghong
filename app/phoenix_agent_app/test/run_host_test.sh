@@ -17,7 +17,11 @@ echo "===================================================="
 
 # Auto-sync HTML assets to C arrays if python3 is available
 if command -v python3 >/dev/null 2>&1; then
-    python3 "$APP_DIR/web/sync_assets.py"
+    if [ -f "$APP_DIR/../../web/sync_assets.py" ]; then
+        python3 "$APP_DIR/../../web/sync_assets.py"
+    elif [ -f "$APP_DIR/web/sync_assets.py" ]; then
+        python3 "$APP_DIR/web/sync_assets.py"
+    fi
 fi
 
 COMPILER="${CC:-gcc}"

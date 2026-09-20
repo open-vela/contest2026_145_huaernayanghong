@@ -8,7 +8,8 @@ import os
 import re
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-APP_DIR = os.path.dirname(SCRIPT_DIR)
+REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+APP_DIR = os.path.join(REPO_ROOT, "app", "phoenix_agent_app")
 CORE_DIR = os.path.join(APP_DIR, "core")
 
 SETUP_HTML_PATH = os.path.join(SCRIPT_DIR, "setup.html")
