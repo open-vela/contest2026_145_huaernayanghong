@@ -248,12 +248,12 @@ static void* weather_fetch_thread_fn(void *arg)
     memcpy(&snapshot, &s_weather_ctx.info, sizeof(weather_info_t));
     pthread_mutex_unlock(&s_weather_ctx.lock);
 
-    /* 广播天气已更新事件 */
+    /* 广播天气已更新事件 (使用持久化全局静态缓存，杜绝栈销毁后的野指针访问) */
     phoenix_event_data_t evt;
     memset(&evt, 0, sizeof(evt));
     evt.type = PHOENIX_EVT_WEATHER_UPDATED;
-    evt.data.weather.city = snapshot.city;
-    evt.data.weather.condition = snapshot.condition;
+    evt.data.weather.city = s_weather_ctx.info.city;
+    evt.data.weather.condition = s_weather_ctx.info.condition;
     evt.data.weather.temp_c = snapshot.temp_c;
     evt.data.weather.temp_min = snapshot.temp_min;
     evt.data.weather.temp_max = snapshot.temp_max;
