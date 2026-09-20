@@ -8,7 +8,12 @@
     "dev": "vite",
     "build": "vite build && cp dist/index.html dashboard.html && python3 sync_assets.py"
   },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
   "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
     "vite": "^6.0.0",
     "vite-plugin-singlefile": "^2.1.0"
   }
