@@ -5,6 +5,11 @@
  */
 
 #include "llm_cloud_backend.h"
+#if defined(__has_include) && __has_include("core/tool_registry.h")
+#  include "core/tool_registry.h"
+#elif defined(__has_include) && __has_include("../core/tool_registry.h")
+#  include "../core/tool_registry.h"
+#endif
 #if defined(__has_include) && __has_include("utils/log_utils.h")
 #  include "utils/log_utils.h"
 #else
@@ -389,15 +394,40 @@ static int cloud_backend_chat(phoenix_llm_backend_t *self,
     cJSON_AddItemToObject(payload, "chat_template_kwargs", kwargs);
 
     cJSON *msg_array = cJSON_CreateArray();
-    /* Add System Prompt */
-    cJSON *sys_msg = cJSON_CreateObject();
-    cJSON_AddStringToObject(sys_msg, "role", "system");
-    cJSON_AddStringToObject(sys_msg, "content",
-                            g_cloud_ctx.config.system_prompt ? g_cloud_ctx.config.system_prompt : DEFAULT_SYSTEM_PROMPT);
-    cJSON_AddItemToArray(msg_array, sys_msg);
 
-    /* Add Message History */
-    for (size_t i = 0; i < msg_count; i++) {
+    /* 构建唯一的 System Prompt：
+     * 如果 messages[0] 是 PHOENIX_ROLE_SYSTEM，则将底层 default_system_prompt 与 messages[0].content
+     * 合并为单条 system 消息，避免多条 system 消息引发大模型或模板渲染器异常 */
+    const char *base_sys = g_cloud_ctx.config.system_prompt ? g_cloud_ctx.config.system_prompt : DEFAULT_SYSTEM_PROMPT;
+    size_t start_msg_idx = 0;
+
+    if (msg_count > 0 && messages[0].role == PHOENIX_ROLE_SYSTEM) {
+        cJSON *sys_msg = cJSON_CreateObject();
+        cJSON_AddStringToObject(sys_msg, "role", "system");
+
+        size_t base_len = strlen(base_sys);
+        const char *extra_sys = messages[0].content ? messages[0].content : "";
+        size_t extra_len = strlen(extra_sys);
+
+        char *combined_sys = (char *)malloc(base_len + extra_len + 16);
+        if (combined_sys) {
+            snprintf(combined_sys, base_len + extra_len + 16, "%s\n\n%s", base_sys, extra_sys);
+            cJSON_AddStringToObject(sys_msg, "content", combined_sys);
+            free(combined_sys);
+        } else {
+            cJSON_AddStringToObject(sys_msg, "content", base_sys);
+        }
+        cJSON_AddItemToArray(msg_array, sys_msg);
+        start_msg_idx = 1;
+    } else {
+        cJSON *sys_msg = cJSON_CreateObject();
+        cJSON_AddStringToObject(sys_msg, "role", "system");
+        cJSON_AddStringToObject(sys_msg, "content", base_sys);
+        cJSON_AddItemToArray(msg_array, sys_msg);
+    }
+
+    /* Add Message History (从 start_msg_idx 开始) */
+    for (size_t i = start_msg_idx; i < msg_count; i++) {
         cJSON *m = cJSON_CreateObject();
         switch (messages[i].role) {
             case PHOENIX_ROLE_SYSTEM:
@@ -418,6 +448,7 @@ static int cloud_backend_chat(phoenix_llm_backend_t *self,
                     cJSON_AddStringToObject(tc, "type", "function");
                     cJSON *func = cJSON_CreateObject();
                     cJSON_AddStringToObject(func, "name", messages[i].tool_name);
+                    cJSON_AddStringToObject(func, "arguments", "{}");
                     cJSON_AddItemToObject(tc, "function", func);
                     cJSON_AddItemToArray(tcalls, tc);
                     cJSON_AddItemToObject(m, "tool_calls", tcalls);
@@ -435,16 +466,26 @@ static int cloud_backend_chat(phoenix_llm_backend_t *self,
     }
     cJSON_AddItemToObject(payload, "messages", msg_array);
 
-    /* Add Tools Schema if available */
+    /* Add Tools Schema if requested by caller */
     if (tools_json && strlen(tools_json) > 0) {
-        cJSON *tools_obj = cJSON_Parse(tools_json);
+        /* 护城河：优先使用直接构造的 cJSON 对象，避开嵌入式平坦堆对大字符串二次反序列化失败的隐患 */
+        cJSON *tools_obj = phoenix_tool_build_schema_cjson();
+        if (!tools_obj) {
+            tools_obj = cJSON_Parse(tools_json);
+        }
         if (tools_obj) {
+            int tool_count = cJSON_GetArraySize(tools_obj);
             cJSON_AddItemToObject(payload, "tools", tools_obj);
             cJSON_AddStringToObject(payload, "tool_choice", "auto");
+            LOG_I(TAG, "🔧 成功挂载 Tools Schema 到请求: 共 %d 个工具", tool_count);
+        } else {
+            LOG_E(TAG, "❌ 挂载 Tools Schema 失败! 无法解析或构建 tools cJSON");
         }
     }
 
     char *req_body = cJSON_PrintUnformatted(payload);
+    bool has_tools = (cJSON_GetObjectItem(payload, "tools") != NULL);
+    int actual_msg_count = cJSON_GetArraySize(msg_array);
     cJSON_Delete(payload);
 
     if (!req_body) {
@@ -453,7 +494,11 @@ static int cloud_backend_chat(phoenix_llm_backend_t *self,
         return -1;
     }
 
-    LOG_D(TAG, "📤 Cloud Request (%zu bytes) -> %s", strlen(req_body), g_cloud_ctx.config.base_url);
+    LOG_I(TAG, "📤 云端请求就绪: 模型=%s, 消息数=%d, 工具=%s, Payload=%zu 字节",
+          g_cloud_ctx.config.model_name,
+          actual_msg_count,
+          has_tools ? "已挂载" : "未挂载",
+          strlen(req_body));
 
     char *raw_resp = NULL;
     int http_status = 0;
@@ -546,6 +591,10 @@ static int cloud_backend_chat(phoenix_llm_backend_t *self,
                 if (call_id && call_id->valuestring) resp_out->tool_call_id = strdup(call_id->valuestring);
                 if (fname && fname->valuestring) resp_out->tool_name = strdup(fname->valuestring);
                 if (fargs && fargs->valuestring) resp_out->tool_input = strdup(fargs->valuestring);
+                LOG_I(TAG, "🎯 识别到模型返回 Tool Call: %s (id: %s, args: %s)",
+                      resp_out->tool_name ? resp_out->tool_name : "unknown",
+                      resp_out->tool_call_id ? resp_out->tool_call_id : "none",
+                      resp_out->tool_input ? resp_out->tool_input : "{}");
             }
         }
     }

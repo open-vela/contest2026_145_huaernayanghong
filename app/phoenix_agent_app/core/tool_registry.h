@@ -65,6 +65,14 @@ const phoenix_tool_desc_t* phoenix_tool_find(const char *name);
  */
 int phoenix_tool_execute(const char *name, const char *args_json, char *result_out, size_t max_len);
 
+struct cJSON;
+
+/**
+ * @brief Build complete Tools cJSON array object for direct injection into payload
+ * @return Heap-allocated cJSON array (caller takes ownership, or adds to payload), or NULL on failure
+ */
+struct cJSON* phoenix_tool_build_schema_cjson(void);
+
 /**
  * @brief Build complete Tools JSON Schema array string for LLM API request
  * @return Heap-allocated JSON string (caller must free), or NULL on failure

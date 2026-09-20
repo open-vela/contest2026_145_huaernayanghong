@@ -17,6 +17,10 @@
 #    include <cJSON/cJSON.h>
 #  elif __has_include(<cjson/cJSON.h>)
 #    include <cjson/cJSON.h>
+#  elif __has_include(<cJSON.h>)
+#    include <cJSON.h>
+#  elif __has_include("../../../../apps/netutils/cjson/cJSON/cJSON.h")
+#    include "../../../../apps/netutils/cjson/cJSON/cJSON.h"
 #  else
 #    include <cJSON.h>
 #  endif
@@ -96,7 +100,7 @@ int phoenix_tool_execute(const char *name, const char *args_json, char *result_o
     return ret;
 }
 
-char* phoenix_tool_build_schema_json(void)
+cJSON* phoenix_tool_build_schema_cjson(void)
 {
     if (!g_initialized || g_tool_count == 0) {
         return NULL;
@@ -108,9 +112,14 @@ char* phoenix_tool_build_schema_json(void)
     for (size_t i = 0; i < g_tool_count; i++) {
         const phoenix_tool_desc_t *tool = &g_registry[i];
         cJSON *tool_obj = cJSON_CreateObject();
+        if (!tool_obj) continue;
         cJSON_AddStringToObject(tool_obj, "type", "function");
 
         cJSON *func_obj = cJSON_CreateObject();
+        if (!func_obj) {
+            cJSON_Delete(tool_obj);
+            continue;
+        }
         cJSON_AddStringToObject(func_obj, "name", tool->name);
         cJSON_AddStringToObject(func_obj, "description", tool->description ? tool->description : "");
 
@@ -128,6 +137,14 @@ char* phoenix_tool_build_schema_json(void)
         cJSON_AddItemToObject(tool_obj, "function", func_obj);
         cJSON_AddItemToArray(root_array, tool_obj);
     }
+
+    return root_array;
+}
+
+char* phoenix_tool_build_schema_json(void)
+{
+    cJSON *root_array = phoenix_tool_build_schema_cjson();
+    if (!root_array) return NULL;
 
     char *json_str = cJSON_PrintUnformatted(root_array);
     cJSON_Delete(root_array);
