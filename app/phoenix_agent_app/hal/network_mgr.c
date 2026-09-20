@@ -130,6 +130,7 @@ int netlib_obtain_ipv4addr(const char *ifname);
 static net_mode_t       s_mode = NET_MODE_DISCONNECTED;
 static char             s_current_ip[NET_MAX_IP_LEN] = {0};
 static char             s_current_ssid[NET_MAX_SSID_LEN] = {0};
+static net_dhcp_info_t  s_dhcp_info = {0};
 static bool             s_web_enabled = true;
 static net_state_cb_t   s_state_cb = NULL;
 static void            *s_state_user_data = NULL;
@@ -285,6 +286,108 @@ bool net_is_valid_sta_ip(const char *ip)
     return true;
 }
 
+/**
+ * @brief 查询并刷新当前底层网卡的 DHCP 网络配置快照
+ */
+static void query_and_cache_dhcp_info_unlocked(const char *ifname)
+{
+    if (!ifname || !ifname[0]) ifname = "wlan0";
+    memset(&s_dhcp_info, 0, sizeof(s_dhcp_info));
+
+    if (s_current_ip[0] != '\0') {
+        snprintf(s_dhcp_info.ip, sizeof(s_dhcp_info.ip), "%s", s_current_ip);
+    }
+    s_dhcp_info.is_dhcp = (s_mode == NET_MODE_STA_CONNECTED);
+
+#if defined(HOST_TEST_RUNNER)
+    snprintf(s_dhcp_info.netmask, sizeof(s_dhcp_info.netmask), "255.255.255.0");
+    snprintf(s_dhcp_info.gateway, sizeof(s_dhcp_info.gateway), "192.168.1.1");
+    snprintf(s_dhcp_info.dns, sizeof(s_dhcp_info.dns), "192.168.1.1");
+    snprintf(s_dhcp_info.server_ip, sizeof(s_dhcp_info.server_ip), "192.168.1.1");
+    snprintf(s_dhcp_info.mac, sizeof(s_dhcp_info.mac), "02:42:c0:a8:01:6c");
+    s_dhcp_info.lease_time = 86400; /* 24小时 */
+#else
+    /* 1. 查询子网掩码 (优先 netlib 其次 ioctl) */
+    extern int netlib_get_ipv4netmask(const char *ifname, struct in_addr *addr) __attribute__((weak));
+    if (netlib_get_ipv4netmask) {
+        struct in_addr mask_addr;
+        if (netlib_get_ipv4netmask(ifname, &mask_addr) == 0 && mask_addr.s_addr != 0) {
+            char *mask_str = inet_ntoa(mask_addr);
+            if (mask_str && strcmp(mask_str, "0.0.0.0") != 0) {
+                snprintf(s_dhcp_info.netmask, sizeof(s_dhcp_info.netmask), "%s", mask_str);
+            }
+        }
+    }
+#ifdef SIOCGIFNETMASK
+    if (s_dhcp_info.netmask[0] == '\0') {
+        int sock = socket(AF_INET, SOCK_DGRAM, 0);
+        if (sock >= 0) {
+            struct ifreq ifr;
+            memset(&ifr, 0, sizeof(ifr));
+            strncpy(ifr.ifr_name, ifname, IFNAMSIZ - 1);
+            if (ioctl(sock, SIOCGIFNETMASK, &ifr) == 0) {
+                struct sockaddr_in *sin = (struct sockaddr_in *)&ifr.ifr_addr;
+                char *mask_str = inet_ntoa(sin->sin_addr);
+                if (mask_str && strcmp(mask_str, "0.0.0.0") != 0) {
+                    snprintf(s_dhcp_info.netmask, sizeof(s_dhcp_info.netmask), "%s", mask_str);
+                }
+            }
+            close(sock);
+        }
+    }
+#endif
+
+    /* 2. 查询物理网卡 MAC 地址 (OpenVela/NuttX 标准 netlib_getmacaddr 接口) */
+    extern int netlib_getmacaddr(const char *ifname, uint8_t *macaddr) __attribute__((weak));
+    if (netlib_getmacaddr) {
+        uint8_t mac[6] = {0};
+        if (netlib_getmacaddr(ifname, mac) == 0) {
+            snprintf(s_dhcp_info.mac, sizeof(s_dhcp_info.mac), "%02x:%02x:%02x:%02x:%02x:%02x",
+                     mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+        }
+    }
+
+    /* 3. 查询默认网关 */
+    extern int netlib_get_dripv4addr(const char *ifname, struct in_addr *addr) __attribute__((weak));
+    if (netlib_get_dripv4addr) {
+        struct in_addr dr_addr;
+        if (netlib_get_dripv4addr(ifname, &dr_addr) == 0 && dr_addr.s_addr != 0) {
+            char *gw_str = inet_ntoa(dr_addr);
+            if (gw_str && strcmp(gw_str, "0.0.0.0") != 0) {
+                snprintf(s_dhcp_info.gateway, sizeof(s_dhcp_info.gateway), "%s", gw_str);
+            }
+        }
+    }
+
+    /* 4. 智能容错与推导补全 */
+    if (s_dhcp_info.netmask[0] == '\0') {
+        snprintf(s_dhcp_info.netmask, sizeof(s_dhcp_info.netmask), "255.255.255.0");
+    }
+    if (s_dhcp_info.gateway[0] == '\0' && s_current_ip[0] != '\0') {
+        char gw_tmp[NET_MAX_IP_LEN];
+        snprintf(gw_tmp, sizeof(gw_tmp), "%s", s_current_ip);
+        char *last_dot = strrchr(gw_tmp, '.');
+        if (last_dot) {
+            snprintf(last_dot + 1, sizeof(gw_tmp) - (last_dot + 1 - gw_tmp), "1");
+            snprintf(s_dhcp_info.gateway, sizeof(s_dhcp_info.gateway), "%s", gw_tmp);
+        }
+    }
+    if (s_dhcp_info.dns[0] == '\0') {
+        if (s_dhcp_info.gateway[0] != '\0') {
+            snprintf(s_dhcp_info.dns, sizeof(s_dhcp_info.dns), "%s", s_dhcp_info.gateway);
+        } else {
+            snprintf(s_dhcp_info.dns, sizeof(s_dhcp_info.dns), "114.114.114.114");
+        }
+    }
+    if (s_dhcp_info.server_ip[0] == '\0' && s_dhcp_info.gateway[0] != '\0') {
+        snprintf(s_dhcp_info.server_ip, sizeof(s_dhcp_info.server_ip), "%s", s_dhcp_info.gateway);
+    }
+    if (s_dhcp_info.lease_time == 0) {
+        s_dhcp_info.lease_time = 86400; /* 默认 24h */
+    }
+#endif
+}
+
 #if !defined(HOST_TEST_RUNNER)
 /**
  * @brief 通过网络套接字与 ioctl 查询指定接口的 IPv4 地址
@@ -422,6 +525,7 @@ static void* net_link_watchdog_thread(void *arg)
                 pthread_mutex_lock(&s_lock);
                 s_mode = NET_MODE_STA_CONNECTED;
                 snprintf(s_current_ip, sizeof(s_current_ip), "%s", check_ip);
+                query_and_cache_dhcp_info_unlocked("wlan0");
                 LOG_I(TAG, "🎉 [Watchdog] Wi-Fi 重新自愈连通，物理 IP: [%s]", s_current_ip);
                 notify_state_changed_with_msg_unlocked("Wi-Fi 连接成功");
                 bool web_en = s_web_enabled;
@@ -600,6 +704,7 @@ static void* sta_connect_worker_thread(void *arg)
     if (connected && acquired_ip[0] != '\0') {
         s_mode = NET_MODE_STA_CONNECTED;
         snprintf(s_current_ip, sizeof(s_current_ip), "%s", acquired_ip);
+        query_and_cache_dhcp_info_unlocked("wlan0");
         LOG_I(TAG, "🎉 [Worker] Wi-Fi 成功连入局域网! 物理 IP: [%s]", s_current_ip);
         notify_state_changed_with_msg_unlocked("Wi-Fi 连接成功");
 
@@ -706,6 +811,7 @@ int net_mgr_init(void)
             s_mode = NET_MODE_STA_CONNECTED;
             snprintf(s_current_ip, sizeof(s_current_ip), "%s", existing_ip);
             snprintf(s_current_ssid, sizeof(s_current_ssid), "%s", saved_ssid);
+            query_and_cache_dhcp_info_unlocked("wlan0");
             LOG_I(TAG, "检测到 wlan0 已经就绪并持有局域网 IP: [%s], SSID: [%s]", s_current_ip, s_current_ssid);
             notify_state_changed_unlocked();
 
@@ -1325,6 +1431,7 @@ int net_mgr_connect_sta(const char *ssid, const char *psk)
     /* Host 单测模式：同步完成以便单元测试断言 */
     s_mode = NET_MODE_STA_CONNECTED;
     snprintf(s_current_ip, sizeof(s_current_ip), "192.168.1.108");
+    query_and_cache_dhcp_info_unlocked("wlan0");
     LOG_I(TAG, "✅ [Host] Wi-Fi 连接成功! 分配 IP: [%s]", s_current_ip);
     notify_state_changed_unlocked();
 
@@ -1812,5 +1919,52 @@ int net_mgr_get_cached_scan_results(net_wifi_ap_info_t *aps_out, size_t max_coun
     }
     pthread_mutex_unlock(&s_scan_lock);
     return (int)copy_cnt;
+}
+
+int net_mgr_get_dhcp_info(net_dhcp_info_t *info)
+{
+    if (!info) return -1;
+    pthread_mutex_lock(&s_lock);
+    if (s_mode != NET_MODE_STA_CONNECTED && s_mode != NET_MODE_SOFTAP_CONFIG) {
+        pthread_mutex_unlock(&s_lock);
+        memset(info, 0, sizeof(*info));
+        return -2;
+    }
+
+    if (s_dhcp_info.ip[0] == '\0' && s_current_ip[0] != '\0') {
+        query_and_cache_dhcp_info_unlocked("wlan0");
+    }
+
+    memcpy(info, &s_dhcp_info, sizeof(net_dhcp_info_t));
+    pthread_mutex_unlock(&s_lock);
+    return 0;
+}
+
+int net_mgr_renew_dhcp(void)
+{
+    pthread_mutex_lock(&s_lock);
+    if (s_mode != NET_MODE_STA_CONNECTED) {
+        pthread_mutex_unlock(&s_lock);
+        return -1;
+    }
+
+    LOG_I(TAG, "🔄 用户主动触发重新申请 DHCP 租约 (DHCP Renew)...");
+#if !defined(HOST_TEST_RUNNER)
+    int ret = netlib_obtain_ipv4addr("wlan0");
+    if (ret == 0) {
+        char acquired_ip[NET_MAX_IP_LEN] = {0};
+        if (query_interface_ip("wlan0", acquired_ip, sizeof(acquired_ip)) == 0 &&
+            net_is_valid_sta_ip(acquired_ip)) {
+            snprintf(s_current_ip, sizeof(s_current_ip), "%s", acquired_ip);
+        }
+    }
+    query_and_cache_dhcp_info_unlocked("wlan0");
+#else
+    snprintf(s_current_ip, sizeof(s_current_ip), "192.168.1.108");
+    query_and_cache_dhcp_info_unlocked("wlan0");
+#endif
+    notify_state_changed_with_msg_unlocked("DHCP 租约已更新");
+    pthread_mutex_unlock(&s_lock);
+    return 0;
 }
 

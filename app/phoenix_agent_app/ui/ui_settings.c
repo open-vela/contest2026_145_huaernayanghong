@@ -35,6 +35,9 @@ static void on_pwd_eye_clicked(lv_event_t *e);
 static void on_pwd_kb_event(lv_event_t *e);
 static void on_wifi_forget_clicked(lv_event_t *e);
 static void on_wifi_ap_mode_clicked(lv_event_t *e);
+static void on_dhcp_close_clicked(lv_event_t *e);
+static void on_dhcp_renew_clicked(lv_event_t *e);
+static void on_wifi_status_label_clicked(lv_event_t *e);
 
 /* ========================================================================= */
 /*                              生命周期接口                                 */

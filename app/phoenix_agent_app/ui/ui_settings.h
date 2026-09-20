@@ -126,6 +126,25 @@ typedef struct {
     bool     is_pwd_obscure;      /**< 密码当前是否密文遮蔽 */
     uint32_t last_scan_req_time;  /**< 上次请求扫描时间戳，防止过频刷新 */
 
+    /* 2.1.2 网络属性与 DHCP 详情模态弹窗组件 */
+    lv_obj_t *dlg_dhcp_modal;     /**< DHCP 详情浮层遮罩容器 */
+    lv_obj_t *card_dhcp_content;  /**< 详情卡片 */
+    lv_obj_t *lbl_dhcp_title;     /**< 标题: 网络配置与 DHCP 租约 */
+    lv_obj_t *btn_dhcp_close;     /**< 右上角关闭按钮 */
+    lv_obj_t *lbl_dhcp_close;
+    lv_obj_t *lbl_dhcp_ssid;      /**< 当前网络名称 (SSID) */
+    lv_obj_t *lbl_dhcp_mode;      /**< 分配方式 (DHCP 动态分配) */
+    lv_obj_t *lbl_dhcp_ip;        /**< 本机 IPv4 地址 */
+    lv_obj_t *lbl_dhcp_mask;      /**< 子网掩码 */
+    lv_obj_t *lbl_dhcp_gw;        /**< 默认网关 */
+    lv_obj_t *lbl_dhcp_dns;       /**< DNS 服务器 */
+    lv_obj_t *lbl_dhcp_mac;       /**< 物理 MAC 地址 */
+    lv_obj_t *lbl_dhcp_lease;     /**< 租约时间 */
+    lv_obj_t *btn_dhcp_renew;     /**< 重新获取租约按钮 */
+    lv_obj_t *lbl_dhcp_renew;
+    lv_obj_t *btn_dhcp_ok;        /**< 返回确定按钮 */
+    lv_obj_t *lbl_dhcp_ok;
+
     /* 兼容历史指针保留 */
     lv_obj_t *box_hotspot_idle;
     lv_obj_t *card_hotspot_info;
@@ -312,6 +331,18 @@ void ui_settings_close_password_dialog(ui_settings_t *settings);
  * @param settings 设置对象
  */
 void ui_settings_refresh_wifi_list(ui_settings_t *settings);
+
+/**
+ * @brief 显示网络配置与 DHCP 详细信息模态对话框
+ * @param settings 设置对象
+ */
+void ui_settings_show_dhcp_dialog(ui_settings_t *settings);
+
+/**
+ * @brief 关闭网络配置与 DHCP 详细信息模态对话框
+ * @param settings 设置对象
+ */
+void ui_settings_close_dhcp_dialog(ui_settings_t *settings);
 
 /**
  * @brief 注册设置中心关闭回调

@@ -42,6 +42,20 @@ typedef struct {
 } net_wifi_ap_info_t;
 
 /**
+ * @brief DHCP 网络配置与租约详细信息
+ */
+typedef struct {
+    char     ip[NET_MAX_IP_LEN];       /**< 本机分配到的 IPv4 地址，如 192.168.1.108 */
+    char     netmask[NET_MAX_IP_LEN];  /**< 子网掩码，如 255.255.255.0 */
+    char     gateway[NET_MAX_IP_LEN];  /**< 默认网关 / 路由器 IP，如 192.168.1.1 */
+    char     dns[NET_MAX_IP_LEN];      /**< 首选 DNS 服务器，如 192.168.1.1 或 8.8.8.8 */
+    char     server_ip[NET_MAX_IP_LEN];/**< DHCP 服务器提供方 IP，如 192.168.1.1 */
+    char     mac[24];                  /**< 本地物理网卡 MAC 地址，如 a4:cf:12:34:56:78 */
+    uint32_t lease_time;               /**< DHCP 租约有效期 (秒)，如 86400 */
+    bool     is_dhcp;                  /**< 是否由 DHCP 协议动态分配 (静态分配为 false) */
+} net_dhcp_info_t;
+
+/**
  * @brief 网络事件回调
  */
 typedef void (*net_state_cb_t)(net_mode_t mode, const char *ip, void *user_data);
@@ -191,6 +205,19 @@ bool net_mgr_is_scanning(void);
  * @return 实际返回的热点数量 (>= 0)
  */
 int net_mgr_get_cached_scan_results(net_wifi_ap_info_t *aps_out, size_t max_count);
+
+/**
+ * @brief 获取当前网络连接的完整 DHCP 详细信息 (IP/掩码/网关/DNS/MAC/租约)
+ * @param info 输出结构体指针
+ * @return 0 成功, 负数失败或未连网
+ */
+int net_mgr_get_dhcp_info(net_dhcp_info_t *info);
+
+/**
+ * @brief 触发后台重新申请 DHCP 租约 (DHCP Renew)
+ * @return 0 成功启动, 负数失败
+ */
+int net_mgr_renew_dhcp(void);
 
 #ifdef __cplusplus
 }

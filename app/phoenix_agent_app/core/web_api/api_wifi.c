@@ -58,6 +58,20 @@ int handle_wifi_status(const http_req_t *req, http_resp_t *resp)
     cJSON_AddStringToObject(root, "ssid", ssid);
     cJSON_AddBoolToObject(root, "is_connected", (mode == NET_MODE_STA_CONNECTED));
 
+    net_dhcp_info_t dhcp;
+    if (net_mgr_get_dhcp_info(&dhcp) == 0) {
+        cJSON *dhcp_obj = cJSON_CreateObject();
+        cJSON_AddStringToObject(dhcp_obj, "ip", dhcp.ip);
+        cJSON_AddStringToObject(dhcp_obj, "netmask", dhcp.netmask);
+        cJSON_AddStringToObject(dhcp_obj, "gateway", dhcp.gateway);
+        cJSON_AddStringToObject(dhcp_obj, "dns", dhcp.dns);
+        cJSON_AddStringToObject(dhcp_obj, "server_ip", dhcp.server_ip);
+        cJSON_AddStringToObject(dhcp_obj, "mac", dhcp.mac);
+        cJSON_AddNumberToObject(dhcp_obj, "lease_time", (double)dhcp.lease_time);
+        cJSON_AddBoolToObject(dhcp_obj, "is_dhcp", dhcp.is_dhcp);
+        cJSON_AddItemToObject(root, "dhcp", dhcp_obj);
+    }
+
     http_resp_json_obj(resp, 200, root);
     return 0;
 }
