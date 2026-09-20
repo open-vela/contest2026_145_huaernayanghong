@@ -155,9 +155,21 @@ static int execute_http_post(const char *url,
 
         struct curl_slist *headers = NULL;
         headers = curl_slist_append(headers, "Content-Type: application/json");
+        headers = curl_slist_append(headers, "User-Agent: PhoenixAgent/1.0");
         if (api_key && api_key[0] != '\0') {
+            /* 剔除 API Key 可能存在的首尾空格或换行符 */
+            char clean_key[128] = {0};
+            const char *src = api_key;
+            while (*src == ' ' || *src == '\r' || *src == '\n' || *src == '\t') src++;
+            strncpy(clean_key, src, sizeof(clean_key) - 1);
+            size_t klen = strlen(clean_key);
+            while (klen > 0 && (clean_key[klen - 1] == ' ' || clean_key[klen - 1] == '\r' ||
+                                clean_key[klen - 1] == '\n' || clean_key[klen - 1] == '\t')) {
+                clean_key[--klen] = '\0';
+            }
+
             char auth_hdr[256];
-            snprintf(auth_hdr, sizeof(auth_hdr), "Authorization: Bearer %s", api_key);
+            snprintf(auth_hdr, sizeof(auth_hdr), "Authorization: Bearer %s", clean_key);
             headers = curl_slist_append(headers, auth_hdr);
         }
 
@@ -522,10 +534,14 @@ static int cloud_backend_chat(phoenix_llm_backend_t *self,
     resp_out->latency_ms = lat_ms;
 
     if (ret != 0 || !raw_resp) {
+        if (raw_resp) {
+            LOG_E(TAG, "❌ HTTP 异常响应 (状态码 %d): %s", http_status, raw_resp);
+        }
         char err_msg_buf[512];
         snprintf(err_msg_buf, sizeof(err_msg_buf),
                  "云端通信失败: %s (HTTP %d, 耗时 %ums)",
-                 err_diag[0] ? err_diag : "网络握手异常", http_status, lat_ms);
+                 (raw_resp && raw_resp[0]) ? raw_resp : (err_diag[0] ? err_diag : "网络握手异常"),
+                 http_status, lat_ms);
         resp_out->content = strdup(err_msg_buf);
         resp_out->error_msg = strdup(err_diag[0] ? err_diag : "Network transport error");
         if (raw_resp) free(raw_resp);

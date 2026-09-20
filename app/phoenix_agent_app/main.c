@@ -674,6 +674,7 @@ int main(int argc, FAR char *argv[])
     memset(&app_cfg, 0, sizeof(app_cfg));
     app_cfg.enable_web_portal = true;
     app_cfg.web_port = PHOENIX_STANDARD_HTTP_PORT;
+    app_cfg.register_tools = true;
     if (phoenix_app_init(&app_cfg) != 0) {
         printf("[PhoenixApp] ❌ Error: Phoenix Application Facade init failed!\n");
         lv_nuttx_deinit(&result);

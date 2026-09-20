@@ -100,9 +100,17 @@ int phoenix_tool_execute(const char *name, const char *args_json, char *result_o
     return ret;
 }
 
+int phoenix_register_builtin_tools(void);
+
 cJSON* phoenix_tool_build_schema_cjson(void)
 {
-    if (!g_initialized || g_tool_count == 0) {
+    if (!g_initialized) {
+        phoenix_tool_registry_init();
+    }
+    if (g_tool_count == 0) {
+        phoenix_register_builtin_tools();
+    }
+    if (g_tool_count == 0) {
         return NULL;
     }
 
