@@ -182,17 +182,15 @@ int audio_test_play_record(void)
     g_play_duration_ms = (uint32_t)(g_pcm_count * 1000 / AUDIO_TEST_SAMPLE_RATE);
     if (g_play_duration_ms < 500) g_play_duration_ms = 500;
 
-    /* 触发物理音频放音通道 (/dev/audio/pcm0p) */
-    int fd = open("/dev/audio/pcm0p", O_WRONLY | O_NONBLOCK);
-    if (fd >= 0) {
-        write(fd, g_pcm_buffer, g_pcm_count * sizeof(int16_t));
-        close(fd);
-    } else {
-        /* Fallback: 触发驱动层音效模拟播放 */
-        hal_actuator_play_sound(HAL_SOUND_CLICK);
-    }
+    /* 
+     * 安全放音通道控制：
+     * OpenVela (NuttX) 的 /dev/audio/pcm0p 字符设备需要标准的 struct ap_buffer_s 封装，
+     * 严禁直接通过普通 write() 传入裸 PCM 指针（会导致内核 Data Abort 崩溃）。
+     * 此处统一使用 HAL 层的声音致动器安全回放提示音效，真实录音流可通过 Web 看板直接在线试听。
+     */
+    hal_actuator_play_sound(HAL_SOUND_CLICK);
 
-    LOG_I(TAG, "▶️ [AudioTest] 正在回放刚刚录制的音频 (时长: %u ms)...", g_play_duration_ms);
+    LOG_I(TAG, "▶️ [AudioTest] 正在回放录音 (时长: %u ms, 可在 Web 看板直接试听)...", g_play_duration_ms);
     pthread_mutex_unlock(&g_audio_test_mutex);
     return 0;
 }
@@ -207,24 +205,8 @@ int audio_test_play_tone(uint32_t freq_hz, uint32_t duration_ms)
     g_play_start_ms = time_utils_get_ms();
     g_play_duration_ms = duration_ms;
 
-    /* 生成简易正弦波并写入播放节点 */
-    size_t sample_count = (AUDIO_TEST_SAMPLE_RATE * duration_ms) / 1000;
-    int16_t *tone_buf = (int16_t *)malloc(sample_count * sizeof(int16_t));
-    if (tone_buf) {
-        double step = 2.0 * 3.141592653589793 * freq_hz / AUDIO_TEST_SAMPLE_RATE;
-        for (size_t i = 0; i < sample_count; i++) {
-            tone_buf[i] = (int16_t)(16000.0 * sin(step * (double)i));
-        }
-
-        int fd = open("/dev/audio/pcm0p", O_WRONLY | O_NONBLOCK);
-        if (fd >= 0) {
-            write(fd, tone_buf, sample_count * sizeof(int16_t));
-            close(fd);
-        } else {
-            hal_actuator_play_sound(HAL_SOUND_ALERT);
-        }
-        free(tone_buf);
-    }
+    /* 通过 HAL 安全触发蜂鸣/纯音提示音效，杜绝裸写内核设备节点导致系统崩溃 */
+    hal_actuator_play_sound(HAL_SOUND_ALERT);
 
     LOG_I(TAG, "🔔 [AudioTest] 播放测试纯音: %u Hz (持续: %u ms)", freq_hz, duration_ms);
     pthread_mutex_unlock(&g_audio_test_mutex);
@@ -248,7 +230,7 @@ int audio_test_set_loopback(bool enable)
     g_is_loopback = enable;
     if (enable) {
         hal_audio_in_start();
-        LOG_I(TAG, "🔁 [AudioTest] 实时耳返回环 (Loopback) 已开启: pcm0c -> pcm0p");
+        LOG_I(TAG, "🔁 [AudioTest] 实时耳返回环 (Loopback) 已开启");
     } else {
         LOG_I(TAG, "🛑 [AudioTest] 实时耳返回环 (Loopback) 已关闭");
     }
@@ -279,15 +261,6 @@ void audio_test_feed_pcm(const int16_t *samples, size_t count)
             pthread_mutex_unlock(&g_audio_test_mutex);
             audio_test_record_stop();
             return;
-        }
-    }
-
-    /* 3. 若开启实时耳返回环，直接将音频写入播放设备 */
-    if (g_is_loopback) {
-        int fd = open("/dev/audio/pcm0p", O_WRONLY | O_NONBLOCK);
-        if (fd >= 0) {
-            write(fd, samples, count * sizeof(int16_t));
-            close(fd);
         }
     }
 

@@ -25,6 +25,7 @@
 #include "../hal/hal_manager.h"
 #include "../perception/perception.h"
 #include "../voice/voice_pipeline.h"
+#include "audio_test_service.h"
 #include "../hal/network_mgr.h"
 #include "../utils/log_utils.h"
 #include <stdio.h>
@@ -180,6 +181,9 @@ int phoenix_app_init(const phoenix_app_config_t *config)
         phoenix_web_portal_start(config->web_port, NULL);
     }
 
+    /* 10.1 声学实验室与音频测试服务初始化 */
+    audio_test_service_init();
+
     /* 11. Cartridge Plugin & Orchestrator Engine (注册 5 大卡带，以灵眸具身智能体为首发默认) */
     cartridge_mgr_init(NULL);
     cartridge_agent_register();
@@ -199,6 +203,7 @@ void phoenix_app_tick(void)
     if (!g_app_initialized) return;
     phoenix_event_bus_drain();
     phoenix_voice_pipeline_tick();
+    audio_test_service_tick();
     phoenix_store_flush();
     phoenix_web_portal_drain_commands();
 
@@ -235,6 +240,7 @@ void phoenix_app_deinit(void)
     LOG_I(TAG, "🔄 De-initializing Phoenix Subsystems...");
 
     cartridge_mgr_deinit();
+    audio_test_service_deinit();
     net_mgr_deinit();
     phoenix_web_portal_stop();
     phoenix_voice_pipeline_deinit();

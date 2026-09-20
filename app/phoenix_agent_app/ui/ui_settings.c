@@ -1616,26 +1616,59 @@ static void on_audio_rec_clicked(lv_event_t *e)
 {
     ui_settings_t *s = (ui_settings_t *)lv_event_get_user_data(e);
     if (!s) return;
+
+    /* 350ms 防抖保护，防止触摸屏机械抖动与连续狂点导致状态混乱 */
+    uint64_t now = time_utils_get_ms();
+    static uint64_t s_last_rec_click_ms = 0;
+    if (now - s_last_rec_click_ms < 350) return;
+    s_last_rec_click_ms = now;
+
     audio_test_status_t st;
     audio_test_get_status(&st);
     if (st.state == AUDIO_TEST_STATE_RECORDING) {
         audio_test_record_stop();
         if (s->lbl_audio_rec_btn) lv_label_set_text(s->lbl_audio_rec_btn, "🎤 录音");
+        if (s->lbl_audio_rec_status) {
+            lv_label_set_text(s->lbl_audio_rec_status, "录音已停止");
+            lv_obj_set_style_text_color(s->lbl_audio_rec_status, lv_color_hex(0x00FF88), 0);
+        }
     } else {
-        audio_test_record_start();
-        if (s->lbl_audio_rec_btn) lv_label_set_text(s->lbl_audio_rec_btn, "⏹ 停止");
+        int ret = audio_test_record_start();
+        if (ret == 0) {
+            if (s->lbl_audio_rec_btn) lv_label_set_text(s->lbl_audio_rec_btn, "⏹ 停止");
+            if (s->lbl_audio_rec_status) {
+                lv_label_set_text(s->lbl_audio_rec_status, "正在录音 (最长10s)...");
+                lv_obj_set_style_text_color(s->lbl_audio_rec_status, lv_color_hex(0xFFB700), 0);
+            }
+        } else {
+            /* 启动失败时维持原按钮状态，杜绝视觉闪烁 */
+            if (s->lbl_audio_rec_status) {
+                lv_label_set_text(s->lbl_audio_rec_status, "⚠️ 录音启动失败(服务忙或未就绪)");
+                lv_obj_set_style_text_color(s->lbl_audio_rec_status, lv_color_hex(0xFF5252), 0);
+            }
+        }
     }
 }
 
 static void on_audio_play_rec_clicked(lv_event_t *e)
 {
     (void)e;
+    uint64_t now = time_utils_get_ms();
+    static uint64_t s_last_play_click_ms = 0;
+    if (now - s_last_play_click_ms < 350) return;
+    s_last_play_click_ms = now;
+
     audio_test_play_record();
 }
 
 static void on_audio_play_tone_clicked(lv_event_t *e)
 {
     (void)e;
+    uint64_t now = time_utils_get_ms();
+    static uint64_t s_last_tone_click_ms = 0;
+    if (now - s_last_tone_click_ms < 350) return;
+    s_last_tone_click_ms = now;
+
     audio_test_play_tone(1000, 1500);
 }
 
