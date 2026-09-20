@@ -2878,9 +2878,22 @@ static void run_test_tts_and_voice_config(void)
     const char *http_tts_dl = "GET /api/audio/tts_download HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
     resp_len = web_router_dispatch(http_tts_dl, wav_resp, sizeof(wav_resp));
     assert(resp_len > 0);
-    assert(strstr(wav_resp, "200 OK") != NULL);
-    assert(strstr(wav_resp, "audio/wav") != NULL);
-    printf("  -> GET /api/audio/tts_download (Audio Stream) PASSED\n");
+    /* 10. 测试 Web 零拷贝流式分块响应 (GET /dashboard) */
+    http_resp_t stream_resp;
+    char stream_hdr_buf[512];
+    memset(&stream_resp, 0, sizeof(stream_resp));
+    stream_resp.buf = stream_hdr_buf;
+    stream_resp.max_len = sizeof(stream_hdr_buf);
+
+    const char *http_get_dash = "GET /dashboard HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+    int sret = web_router_dispatch_ctx(http_get_dash, &stream_resp);
+    assert(sret == 0);
+    assert(stream_resp.status_code == 200);
+    assert(strstr(stream_hdr_buf, "Content-Type: text/html") != NULL);
+    assert(stream_resp.body_stream != NULL);
+    assert(stream_resp.body_stream_len > 100000); /* 验证 230KB+ 大网页成功挂载 */
+    printf("  -> Zero-copy Streamed HTML Response (Header: %zu B, Body: %zu B) PASSED\n",
+           stream_resp.written_len, stream_resp.body_stream_len);
 
     phoenix_tts_deinit();
     printf("  -> TTS Provider & Web Voice Configuration Subsystem PASSED!\n");

@@ -178,14 +178,17 @@ void http_resp_html(http_resp_t *resp, int status_code, const char *html_str, si
                            "Content-Type: text/html; charset=UTF-8\r\n"
                            "Content-Length: %zu\r\n"
                            "Access-Control-Allow-Origin: *\r\n"
-                           "Connection: close\r\n\r\n%s",
-                           status_code_to_str(status_code), html_len, html_str);
+                           "Connection: close\r\n\r\n",
+                           status_code_to_str(status_code), html_len);
     resp->status_code = status_code;
-    if (written > 0) {
-        resp->written_len = ((size_t)written < resp->max_len) ? (size_t)written : (resp->max_len - 1);
+    if (written > 0 && (size_t)written < resp->max_len) {
+        resp->written_len = (size_t)written;
     } else {
         resp->written_len = 0;
     }
+    /* 零拷贝挂载只读 HTML 内容指针，由 Socket 发送层分块流式直推 */
+    resp->body_stream = html_str;
+    resp->body_stream_len = html_len;
 }
 
 void http_resp_file_stream(http_resp_t *resp, int status_code, const char *content_type,
@@ -228,6 +231,8 @@ void http_resp_file_stream(http_resp_t *resp, int status_code, const char *conte
     resp->buf[hlen + copy_body] = '\0';
     resp->status_code = status_code;
     resp->written_len = (size_t)hlen + copy_body;
+    resp->body_stream = NULL;
+    resp->body_stream_len = 0;
 }
 
 void http_resp_redirect(http_resp_t *resp, int status_code, const char *location)
@@ -243,6 +248,8 @@ void http_resp_redirect(http_resp_t *resp, int status_code, const char *location
                            status_code_to_str(status_code), location);
     resp->status_code = status_code;
     resp->written_len = (written > 0) ? (size_t)written : 0;
+    resp->body_stream = NULL;
+    resp->body_stream_len = 0;
 }
 
 static http_method_t parse_http_method(const char *req)
@@ -256,9 +263,9 @@ static http_method_t parse_http_method(const char *req)
     return HTTP_METHOD_UNKNOWN;
 }
 
-int web_router_dispatch(const char *raw_http, char *resp_out, size_t max_len)
+int web_router_dispatch_ctx(const char *raw_http, http_resp_t *resp)
 {
-    if (!raw_http || !resp_out || max_len < 64) return -1;
+    if (!raw_http || !resp || !resp->buf || resp->max_len < 64) return -1;
 
     if (g_route_count == 0) {
         web_api_register_all();
@@ -293,7 +300,7 @@ int web_router_dispatch(const char *raw_http, char *resp_out, size_t max_len)
 
     /* 1.5 CORS OPTIONS 预检全局快速放行 */
     if (req.method == HTTP_METHOD_OPTIONS) {
-        int written = snprintf(resp_out, max_len,
+        int written = snprintf(resp->buf, resp->max_len,
                                "HTTP/1.1 204 No Content\r\n"
                                "Access-Control-Allow-Origin: *\r\n"
                                "Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n"
@@ -301,7 +308,11 @@ int web_router_dispatch(const char *raw_http, char *resp_out, size_t max_len)
                                "Access-Control-Max-Age: 86400\r\n"
                                "Content-Length: 0\r\n"
                                "Connection: close\r\n\r\n");
-        return (written > 0) ? written : 0;
+        resp->status_code = 204;
+        resp->written_len = (written > 0 && (size_t)written < resp->max_len) ? (size_t)written : 0;
+        resp->body_stream = NULL;
+        resp->body_stream_len = 0;
+        return 0;
     }
 
     /* 2. 定位 Body 与 JSON 自动解析 */
@@ -316,12 +327,11 @@ int web_router_dispatch(const char *raw_http, char *resp_out, size_t max_len)
         }
     }
 
-    /* 3. 准备 Response 上下文 */
-    http_resp_t resp;
-    resp.buf = resp_out;
-    resp.max_len = max_len;
-    resp.written_len = 0;
-    resp.status_code = 200;
+    /* 3. 准备 Response 默认状态 */
+    resp->written_len = 0;
+    resp->status_code = 200;
+    resp->body_stream = NULL;
+    resp->body_stream_len = 0;
 
     /* 4. 路由匹配与执行 */
     bool handled = false;
@@ -337,7 +347,7 @@ int web_router_dispatch(const char *raw_http, char *resp_out, size_t max_len)
         }
 
         if (match && r->handler) {
-            r->handler(&req, &resp);
+            r->handler(&req, resp);
             handled = true;
             break;
         }
@@ -346,9 +356,9 @@ int web_router_dispatch(const char *raw_http, char *resp_out, size_t max_len)
     /* 5. 未匹配路由 Fallback (SoftAP 模式下非 API 路径统一 302 重定向到 http://192.168.4.1/) */
     if (!handled) {
         if (net_mgr_get_mode() == NET_MODE_SOFTAP_CONFIG && strncmp(req.path, "/api/", 5) != 0) {
-            http_resp_redirect(&resp, 302, "http://192.168.4.1/");
+            http_resp_redirect(resp, 302, "http://192.168.4.1/");
         } else {
-            http_resp_error(&resp, 404, "Not Found");
+            http_resp_error(resp, 404, "Not Found");
         }
     }
 
@@ -356,6 +366,32 @@ int web_router_dispatch(const char *raw_http, char *resp_out, size_t max_len)
     if (req.json) {
         cJSON_Delete(req.json);
         req.json = NULL;
+    }
+
+    return 0;
+}
+
+int web_router_dispatch(const char *raw_http, char *resp_out, size_t max_len)
+{
+    if (!raw_http || !resp_out || max_len < 64) return -1;
+
+    http_resp_t resp;
+    memset(&resp, 0, sizeof(resp));
+    resp.buf = resp_out;
+    resp.max_len = max_len;
+
+    int ret = web_router_dispatch_ctx(raw_http, &resp);
+    if (ret < 0) return -1;
+
+    /* 向后兼容：若存在挂载的 body_stream，并且 buffer 还有空间，尽可能拷贝到 buffer 中供旧接口/测试使用 */
+    if (resp.body_stream && resp.body_stream_len > 0) {
+        size_t remain = (resp.written_len < max_len) ? (max_len - resp.written_len - 1) : 0;
+        size_t copy_len = (resp.body_stream_len < remain) ? resp.body_stream_len : remain;
+        if (copy_len > 0) {
+            memcpy(resp_out + resp.written_len, resp.body_stream, copy_len);
+            resp.written_len += copy_len;
+            resp_out[resp.written_len] = '\0';
+        }
     }
 
     return (int)resp.written_len;

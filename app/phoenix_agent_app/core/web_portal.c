@@ -35,8 +35,8 @@ static int g_server_fd_alt = -1; /* 辅助端口 socket (80/8080 双端口并发
 static uint16_t g_server_port = PHOENIX_STANDARD_HTTP_PORT;
 static pthread_t g_server_thread;
 
-#define PHOENIX_WEB_MAX_REQ_SIZE  16384
-#define PHOENIX_WEB_MAX_RESP_SIZE (128 * 1024)
+#define PHOENIX_WEB_MAX_RESP_SIZE (16 * 1024)
+#define PHOENIX_WEB_MAX_REQ_SIZE  (16 * 1024)
 
 /* =========================================================================
  * 跨线程 Web 远程交互命令安全队列
@@ -264,15 +264,36 @@ static void handle_single_client(int client_fd, char *req_buf, char *resp_buf)
                   req_summary, total_read, content_length > 0 ? content_length : 0);
         }
 
-        int resp_len = phoenix_web_portal_handle_request(req_buf, resp_buf, PHOENIX_WEB_MAX_RESP_SIZE);
-        if (resp_len > 0) {
+        http_resp_t resp;
+        memset(&resp, 0, sizeof(resp));
+        resp.buf = resp_buf;
+        resp.max_len = PHOENIX_WEB_MAX_RESP_SIZE;
+
+        int ret = web_router_dispatch_ctx(req_buf, &resp);
+        if (ret >= 0 && resp.written_len > 0) {
+            /* 1. 发送 HTTP 响应头及位于 buffer 中的报文 (如 JSON) */
             ssize_t total_sent = 0;
-            while (total_sent < resp_len) {
-                ssize_t s = send(client_fd, resp_buf + total_sent, (size_t)(resp_len - total_sent), 0);
+            while (total_sent < (ssize_t)resp.written_len) {
+                ssize_t s = send(client_fd, resp.buf + total_sent, resp.written_len - total_sent, 0);
                 if (s <= 0) break;
                 total_sent += s;
             }
-            LOG_D(TAG, "📤 Sent %zd/%d bytes", total_sent, resp_len);
+
+            /* 2. 若存在零拷贝流式数据体（如 HTML 网页或 WAV 音频），以 4KB 分块循环流式直推 */
+            size_t body_sent = 0;
+            if (resp.body_stream && resp.body_stream_len > 0 && total_sent >= (ssize_t)resp.written_len) {
+                const size_t chunk_size = 4096;
+                while (body_sent < resp.body_stream_len) {
+                    size_t to_send = resp.body_stream_len - body_sent;
+                    if (to_send > chunk_size) to_send = chunk_size;
+                    ssize_t s = send(client_fd, resp.body_stream + body_sent, to_send, 0);
+                    if (s <= 0) break;
+                    body_sent += (size_t)s;
+                }
+            }
+
+            LOG_D(TAG, "📤 Sent header/json %zd/%zu bytes, streamed body %zu/%zu bytes",
+                  total_sent, resp.written_len, body_sent, resp.body_stream_len);
         }
     }
 

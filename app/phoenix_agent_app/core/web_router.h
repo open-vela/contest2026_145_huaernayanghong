@@ -56,10 +56,12 @@ typedef struct {
 
 /** HTTP 结构化响应上下文 */
 typedef struct {
-    char   *buf;                   /**< 输出报文缓冲区 */
-    size_t  max_len;               /**< 缓冲区最大可用字节 */
-    size_t  written_len;           /**< 实际写入字节数 */
-    int     status_code;           /**< HTTP 响应状态码 */
+    char        *buf;              /**< 输出报文缓冲区（存放 HTTP 响应头及小型 JSON 报文） */
+    size_t       max_len;          /**< 缓冲区最大可用字节 */
+    size_t       written_len;      /**< 实际写入 buffer 的字节数 */
+    int          status_code;      /**< HTTP 响应状态码 */
+    const char  *body_stream;      /**< 若非空，指向外部只读数据体（如 Flash 中的 HTML/WAV），零拷贝流式发送 */
+    size_t       body_stream_len;  /**< 外部只读数据体字节数 */
 } http_resp_t;
 
 /** 统一 API 处理函数原型 */
@@ -131,6 +133,14 @@ int web_router_register(http_method_t method, const char *path, bool prefix_matc
  * @param count 路由条目数
  */
 int web_router_register_table(const http_route_t *routes, size_t count);
+
+/**
+ * @brief 解析原始 HTTP 报文并进行路由匹配分发（支持上下文与零拷贝流式挂载）
+ * @param raw_http 客户端发送的原始 HTTP 字符串
+ * @param resp 结构化响应上下文
+ * @return 0 表示成功，负值表示失败
+ */
+int web_router_dispatch_ctx(const char *raw_http, http_resp_t *resp);
 
 /**
  * @brief 解析原始 HTTP 报文并进行路由匹配分发
