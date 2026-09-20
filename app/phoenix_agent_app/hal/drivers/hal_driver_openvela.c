@@ -14,6 +14,7 @@
 #include <sys/time.h>
 #include <sys/utsname.h>
 #include <sys/ioctl.h>
+#include <errno.h>
 #include <math.h>
 
 #ifdef __NUTTX__
@@ -421,21 +422,54 @@ static const char* openvela_system_get_storage_base_path(void)
 }
 
 /* ========================================================================= */
-/* Audio In Ops (OpenVela Driver Stub)                                       */
+/* Audio In Ops (OpenVela /dev/audio/pcm0c 真实录音驱动)                      */
 /* ========================================================================= */
+
+/** 录音设备节点 */
+#define AUDIO_DEV_CAPTURE "/dev/audio/pcm0c"
+
+/** 单帧参数：16kHz 16-bit Mono, 10ms = 160 采样点 = 320 字节 */
+#define AUDIO_IN_FRAME_SAMPLES  160
+#define AUDIO_IN_FRAME_BYTES    (AUDIO_IN_FRAME_SAMPLES * 2)
+
+/** 静态内部采集缓冲区（避免每帧 malloc，生命周期与驱动一致） */
+static int16_t s_capture_buf[AUDIO_IN_FRAME_SAMPLES];
+
+/** 录音设备文件描述符 (-1 为未打开) */
+static int s_capture_fd = -1;
+
+/** 录音流是否处于活跃状态 */
+static bool s_capture_streaming = false;
+
 static int openvela_audio_in_init(uint32_t sample_rate, uint8_t channels)
 {
     (void)sample_rate; (void)channels;
+    /* 初始化时仅重置状态，延迟到 start_stream 时打开设备以节省功耗 */
+    s_capture_fd = -1;
+    s_capture_streaming = false;
     return 0;
 }
 
 static int openvela_audio_in_deinit(void)
 {
+    if (s_capture_fd >= 0) {
+        close(s_capture_fd);
+        s_capture_fd = -1;
+    }
+    s_capture_streaming = false;
     return 0;
 }
 
 static int openvela_audio_in_start_stream(void)
 {
+    if (s_capture_fd < 0) {
+        s_capture_fd = open(AUDIO_DEV_CAPTURE, O_RDONLY);
+        if (s_capture_fd < 0) {
+            printf("[HAL:Audio] ❌ 无法打开录音设备 %s (errno=%d)\n", AUDIO_DEV_CAPTURE, errno);
+            return -1;
+        }
+    }
+    s_capture_streaming = true;
     return 0;
 }
 
@@ -443,17 +477,48 @@ static int openvela_audio_in_read_frame(hal_audio_pcm_frame_t *frame_out, uint32
 {
     (void)timeout_ms;
     if (!frame_out) return -1;
+
+    /* 填充帧元信息 */
     frame_out->sample_rate = 16000;
     frame_out->channels = 1;
     frame_out->bit_depth = 16;
-    frame_out->frame_length = 160;
+    frame_out->frame_length = AUDIO_IN_FRAME_SAMPLES;
     frame_out->pcm_data = NULL;
     frame_out->is_speech = false;
+
+    /* 若流未激活或设备未打开，返回空帧 */
+    if (!s_capture_streaming || s_capture_fd < 0) {
+        return 0;
+    }
+
+    /* 从 /dev/audio/pcm0c 读取一帧 PCM 数据 */
+    ssize_t nread = read(s_capture_fd, s_capture_buf, AUDIO_IN_FRAME_BYTES);
+    if (nread > 0) {
+        frame_out->pcm_data = s_capture_buf;
+        frame_out->frame_length = (size_t)(nread / sizeof(int16_t));
+
+        /* 简单 VAD: 计算 RMS 能量，超过阈值认为有语音活动 */
+        int64_t sum_sq = 0;
+        size_t count = frame_out->frame_length;
+        for (size_t i = 0; i < count; i++) {
+            int32_t s = (int32_t)s_capture_buf[i];
+            sum_sq += s * s;
+        }
+        uint32_t rms = (count > 0) ? (uint32_t)sqrt((double)sum_sq / count) : 0;
+        frame_out->is_speech = (rms > 500);
+    }
+
     return 0;
 }
 
 static int openvela_audio_in_stop_stream(void)
 {
+    s_capture_streaming = false;
+    /* 关闭设备以释放硬件资源，下次 start 时重新打开 */
+    if (s_capture_fd >= 0) {
+        close(s_capture_fd);
+        s_capture_fd = -1;
+    }
     return 0;
 }
 
