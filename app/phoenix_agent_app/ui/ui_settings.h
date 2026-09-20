@@ -25,6 +25,7 @@ typedef enum {
     UI_SETTINGS_TAB_SYSTEM,       /**< 标签页 4: 极客系统健康与遥测 */
     UI_SETTINGS_TAB_STORAGE,      /**< 标签页 5: 存储卡与外脑日志 */
     UI_SETTINGS_TAB_ABOUT,        /**< 标签页 6: 关于设备 */
+    UI_SETTINGS_TAB_AUDIO,        /**< 标签页 7: 音频录放与声学实验室 */
 
     /* 兼容历史枚举别名 */
     UI_SETTINGS_TAB_HOTSPOT   = 0,
@@ -34,7 +35,8 @@ typedef enum {
     UI_SETTINGS_PAGE_AGENT    = 2,
     UI_SETTINGS_PAGE_SYSTEM   = 3,
     UI_SETTINGS_PAGE_STORAGE  = 4,
-    UI_SETTINGS_PAGE_ABOUT    = 5
+    UI_SETTINGS_PAGE_ABOUT    = 5,
+    UI_SETTINGS_PAGE_AUDIO    = 6
 } ui_settings_page_t;
 
 typedef ui_settings_page_t ui_settings_tab_t;
@@ -69,10 +71,29 @@ typedef struct {
     lv_obj_t *lbl_menu_storage_sub;/**< 菜单项 5 摘要: 28.6GB */
     lv_obj_t *btn_menu_about;     /**< 菜单项 6: 关于设备 */
     lv_obj_t *lbl_menu_about_sub; /**< 菜单项 6 摘要: OpenVela */
+    lv_obj_t *btn_menu_audio;     /**< 菜单项 7: 音频调试 */
+    lv_obj_t *lbl_menu_audio_sub; /**< 菜单项 7 摘要: 录放音 > */
 
     /* 4. 视图 2: 二级下钻详情区域 (宽 274px, 高 186px) */
     lv_obj_t *view_detail_area;
     lv_obj_t *panel_about;        /**< 关于设备卡片 */
+    lv_obj_t *panel_audio;        /**< 音频调试主卡片 */
+
+    /* 4.1 音频调试面板内部控件 */
+    lv_obj_t *lbl_audio_rec_status;
+    lv_obj_t *bar_audio_energy;
+    lv_obj_t *btn_audio_rec;
+    lv_obj_t *lbl_audio_rec_btn;
+    lv_obj_t *lbl_audio_play_status;
+    lv_obj_t *btn_audio_play_rec;
+    lv_obj_t *lbl_audio_play_rec;
+    lv_obj_t *btn_audio_play_tone;
+    lv_obj_t *lbl_audio_play_tone;
+    lv_obj_t *sw_audio_loopback;
+    lv_obj_t *lbl_audio_loopback;
+    lv_obj_t *slider_audio_vol;
+    lv_obj_t *lbl_audio_vol_val;
+
 
     /* 兼容保留字段指针 */
     lv_obj_t *btn_tab_net;

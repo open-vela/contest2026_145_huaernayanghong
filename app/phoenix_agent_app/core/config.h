@@ -33,6 +33,13 @@ extern "C" {
 #define PHOENIX_CFG_ASR_API_KEY       "asr_api_key"       /* ASR 独立 Key (为空时可复用 llm_api_key) */
 #define PHOENIX_CFG_ASR_MODEL         "asr_model"         /* 默认: "whisper-large-v3" 或 "sensevoice-v1" */
 
+/* TTS 文本转语音配置项 */
+#define PHOENIX_CFG_TTS_BACKEND       "tts_backend"       /* "cloud" | "mock" */
+#define PHOENIX_CFG_TTS_BASE_URL      "tts_base_url"      /* 默认: https://api.openai.com/v1/audio/speech */
+#define PHOENIX_CFG_TTS_API_KEY       "tts_api_key"       /* TTS 独立 Key (为空时可复用 llm_api_key) */
+#define PHOENIX_CFG_TTS_MODEL         "tts_model"         /* 默认: "tts-1" 或 "cosyvoice-v1" */
+#define PHOENIX_CFG_TTS_VOICE         "tts_voice"         /* 默认: "alloy" 或 "zh-CN-XiaoxiaoNeural" */
+
 
 /**
  * @brief Initialize configuration subsystem

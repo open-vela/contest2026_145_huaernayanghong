@@ -21,6 +21,7 @@
 #  include "../tools/tools.h"
 #  include "../harness/llm_provider.h"
 #  include "../harness/asr_provider.h"
+#  include "../harness/tts_provider.h"
 #  include "../harness/llm_mock_backend.h"
 #  include "../harness/llm_cloud_backend.h"
 #  include "../ui/eye_anim.h"
@@ -51,6 +52,7 @@
 #  include "../core/web_api/api_agent.h"
 #  include "../core/weather_service.h"
 #  include "../core/todo_mgr.h"
+#  include "../core/audio_test_service.h"
 #else
 #  include "core/app.h"
 #  include "core/event_bus.h"
@@ -2657,6 +2659,231 @@ static void run_test_asr_provider(void)
     printf("  -> ASR Provider Subsystem PASSED!\n");
 }
 
+static void run_test_audio_test_service(void)
+{
+    printf("\n[TEST 37] Testing Audio Lab & Diagnostics Service (Recording, Playback, Tone, Loopback, WAV & REST API)...\n");
+
+    /* 1. 初始化 */
+    int ret = audio_test_service_init();
+    assert(ret == 0);
+
+    /* 2. 初始状态检查 */
+    audio_test_status_t st;
+    audio_test_get_status(&st);
+    assert(st.state == AUDIO_TEST_STATE_IDLE);
+    assert(st.recorded_bytes == 0);
+    assert(st.is_loopback == false);
+    printf("  -> Initial status: IDLE, 0 bytes, loopback=false\n");
+
+    /* 3. 注入模拟 PCM 样本并验证实时 RMS 能量计算 */
+    int16_t test_pcm[160];
+    for (int i = 0; i < 160; i++) {
+        test_pcm[i] = (i % 2 == 0) ? 10000 : -10000;
+    }
+    audio_test_feed_pcm(test_pcm, 160);
+    audio_test_get_status(&st);
+    assert(st.current_energy > 0);
+    printf("  -> Feed PCM energy calculation: RMS energy = %d%%\n", st.current_energy);
+
+    /* 4. 录音功能测试 */
+    ret = audio_test_record_start();
+    assert(ret == 0);
+    audio_test_get_status(&st);
+    assert(st.state == AUDIO_TEST_STATE_RECORDING);
+
+    /* 模拟送入 3 帧录音数据 */
+    for (int i = 0; i < 3; i++) {
+        audio_test_feed_pcm(test_pcm, 160);
+    }
+    audio_test_service_tick();
+
+    ret = audio_test_record_stop();
+    assert(ret == 0);
+    audio_test_get_status(&st);
+    assert(st.state == AUDIO_TEST_STATE_IDLE);
+    assert(st.recorded_bytes > 0);
+    printf("  -> Record test: captured %zu bytes\n", st.recorded_bytes);
+
+    /* 5. 验证标准 WAV 封装头部 */
+    size_t wav_len = 0;
+    const uint8_t *wav_data = audio_test_get_wav_data(&wav_len);
+    assert(wav_data != NULL);
+    assert(wav_len >= 44 + st.recorded_bytes);
+    assert(memcmp(wav_data, "RIFF", 4) == 0);
+    assert(memcmp(wav_data + 8, "WAVE", 4) == 0);
+    assert(memcmp(wav_data + 12, "fmt ", 4) == 0);
+    printf("  -> WAV package verified: %zu bytes (RIFF/WAVE header OK)\n", wav_len);
+
+    /* 6. 扬声器回放与纯音测试 */
+    ret = audio_test_play_record();
+    assert(ret == 0);
+    audio_test_get_status(&st);
+    assert(st.state == AUDIO_TEST_STATE_PLAYING_REC);
+
+    ret = audio_test_play_stop();
+    assert(ret == 0);
+    audio_test_get_status(&st);
+    assert(st.state == AUDIO_TEST_STATE_IDLE);
+
+    ret = audio_test_play_tone(1000, 500);
+    assert(ret == 0);
+    audio_test_get_status(&st);
+    assert(st.state == AUDIO_TEST_STATE_PLAYING_TONE);
+
+    ret = audio_test_play_stop();
+    assert(ret == 0);
+    audio_test_get_status(&st);
+    assert(st.state == AUDIO_TEST_STATE_IDLE);
+    printf("  -> Playback & 1000Hz Tone test OK\n");
+
+    /* 7. 耳返回环控制 */
+    ret = audio_test_set_loopback(true);
+    assert(ret == 0);
+    audio_test_get_status(&st);
+    assert(st.is_loopback == true);
+
+    ret = audio_test_set_loopback(false);
+    assert(ret == 0);
+    audio_test_get_status(&st);
+    assert(st.is_loopback == false);
+    printf("  -> Loopback toggle OK\n");
+
+    /* 8. 测试 Web REST API 路由 */
+    char resp_buf[1024];
+    int resp_len;
+
+    /* GET /api/audio/status */
+    const char *http_get_status = "GET /api/audio/status HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+    resp_len = web_router_dispatch(http_get_status, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "200 OK") != NULL);
+    assert(strstr(resp_buf, "\"state_str\":\"IDLE\"") != NULL);
+    assert(strstr(resp_buf, "\"volume\":") != NULL);
+    printf("  -> REST API GET /api/audio/status OK\n");
+
+    /* POST /api/audio/play (type: tone) */
+    const char *http_post_tone = "POST /api/audio/play HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n\r\n"
+                                 "{\"action\":\"start\",\"type\":\"tone\",\"freq_hz\":1000,\"duration_ms\":500}";
+    resp_len = web_router_dispatch(http_post_tone, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "200 OK") != NULL);
+    audio_test_play_stop();
+    printf("  -> REST API POST /api/audio/play (tone) OK\n");
+
+    /* GET /api/audio/download */
+    char wav_resp_buf[4096];
+    const char *http_get_wav = "GET /api/audio/download HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+    resp_len = web_router_dispatch(http_get_wav, wav_resp_buf, sizeof(wav_resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(wav_resp_buf, "200 OK") != NULL);
+    assert(strstr(wav_resp_buf, "audio/wav") != NULL);
+    printf("  -> REST API GET /api/audio/download OK\n");
+
+    audio_test_service_deinit();
+    printf("  -> Audio Lab & Diagnostics Service PASSED!\n");
+}
+
+static void run_test_tts_and_voice_config(void)
+{
+    printf("\n[TEST 38] Testing TTS Provider, Voice Web Configuration & ASR/TTS Manual Test APIs...\n");
+
+    /* 1. 初始化 TTS Provider */
+    phoenix_tts_config_t cfg = {
+        .backend = "mock",
+        .base_url = "https://api.openai.com/v1/audio/speech",
+        .api_key = "sk-test-key",
+        .model_name = "tts-1",
+        .voice_name = "alloy"
+    };
+    int ret = phoenix_tts_init(&cfg);
+    assert(ret == 0);
+
+    /* 2. 探测连通性 */
+    uint32_t latency = 0;
+    int status = 0;
+    char err[64] = {0};
+    ret = phoenix_tts_ping(&latency, &status, err, sizeof(err));
+    assert(ret == 0);
+    assert(status == 200);
+    printf("  -> TTS Ping PASSED (HTTP 200, Latency: %u ms)\n", latency);
+
+    /* 3. 语音合成实测 */
+    uint8_t out_wav[128 * 1024];
+    size_t out_wav_len = 0;
+    ret = phoenix_tts_synthesize("你好，桌面灵眸！", out_wav, sizeof(out_wav), &out_wav_len);
+    assert(ret == 0);
+    assert(out_wav_len >= 44);
+    assert(memcmp(out_wav, "RIFF", 4) == 0);
+    assert(memcmp(out_wav + 8, "WAVE", 4) == 0);
+    printf("  -> TTS Synthesize PASSED (Generated %zu bytes WAV)\n", out_wav_len);
+
+    /* 4. 测试 Web API: POST /api/config (同时保存 ASR 与 TTS 配置) */
+    char resp_buf[2048];
+    int resp_len;
+    const char *http_save_cfg =
+        "POST /api/config HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n\r\n"
+        "{\"asr_base_url\":\"https://api.groq.com/openai/v1/audio/transcriptions\","
+        "\"asr_model\":\"whisper-large-v3\",\"asr_api_key\":\"gsk-asr-test\",\"asr_backend\":\"mock\","
+        "\"tts_base_url\":\"https://api.openai.com/v1/audio/speech\","
+        "\"tts_model\":\"tts-1\",\"tts_voice\":\"alloy\",\"tts_api_key\":\"sk-tts-test\",\"tts_backend\":\"mock\"}";
+    resp_len = web_router_dispatch(http_save_cfg, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "200 OK") != NULL);
+    printf("  -> POST /api/config (ASR + TTS) PASSED\n");
+
+    /* 5. 测试 Web API: GET /api/config (验证脱敏展示与配置回读) */
+    const char *http_get_cfg = "GET /api/config HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+    resp_len = web_router_dispatch(http_get_cfg, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "200 OK") != NULL);
+    assert(strstr(resp_buf, "\"asr_model\":\"whisper-large-v3\"") != NULL);
+    assert(strstr(resp_buf, "\"tts_model\":\"tts-1\"") != NULL);
+    assert(strstr(resp_buf, "\"tts_voice\":\"alloy\"") != NULL);
+    printf("  -> GET /api/config (ASR + TTS Verification) PASSED\n");
+
+    /* 6. 测试 Web API: POST /api/config/test (三合一轻量探测) */
+    const char *http_test_cfg =
+        "POST /api/config/test HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n\r\n"
+        "{\"base_url\":\"mock\",\"asr_backend\":\"mock\",\"tts_backend\":\"mock\"}";
+    resp_len = web_router_dispatch(http_test_cfg, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "200 OK") != NULL);
+    assert(strstr(resp_buf, "\"asr_success\":true") != NULL);
+    assert(strstr(resp_buf, "\"tts_success\":true") != NULL);
+    printf("  -> POST /api/config/test (Tri-Model Ping) PASSED\n");
+
+    /* 7. 测试 Web API: POST /api/audio/asr_test (手动转写实测) */
+    const char *http_asr_test =
+        "POST /api/audio/asr_test HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n\r\n{}";
+    resp_len = web_router_dispatch(http_asr_test, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "200 OK") != NULL);
+    assert(strstr(resp_buf, "\"text\":") != NULL);
+    printf("  -> POST /api/audio/asr_test (Manual Transcribe Test) PASSED\n");
+
+    /* 8. 测试 Web API: POST /api/audio/tts_test (手动语音合成实测) */
+    const char *http_tts_test =
+        "POST /api/audio/tts_test HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n\r\n"
+        "{\"text\":\"测试语音合成\",\"play_on_device\":true}";
+    resp_len = web_router_dispatch(http_tts_test, resp_buf, sizeof(resp_buf));
+    assert(resp_len > 0);
+    assert(strstr(resp_buf, "200 OK") != NULL);
+    assert(strstr(resp_buf, "\"audio_url\":\"/api/audio/tts_download\"") != NULL);
+    printf("  -> POST /api/audio/tts_test (Manual Synthesis Test) PASSED\n");
+
+    /* 9. 测试 Web API: GET /api/audio/tts_download (在线下载/试听) */
+    char wav_resp[4096];
+    const char *http_tts_dl = "GET /api/audio/tts_download HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+    resp_len = web_router_dispatch(http_tts_dl, wav_resp, sizeof(wav_resp));
+    assert(resp_len > 0);
+    assert(strstr(wav_resp, "200 OK") != NULL);
+    assert(strstr(wav_resp, "audio/wav") != NULL);
+    printf("  -> GET /api/audio/tts_download (Audio Stream) PASSED\n");
+
+    phoenix_tts_deinit();
+    printf("  -> TTS Provider & Web Voice Configuration Subsystem PASSED!\n");
+}
+
 int main(int argc, char *argv[])
 {
     printf("====================================================\n");
@@ -2706,8 +2933,10 @@ int main(int argc, char *argv[])
     run_test_todo_subsystem();
     run_test_weather_subsystem();
     run_test_asr_provider();
+    run_test_audio_test_service();
+    run_test_tts_and_voice_config();
 
-    printf("\n🎉 ALL 36 UNIT TESTS PASSED SUCCESSFULLY!\n");
+    printf("\n🎉 ALL 38 UNIT TESTS PASSED SUCCESSFULLY!\n");
 
 
     /* If --repl or -i passed, enter interactive mode */

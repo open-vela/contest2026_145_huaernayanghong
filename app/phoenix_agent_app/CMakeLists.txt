@@ -30,6 +30,7 @@ if(CONFIG_LVX_USE_DEMO_CONTEST2026_145_PHOENIX_AGENT_APP)
       core/config.c
       core/weather_service.c
       core/todo_mgr.c
+      core/audio_test_service.c
       core/expression.c
       core/intent_router.c
       core/cartridge_mgr.c
@@ -50,6 +51,7 @@ if(CONFIG_LVX_USE_DEMO_CONTEST2026_145_PHOENIX_AGENT_APP)
       core/web_api/api_agent.c
       core/web_api/api_weather.c
       core/web_api/api_todo.c
+      core/web_api/api_audio.c
       core/web_portal.c
       core/app.c
       hal/hal_sensor.c
@@ -73,6 +75,7 @@ if(CONFIG_LVX_USE_DEMO_CONTEST2026_145_PHOENIX_AGENT_APP)
       harness/llm_cloud_backend.c
       harness/llm_provider.c
       harness/asr_provider.c
+      harness/tts_provider.c
       test/test_autodrive.c)
 
   nuttx_add_application(

@@ -344,6 +344,19 @@ static const http_route_t g_web_api_routes[] = {
     { HTTP_METHOD_POST, "/api/todo/toggle",          false, handle_todo_toggle },
     { HTTP_METHOD_POST, "/api/todo/delete",          false, handle_todo_delete },
     { HTTP_METHOD_POST, "/api/todo/clear_done",      false, handle_todo_clear_done },
+
+    /* 10. 声学实验室与音频调试 */
+    { HTTP_METHOD_GET,  "/api/audio/status",         false, handle_audio_status },
+    { HTTP_METHOD_GET,  "/api/audio",                false, handle_audio_status },
+    { HTTP_METHOD_POST, "/api/audio/record",         false, handle_audio_record },
+    { HTTP_METHOD_POST, "/api/audio/play",           false, handle_audio_play },
+    { HTTP_METHOD_POST, "/api/audio/loopback",       false, handle_audio_loopback },
+    { HTTP_METHOD_GET,  "/api/audio/volume",         false, handle_audio_volume },
+    { HTTP_METHOD_POST, "/api/audio/volume",         false, handle_audio_volume },
+    { HTTP_METHOD_GET,  "/api/audio/download",       false, handle_audio_download },
+    { HTTP_METHOD_POST, "/api/audio/asr_test",       false, handle_audio_asr_test },
+    { HTTP_METHOD_POST, "/api/audio/tts_test",       false, handle_audio_tts_test },
+    { HTTP_METHOD_GET,  "/api/audio/tts_download",   false, handle_audio_tts_download },
 };
 
 void web_api_register_all(void)

@@ -5,20 +5,21 @@
  */
 
 #include "ui_settings.h"
+#include "ui_font.h"
+#include "../core/config.h"
+#include "../core/audio_test_service.h"
 #include "../hal/network_mgr.h"
 #include "../hal/ble_prov_service.h"
-#include "../hal/hal_manager.h"
 #include "../hal/hal_system.h"
-#include "../hal/hal_sdcard.h"
-#include "../core/config.h"
+#include "../hal/hal_actuator.h"
 #include "../utils/log_utils.h"
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
 
-#define TAG "UISettings"
+#define TAG "UI:Settings"
 
-/* 按钮点击事件处理声明 */
+/* 私有事件回调声明 */
 static void on_top_close_clicked(lv_event_t *e);
 static void on_menu_item_clicked(lv_event_t *e);
 static void on_top_tab_btn_clicked(lv_event_t *e);
@@ -26,18 +27,22 @@ static void on_sub_tab_btn_clicked(lv_event_t *e);
 static void on_hotspot_action_clicked(lv_event_t *e);
 static void on_hotspot_reset_clicked(lv_event_t *e);
 static void on_ble_toggle_clicked(lv_event_t *e);
-static void on_prog_done_clicked(lv_event_t *e);
 static void on_wifi_refresh_clicked(lv_event_t *e);
-static void on_wifi_item_clicked(lv_event_t *e);
-static void on_pwd_connect_clicked(lv_event_t *e);
-static void on_pwd_close_clicked(lv_event_t *e);
-static void on_pwd_eye_clicked(lv_event_t *e);
-static void on_pwd_kb_event(lv_event_t *e);
 static void on_wifi_forget_clicked(lv_event_t *e);
-static void on_wifi_ap_mode_clicked(lv_event_t *e);
+static void on_wifi_item_clicked(lv_event_t *e);
+static void on_pwd_close_clicked(lv_event_t *e);
+static void on_pwd_connect_clicked(lv_event_t *e);
+static void on_pwd_eye_clicked(lv_event_t *e);
 static void on_dhcp_close_clicked(lv_event_t *e);
 static void on_dhcp_renew_clicked(lv_event_t *e);
 static void on_wifi_status_label_clicked(lv_event_t *e);
+
+/* 音频调试事件回调声明 */
+static void on_audio_rec_clicked(lv_event_t *e);
+static void on_audio_play_rec_clicked(lv_event_t *e);
+static void on_audio_play_tone_clicked(lv_event_t *e);
+static void on_audio_loopback_changed(lv_event_t *e);
+static void on_audio_vol_slider_changed(lv_event_t *e);
 
 /* ========================================================================= */
 /*                              生命周期接口                                 */
@@ -129,41 +134,45 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     lv_obj_set_style_pad_all(s->view_menu_list, 6, 0);
     lv_obj_add_flag(s->view_menu_list, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* 创建 6 个菜单项卡片 (高度 34px, 宽度 260px，使用字库安全符号) */
-    const char *menu_names[6] = {
+    /* 创建 7 个菜单项卡片 (高度 34px, 宽度 260px，使用字库安全符号) */
+    const char *menu_names[7] = {
         "● Wi-Fi网络",
         "● 蓝牙配网",
         "● 灵眸模型",
         "● 硬件状态",
         "● 存储日志",
-        "● 关于设备"
+        "● 关于设备",
+        "● 音频调试"
     };
-    const char *menu_defaults[6] = {
+    const char *menu_defaults[7] = {
         "已连接 >",
         "未开启 >",
         "DeepSeek >",
         "60FPS / 正常 >",
         "28.6GB >",
-        "R528-S3 >"
+        "R528-S3 >",
+        "录放音测试 >"
     };
-    lv_obj_t **menu_btns[6] = {
+    lv_obj_t **menu_btns[7] = {
         &s->btn_menu_net,
         &s->btn_menu_ble,
         &s->btn_menu_agent,
         &s->btn_menu_system,
         &s->btn_menu_storage,
-        &s->btn_menu_about
+        &s->btn_menu_about,
+        &s->btn_menu_audio
     };
-    lv_obj_t **menu_subs[6] = {
+    lv_obj_t **menu_subs[7] = {
         &s->lbl_menu_net_sub,
         &s->lbl_menu_ble_sub,
         &s->lbl_menu_agent_sub,
         &s->lbl_menu_system_sub,
         &s->lbl_menu_storage_sub,
-        &s->lbl_menu_about_sub
+        &s->lbl_menu_about_sub,
+        &s->lbl_menu_audio_sub
     };
 
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 7; i++) {
         lv_obj_t *b = lv_btn_create(s->view_menu_list);
         lv_obj_set_size(b, 260, 34);
         lv_obj_set_pos(b, 1, (lv_coord_t)(i * 38));
@@ -187,7 +196,7 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
         lv_obj_align(lbl_sub, LV_ALIGN_RIGHT_MID, -6, 0);
         if (s->font) lv_obj_set_style_text_font(lbl_sub, s->font, 0);
         lv_label_set_text(lbl_sub, menu_defaults[i]);
-        lv_obj_set_style_text_color(lbl_sub, (i == 0 || i == 1 || i == 3) ? lv_color_hex(0x00FF88) : lv_color_hex(0x00E5FF), 0);
+        lv_obj_set_style_text_color(lbl_sub, (i == 0 || i == 1 || i == 3 || i == 6) ? lv_color_hex(0x00FF88) : lv_color_hex(0x00E5FF), 0);
 
         *menu_btns[i] = b;
         *menu_subs[i] = lbl_sub;
@@ -658,6 +667,150 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     lv_label_set_text(lbl_about_desc, "OpenVela 2026 Contest Team 145\n全志 R528-S3 双核ARM Cortex-A7\n固件版本: v1.0.0-Release\n微内核: OpenVela / RT-Thread Smart\n外设: Wi-Fi/BLE + 敲击感应 + TF存储");
     lv_obj_set_style_text_color(lbl_about_desc, lv_color_hex(0x8B9EB5), 0);
 
+    /* =====================================================================
+     * 10. 独立标签页 6: 音频调试与声学实验室 (panel_audio)
+     * ===================================================================== */
+    s->panel_audio = lv_obj_create(s->body_area);
+    lv_obj_set_size(s->panel_audio, 266, 176);
+    lv_obj_align(s->panel_audio, LV_ALIGN_TOP_MID, 0, 0);
+    lv_obj_set_style_bg_opa(s->panel_audio, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(s->panel_audio, 0, 0);
+    lv_obj_set_style_pad_all(s->panel_audio, 0, 0);
+    lv_obj_clear_flag(s->panel_audio, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(s->panel_audio, LV_OBJ_FLAG_HIDDEN);
+
+    /* 卡片 1: 麦克风录音测试 (高度 78px) */
+    lv_obj_t *card_rec = lv_obj_create(s->panel_audio);
+    lv_obj_set_size(card_rec, 260, 78);
+    lv_obj_align(card_rec, LV_ALIGN_TOP_MID, 0, 2);
+    lv_obj_set_style_bg_color(card_rec, lv_color_hex(0x0E1726), 0);
+    lv_obj_set_style_border_color(card_rec, lv_color_hex(0x1C2F4D), 0);
+    lv_obj_set_style_border_width(card_rec, 1, 0);
+    lv_obj_set_style_radius(card_rec, 6, 0);
+    lv_obj_set_style_pad_all(card_rec, 4, 0);
+    lv_obj_clear_flag(card_rec, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *lbl_rec_title = lv_label_create(card_rec);
+    lv_obj_align(lbl_rec_title, LV_ALIGN_TOP_LEFT, 4, 1);
+    if (s->font) lv_obj_set_style_text_font(lbl_rec_title, s->font, 0);
+    lv_label_set_text(lbl_rec_title, "麦克风录音 (/dev/audio/pcm0c)");
+    lv_obj_set_style_text_color(lbl_rec_title, lv_color_hex(0x00E5FF), 0);
+
+    s->lbl_audio_rec_status = lv_label_create(card_rec);
+    lv_obj_align(s->lbl_audio_rec_status, LV_ALIGN_TOP_LEFT, 4, 20);
+    if (s->font) lv_obj_set_style_text_font(s->lbl_audio_rec_status, s->font, 0);
+    lv_label_set_text(s->lbl_audio_rec_status, "待命 (16kHz 16bit 单声道)");
+    lv_obj_set_style_text_color(s->lbl_audio_rec_status, lv_color_hex(0x8B9EB5), 0);
+
+    /* 音频能量条 */
+    s->bar_audio_energy = lv_bar_create(card_rec);
+    lv_obj_set_size(s->bar_audio_energy, 140, 8);
+    lv_obj_align(s->bar_audio_energy, LV_ALIGN_BOTTOM_LEFT, 4, -8);
+    lv_bar_set_range(s->bar_audio_energy, 0, 100);
+    lv_bar_set_value(s->bar_audio_energy, 0, LV_ANIM_OFF);
+    lv_obj_set_style_bg_color(s->bar_audio_energy, lv_color_hex(0x182436), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(s->bar_audio_energy, lv_color_hex(0x00FF88), LV_PART_INDICATOR);
+
+    /* 录音按钮 */
+    s->btn_audio_rec = lv_btn_create(card_rec);
+    lv_obj_set_size(s->btn_audio_rec, 90, 26);
+    lv_obj_align(s->btn_audio_rec, LV_ALIGN_BOTTOM_RIGHT, -4, -4);
+    lv_obj_set_style_bg_color(s->btn_audio_rec, lv_color_hex(0x1F3554), 0);
+    lv_obj_set_style_border_color(s->btn_audio_rec, lv_color_hex(0x3B6B9E), 0);
+    lv_obj_set_style_border_width(s->btn_audio_rec, 1, 0);
+    lv_obj_set_style_radius(s->btn_audio_rec, 4, 0);
+    lv_obj_add_event_cb(s->btn_audio_rec, on_audio_rec_clicked, LV_EVENT_CLICKED, s);
+
+    s->lbl_audio_rec_btn = lv_label_create(s->btn_audio_rec);
+    lv_obj_center(s->lbl_audio_rec_btn);
+    if (s->font) lv_obj_set_style_text_font(s->lbl_audio_rec_btn, s->font, 0);
+    lv_label_set_text(s->lbl_audio_rec_btn, "🎤 录音");
+    lv_obj_set_style_text_color(s->lbl_audio_rec_btn, lv_color_hex(0xFFFFFF), 0);
+
+    /* 卡片 2: 扬声器放音与耳返 (高度 88px) */
+    lv_obj_t *card_play = lv_obj_create(s->panel_audio);
+    lv_obj_set_size(card_play, 260, 88);
+    lv_obj_align(card_play, LV_ALIGN_BOTTOM_MID, 0, -2);
+    lv_obj_set_style_bg_color(card_play, lv_color_hex(0x0E1726), 0);
+    lv_obj_set_style_border_color(card_play, lv_color_hex(0x1C2F4D), 0);
+    lv_obj_set_style_border_width(card_play, 1, 0);
+    lv_obj_set_style_radius(card_play, 6, 0);
+    lv_obj_set_style_pad_all(card_play, 4, 0);
+    lv_obj_clear_flag(card_play, LV_OBJ_FLAG_SCROLLABLE);
+
+    s->lbl_audio_play_status = lv_label_create(card_play);
+    lv_obj_align(s->lbl_audio_play_status, LV_ALIGN_TOP_LEFT, 4, 1);
+    if (s->font) lv_obj_set_style_text_font(s->lbl_audio_play_status, s->font, 0);
+    lv_label_set_text(s->lbl_audio_play_status, "扬声器放音 (/dev/audio/pcm0p)");
+    lv_obj_set_style_text_color(s->lbl_audio_play_status, lv_color_hex(0x00E5FF), 0);
+
+    /* 回放按钮 */
+    s->btn_audio_play_rec = lv_btn_create(card_play);
+    lv_obj_set_size(s->btn_audio_play_rec, 76, 24);
+    lv_obj_align(s->btn_audio_play_rec, LV_ALIGN_TOP_LEFT, 4, 20);
+    lv_obj_set_style_bg_color(s->btn_audio_play_rec, lv_color_hex(0x182D42), 0);
+    lv_obj_set_style_border_color(s->btn_audio_play_rec, lv_color_hex(0x2B4B6E), 0);
+    lv_obj_set_style_border_width(s->btn_audio_play_rec, 1, 0);
+    lv_obj_set_style_radius(s->btn_audio_play_rec, 4, 0);
+    lv_obj_add_event_cb(s->btn_audio_play_rec, on_audio_play_rec_clicked, LV_EVENT_CLICKED, s);
+
+    s->lbl_audio_play_rec = lv_label_create(s->btn_audio_play_rec);
+    lv_obj_center(s->lbl_audio_play_rec);
+    if (s->font) lv_obj_set_style_text_font(s->lbl_audio_play_rec, s->font, 0);
+    lv_label_set_text(s->lbl_audio_play_rec, "▶ 回放");
+    lv_obj_set_style_text_color(s->lbl_audio_play_rec, lv_color_hex(0x00FF88), 0);
+
+    /* 1kHz 纯音按钮 */
+    s->btn_audio_play_tone = lv_btn_create(card_play);
+    lv_obj_set_size(s->btn_audio_play_tone, 82, 24);
+    lv_obj_align(s->btn_audio_play_tone, LV_ALIGN_TOP_LEFT, 86, 20);
+    lv_obj_set_style_bg_color(s->btn_audio_play_tone, lv_color_hex(0x182D42), 0);
+    lv_obj_set_style_border_color(s->btn_audio_play_tone, lv_color_hex(0x2B4B6E), 0);
+    lv_obj_set_style_border_width(s->btn_audio_play_tone, 1, 0);
+    lv_obj_set_style_radius(s->btn_audio_play_tone, 4, 0);
+    lv_obj_add_event_cb(s->btn_audio_play_tone, on_audio_play_tone_clicked, LV_EVENT_CLICKED, s);
+
+    s->lbl_audio_play_tone = lv_label_create(s->btn_audio_play_tone);
+    lv_obj_center(s->lbl_audio_play_tone);
+    if (s->font) lv_obj_set_style_text_font(s->lbl_audio_play_tone, s->font, 0);
+    lv_label_set_text(s->lbl_audio_play_tone, "🔔 1kHz");
+    lv_obj_set_style_text_color(s->lbl_audio_play_tone, lv_color_hex(0xFFD700), 0);
+
+    /* 耳返回环开关 */
+    s->sw_audio_loopback = lv_switch_create(card_play);
+    lv_obj_set_size(s->sw_audio_loopback, 36, 18);
+    lv_obj_align(s->sw_audio_loopback, LV_ALIGN_TOP_RIGHT, -6, 23);
+    lv_obj_add_event_cb(s->sw_audio_loopback, on_audio_loopback_changed, LV_EVENT_VALUE_CHANGED, s);
+
+    s->lbl_audio_loopback = lv_label_create(card_play);
+    lv_obj_align(s->lbl_audio_loopback, LV_ALIGN_TOP_RIGHT, -46, 24);
+    if (s->font) lv_obj_set_style_text_font(s->lbl_audio_loopback, s->font, 0);
+    lv_label_set_text(s->lbl_audio_loopback, "耳返");
+    lv_obj_set_style_text_color(s->lbl_audio_loopback, lv_color_hex(0x8B9EB5), 0);
+
+    /* 音量滑块 */
+    lv_obj_t *lbl_vol_title = lv_label_create(card_play);
+    lv_obj_align(lbl_vol_title, LV_ALIGN_BOTTOM_LEFT, 4, -4);
+    if (s->font) lv_obj_set_style_text_font(lbl_vol_title, s->font, 0);
+    lv_label_set_text(lbl_vol_title, "音量");
+    lv_obj_set_style_text_color(lbl_vol_title, lv_color_hex(0x8B9EB5), 0);
+
+    s->slider_audio_vol = lv_slider_create(card_play);
+    lv_obj_set_size(s->slider_audio_vol, 150, 10);
+    lv_obj_align(s->slider_audio_vol, LV_ALIGN_BOTTOM_LEFT, 40, -8);
+    lv_slider_set_range(s->slider_audio_vol, 0, 100);
+    int cur_vol = phoenix_config_get_int(PHOENIX_CFG_VOLUME, 80);
+    lv_slider_set_value(s->slider_audio_vol, cur_vol, LV_ANIM_OFF);
+    lv_obj_add_event_cb(s->slider_audio_vol, on_audio_vol_slider_changed, LV_EVENT_VALUE_CHANGED, s);
+
+    s->lbl_audio_vol_val = lv_label_create(card_play);
+    lv_obj_align(s->lbl_audio_vol_val, LV_ALIGN_BOTTOM_RIGHT, -6, -4);
+    if (s->font) lv_obj_set_style_text_font(s->lbl_audio_vol_val, s->font, 0);
+    char vol_str[16];
+    snprintf(vol_str, sizeof(vol_str), "%d%%", cur_vol);
+    lv_label_set_text(s->lbl_audio_vol_val, vol_str);
+    lv_obj_set_style_text_color(s->lbl_audio_vol_val, lv_color_hex(0x00E5FF), 0);
+
     /* 兼容性绑定 */
     s->lbl_net_status = s->lbl_hotspot_ssid;
     s->lbl_net_ip = s->lbl_hotspot_ip;
@@ -753,13 +906,14 @@ void ui_settings_enter_detail(ui_settings_t *settings, ui_settings_tab_t tab)
         lv_label_set_text(settings->lbl_top_close, "<");
     }
 
-    const char *tab_titles[6] = {
+    const char *tab_titles[7] = {
         "Wi-Fi网络连接",
         "蓝牙极速配网",
         "灵眸大模型",
         "硬件状态与遥测",
         "存储卡与外脑日志",
-        "关于设备"
+        "关于设备",
+        "音频调试与声学"
     };
     if (settings->lbl_top_title) {
         lv_label_set_text(settings->lbl_top_title, tab_titles[(int)tab]);
@@ -774,15 +928,16 @@ void ui_settings_enter_detail(ui_settings_t *settings, ui_settings_tab_t tab)
     }
 
     /* 3. 切换详情面板可见性 */
-    lv_obj_t *panels[6] = {
+    lv_obj_t *panels[7] = {
         settings->panel_hotspot,
         settings->panel_ble,
         settings->panel_agent,
         settings->panel_system,
         settings->panel_storage,
-        settings->panel_about
+        settings->panel_about,
+        settings->panel_audio
     };
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 7; i++) {
         if (panels[i]) {
             if (i == (int)tab) lv_obj_clear_flag(panels[i], LV_OBJ_FLAG_HIDDEN);
             else lv_obj_add_flag(panels[i], LV_OBJ_FLAG_HIDDEN);
@@ -1331,6 +1486,64 @@ void ui_settings_refresh_data(ui_settings_t *settings)
         lv_label_set_text(settings->lbl_menu_about_sub, "v1.0.0 >");
         lv_obj_set_style_text_color(settings->lbl_menu_about_sub, lv_color_hex(0x00E5FF), 0);
     }
+
+    /* 7. 刷新音频调试与声学实验室面板数据 */
+    audio_test_status_t ast;
+    audio_test_get_status(&ast);
+
+    if (settings->lbl_menu_audio_sub) {
+        if (ast.state == AUDIO_TEST_STATE_RECORDING) {
+            lv_label_set_text(settings->lbl_menu_audio_sub, "录音中 >");
+            lv_obj_set_style_text_color(settings->lbl_menu_audio_sub, lv_color_hex(0xFFB700), 0);
+        } else if (ast.state == AUDIO_TEST_STATE_PLAYING_REC || ast.state == AUDIO_TEST_STATE_PLAYING_TONE) {
+            lv_label_set_text(settings->lbl_menu_audio_sub, "放音中 >");
+            lv_obj_set_style_text_color(settings->lbl_menu_audio_sub, lv_color_hex(0x00E5FF), 0);
+        } else {
+            lv_label_set_text(settings->lbl_menu_audio_sub, "就绪 >");
+            lv_obj_set_style_text_color(settings->lbl_menu_audio_sub, lv_color_hex(0x00FF88), 0);
+        }
+    }
+
+    if (settings->is_in_detail && settings->current_tab == UI_SETTINGS_TAB_AUDIO && settings->panel_audio) {
+        if (settings->bar_audio_energy) {
+            lv_bar_set_value(settings->bar_audio_energy, ast.current_energy, LV_ANIM_OFF);
+        }
+        if (settings->lbl_audio_rec_status) {
+            char rec_buf[64];
+            if (ast.state == AUDIO_TEST_STATE_RECORDING) {
+                snprintf(rec_buf, sizeof(rec_buf), "录音中 %02u:%02u (能量: %d%%)",
+                         (ast.record_duration_ms / 1000) / 60, (ast.record_duration_ms / 1000) % 60, ast.current_energy);
+                lv_obj_set_style_text_color(settings->lbl_audio_rec_status, lv_color_hex(0xFFB700), 0);
+            } else if (ast.recorded_bytes > 0) {
+                snprintf(rec_buf, sizeof(rec_buf), "就绪 (已录制 %zu 字节, %ums)",
+                         ast.recorded_bytes, ast.record_duration_ms);
+                lv_obj_set_style_text_color(settings->lbl_audio_rec_status, lv_color_hex(0x00FF88), 0);
+            } else {
+                snprintf(rec_buf, sizeof(rec_buf), "待命 (16kHz 16bit 单声道)");
+                lv_obj_set_style_text_color(settings->lbl_audio_rec_status, lv_color_hex(0x8B9EB5), 0);
+            }
+            lv_label_set_text(settings->lbl_audio_rec_status, rec_buf);
+        }
+        if (settings->lbl_audio_play_status) {
+            if (ast.state == AUDIO_TEST_STATE_PLAYING_REC) {
+                lv_label_set_text(settings->lbl_audio_play_status, "正在回放录音...");
+                lv_obj_set_style_text_color(settings->lbl_audio_play_status, lv_color_hex(0x00FF88), 0);
+            } else if (ast.state == AUDIO_TEST_STATE_PLAYING_TONE) {
+                lv_label_set_text(settings->lbl_audio_play_status, "正在播放 1kHz 纯音...");
+                lv_obj_set_style_text_color(settings->lbl_audio_play_status, lv_color_hex(0xFFD700), 0);
+            } else {
+                lv_label_set_text(settings->lbl_audio_play_status, "扬声器放音 (/dev/audio/pcm0p)");
+                lv_obj_set_style_text_color(settings->lbl_audio_play_status, lv_color_hex(0x00E5FF), 0);
+            }
+        }
+        if (settings->lbl_audio_rec_btn) {
+            if (ast.state == AUDIO_TEST_STATE_RECORDING) {
+                lv_label_set_text(settings->lbl_audio_rec_btn, "⏹ 停止");
+            } else {
+                lv_label_set_text(settings->lbl_audio_rec_btn, "🎤 录音");
+            }
+        }
+    }
 }
 
 /* ========================================================================= */
@@ -1368,6 +1581,58 @@ static void on_menu_item_clicked(lv_event_t *e)
         ui_settings_enter_detail(s, UI_SETTINGS_TAB_STORAGE);
     } else if (target == s->btn_menu_about) {
         ui_settings_enter_detail(s, UI_SETTINGS_TAB_ABOUT);
+    } else if (target == s->btn_menu_audio) {
+        ui_settings_enter_detail(s, UI_SETTINGS_TAB_AUDIO);
+    }
+}
+
+static void on_audio_rec_clicked(lv_event_t *e)
+{
+    ui_settings_t *s = (ui_settings_t *)lv_event_get_user_data(e);
+    if (!s) return;
+    audio_test_status_t st;
+    audio_test_get_status(&st);
+    if (st.state == AUDIO_TEST_STATE_RECORDING) {
+        audio_test_record_stop();
+        if (s->lbl_audio_rec_btn) lv_label_set_text(s->lbl_audio_rec_btn, "🎤 录音");
+    } else {
+        audio_test_record_start();
+        if (s->lbl_audio_rec_btn) lv_label_set_text(s->lbl_audio_rec_btn, "⏹ 停止");
+    }
+}
+
+static void on_audio_play_rec_clicked(lv_event_t *e)
+{
+    (void)e;
+    audio_test_play_record();
+}
+
+static void on_audio_play_tone_clicked(lv_event_t *e)
+{
+    (void)e;
+    audio_test_play_tone(1000, 1500);
+}
+
+static void on_audio_loopback_changed(lv_event_t *e)
+{
+    lv_obj_t *sw = lv_event_get_target(e);
+    if (!sw) return;
+    bool en = lv_obj_has_state(sw, LV_STATE_CHECKED);
+    audio_test_set_loopback(en);
+}
+
+static void on_audio_vol_slider_changed(lv_event_t *e)
+{
+    ui_settings_t *s = (ui_settings_t *)lv_event_get_user_data(e);
+    lv_obj_t *slider = lv_event_get_target(e);
+    if (!slider) return;
+    int32_t val = lv_slider_get_value(slider);
+    hal_actuator_set_volume((uint8_t)val);
+    phoenix_config_set_int(PHOENIX_CFG_VOLUME, (int)val);
+    if (s && s->lbl_audio_vol_val) {
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%d%%", (int)val);
+        lv_label_set_text(s->lbl_audio_vol_val, buf);
     }
 }
 

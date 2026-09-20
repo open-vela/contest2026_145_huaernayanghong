@@ -1,6 +1,6 @@
 /**
  * @file api_config.c
- * @brief LLM & Agent Configuration Web API Implementation
+ * @brief LLM, ASR, TTS & Agent Configuration Web API Implementation
  * @author OpenVela Contest 2026 Team 145
  */
 
@@ -8,6 +8,7 @@
 #include "../config.h"
 #include "../../harness/llm_provider.h"
 #include "../../harness/asr_provider.h"
+#include "../../harness/tts_provider.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +27,12 @@ int handle_config_get(const http_req_t *req, http_resp_t *resp)
     char asr_model_buf[64] = {0};
     char asr_backend_buf[32] = {0};
 
+    char tts_key_buf[128] = {0};
+    char tts_url_buf[256] = {0};
+    char tts_model_buf[64] = {0};
+    char tts_voice_buf[64] = {0};
+    char tts_backend_buf[32] = {0};
+
     phoenix_config_get_str(PHOENIX_CFG_API_KEY, "", key_buf, sizeof(key_buf));
     phoenix_config_get_str(PHOENIX_CFG_BASE_URL, "https://api.deepseek.com/v1/chat/completions", url_buf, sizeof(url_buf));
     phoenix_config_get_str(PHOENIX_CFG_MODEL, "deepseek-chat", model_buf, sizeof(model_buf));
@@ -36,6 +43,12 @@ int handle_config_get(const http_req_t *req, http_resp_t *resp)
     phoenix_config_get_str(PHOENIX_CFG_ASR_BASE_URL, "https://api.groq.com/openai/v1/audio/transcriptions", asr_url_buf, sizeof(asr_url_buf));
     phoenix_config_get_str(PHOENIX_CFG_ASR_MODEL, "whisper-large-v3", asr_model_buf, sizeof(asr_model_buf));
     phoenix_config_get_str(PHOENIX_CFG_ASR_BACKEND, "cloud", asr_backend_buf, sizeof(asr_backend_buf));
+
+    phoenix_config_get_str(PHOENIX_CFG_TTS_API_KEY, "", tts_key_buf, sizeof(tts_key_buf));
+    phoenix_config_get_str(PHOENIX_CFG_TTS_BASE_URL, "https://api.openai.com/v1/audio/speech", tts_url_buf, sizeof(tts_url_buf));
+    phoenix_config_get_str(PHOENIX_CFG_TTS_MODEL, "tts-1", tts_model_buf, sizeof(tts_model_buf));
+    phoenix_config_get_str(PHOENIX_CFG_TTS_VOICE, "alloy", tts_voice_buf, sizeof(tts_voice_buf));
+    phoenix_config_get_str(PHOENIX_CFG_TTS_BACKEND, "cloud", tts_backend_buf, sizeof(tts_backend_buf));
 
     int temp = phoenix_config_get_int("agent_temperature", 70);
     int vol = phoenix_config_get_int(PHOENIX_CFG_VOLUME, 80);
@@ -59,6 +72,15 @@ int handle_config_get(const http_req_t *req, http_resp_t *resp)
         snprintf(masked_asr_key, sizeof(masked_asr_key), "********");
     }
 
+    /* TTS API Key 脱敏显示 */
+    char masked_tts_key[64] = {0};
+    size_t tts_klen = strlen(tts_key_buf);
+    if (tts_klen > 8) {
+        snprintf(masked_tts_key, sizeof(masked_tts_key), "%.4s****%.4s", tts_key_buf, tts_key_buf + tts_klen - 4);
+    } else if (tts_klen > 0) {
+        snprintf(masked_tts_key, sizeof(masked_tts_key), "********");
+    }
+
     cJSON *root = cJSON_CreateObject();
     cJSON_AddBoolToObject(root, "success", true);
     cJSON_AddBoolToObject(root, "has_key", klen > 0);
@@ -77,6 +99,14 @@ int handle_config_get(const http_req_t *req, http_resp_t *resp)
     cJSON_AddStringToObject(root, "asr_base_url", asr_url_buf);
     cJSON_AddStringToObject(root, "asr_model", asr_model_buf);
     cJSON_AddStringToObject(root, "asr_backend", asr_backend_buf);
+
+    /* TTS 字段 */
+    cJSON_AddBoolToObject(root, "has_tts_key", tts_klen > 0);
+    cJSON_AddStringToObject(root, "tts_api_key_masked", masked_tts_key);
+    cJSON_AddStringToObject(root, "tts_base_url", tts_url_buf);
+    cJSON_AddStringToObject(root, "tts_model", tts_model_buf);
+    cJSON_AddStringToObject(root, "tts_voice", tts_voice_buf);
+    cJSON_AddStringToObject(root, "tts_backend", tts_backend_buf);
 
     char *json_str = cJSON_PrintUnformatted(root);
     if (json_str) {
@@ -106,6 +136,13 @@ int handle_config_post(const http_req_t *req, http_resp_t *resp)
         cJSON *asr_m = cJSON_GetObjectItem(req->json, "asr_model");
         cJSON *asr_b = cJSON_GetObjectItem(req->json, "asr_backend");
 
+        /* TTS 字段 */
+        cJSON *tts_key = cJSON_GetObjectItem(req->json, "tts_api_key");
+        cJSON *tts_url = cJSON_GetObjectItem(req->json, "tts_base_url");
+        cJSON *tts_m = cJSON_GetObjectItem(req->json, "tts_model");
+        cJSON *tts_v = cJSON_GetObjectItem(req->json, "tts_voice");
+        cJSON *tts_b = cJSON_GetObjectItem(req->json, "tts_backend");
+
         if (key && key->valuestring && strlen(key->valuestring) > 0) {
             phoenix_llm_set_api_key(key->valuestring);
             phoenix_config_set_str(PHOENIX_CFG_API_KEY, key->valuestring);
@@ -131,6 +168,7 @@ int handle_config_post(const http_req_t *req, http_resp_t *resp)
             phoenix_config_set_int(PHOENIX_CFG_BRIGHTNESS, bright->valueint);
         }
 
+        /* ASR 设置更新 */
         if (asr_key && asr_key->valuestring && strlen(asr_key->valuestring) > 0) {
             phoenix_asr_set_api_key(asr_key->valuestring);
             phoenix_config_set_str(PHOENIX_CFG_ASR_API_KEY, asr_key->valuestring);
@@ -146,6 +184,28 @@ int handle_config_post(const http_req_t *req, http_resp_t *resp)
         if (asr_b && asr_b->valuestring && strlen(asr_b->valuestring) > 0) {
             phoenix_asr_set_backend(asr_b->valuestring);
             phoenix_config_set_str(PHOENIX_CFG_ASR_BACKEND, asr_b->valuestring);
+        }
+
+        /* TTS 设置更新 */
+        if (tts_key && tts_key->valuestring && strlen(tts_key->valuestring) > 0) {
+            phoenix_tts_set_api_key(tts_key->valuestring);
+            phoenix_config_set_str(PHOENIX_CFG_TTS_API_KEY, tts_key->valuestring);
+        }
+        if (tts_url && tts_url->valuestring && strlen(tts_url->valuestring) > 0) {
+            phoenix_tts_set_base_url(tts_url->valuestring);
+            phoenix_config_set_str(PHOENIX_CFG_TTS_BASE_URL, tts_url->valuestring);
+        }
+        if (tts_m && tts_m->valuestring && strlen(tts_m->valuestring) > 0) {
+            phoenix_tts_set_model(tts_m->valuestring);
+            phoenix_config_set_str(PHOENIX_CFG_TTS_MODEL, tts_m->valuestring);
+        }
+        if (tts_v && tts_v->valuestring && strlen(tts_v->valuestring) > 0) {
+            phoenix_tts_set_voice(tts_v->valuestring);
+            phoenix_config_set_str(PHOENIX_CFG_TTS_VOICE, tts_v->valuestring);
+        }
+        if (tts_b && tts_b->valuestring && strlen(tts_b->valuestring) > 0) {
+            phoenix_tts_set_backend(tts_b->valuestring);
+            phoenix_config_set_str(PHOENIX_CFG_TTS_BACKEND, tts_b->valuestring);
         }
 
         phoenix_config_save();
@@ -184,6 +244,23 @@ int handle_config_test(const http_req_t *req, http_resp_t *resp)
         if (asr_m && asr_m->valuestring && strlen(asr_m->valuestring) > 0) {
             phoenix_asr_set_model(asr_m->valuestring);
         }
+
+        cJSON *tts_key = cJSON_GetObjectItem(req->json, "tts_api_key");
+        cJSON *tts_url = cJSON_GetObjectItem(req->json, "tts_base_url");
+        cJSON *tts_m = cJSON_GetObjectItem(req->json, "tts_model");
+        cJSON *tts_v = cJSON_GetObjectItem(req->json, "tts_voice");
+        if (tts_key && tts_key->valuestring && strlen(tts_key->valuestring) > 0) {
+            phoenix_tts_set_api_key(tts_key->valuestring);
+        }
+        if (tts_url && tts_url->valuestring && strlen(tts_url->valuestring) > 0) {
+            phoenix_tts_set_base_url(tts_url->valuestring);
+        }
+        if (tts_m && tts_m->valuestring && strlen(tts_m->valuestring) > 0) {
+            phoenix_tts_set_model(tts_m->valuestring);
+        }
+        if (tts_v && tts_v->valuestring && strlen(tts_v->valuestring) > 0) {
+            phoenix_tts_set_voice(tts_v->valuestring);
+        }
     }
 
     uint32_t latency_ms = 0;
@@ -195,6 +272,11 @@ int handle_config_test(const http_req_t *req, http_resp_t *resp)
     int asr_http_status = 0;
     char asr_err_buf[256] = {0};
     int asr_rc = phoenix_asr_ping(&asr_latency_ms, &asr_http_status, asr_err_buf, sizeof(asr_err_buf));
+
+    uint32_t tts_latency_ms = 0;
+    int tts_http_status = 0;
+    char tts_err_buf[256] = {0};
+    int tts_rc = phoenix_tts_ping(&tts_latency_ms, &tts_http_status, tts_err_buf, sizeof(tts_err_buf));
 
     cJSON *root = cJSON_CreateObject();
     cJSON_AddBoolToObject(root, "success", (rc == 0));
@@ -208,6 +290,12 @@ int handle_config_test(const http_req_t *req, http_resp_t *resp)
     cJSON_AddNumberToObject(root, "asr_http_status", asr_http_status);
     cJSON_AddStringToObject(root, "asr_error", asr_err_buf[0] ? asr_err_buf : (asr_rc == 0 ? "" : "ASR 连接失败或端点不可达"));
 
+    /* TTS 测试结果 */
+    cJSON_AddBoolToObject(root, "tts_success", (tts_rc == 0));
+    cJSON_AddNumberToObject(root, "tts_latency_ms", tts_latency_ms);
+    cJSON_AddNumberToObject(root, "tts_http_status", tts_http_status);
+    cJSON_AddStringToObject(root, "tts_error", tts_err_buf[0] ? tts_err_buf : (tts_rc == 0 ? "" : "TTS 连接失败或端点不可达"));
+
     char *json_str = cJSON_PrintUnformatted(root);
     if (json_str) {
         http_resp_json(resp, 200, json_str);
@@ -218,4 +306,3 @@ int handle_config_test(const http_req_t *req, http_resp_t *resp)
     cJSON_Delete(root);
     return 0;
 }
-

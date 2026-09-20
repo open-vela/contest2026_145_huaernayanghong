@@ -97,6 +97,19 @@ int handle_todo_toggle(const http_req_t *req, http_resp_t *resp);
 int handle_todo_delete(const http_req_t *req, http_resp_t *resp);
 int handle_todo_clear_done(const http_req_t *req, http_resp_t *resp);
 
+/* =========================================================================
+ * 模块 10: 声学实验室与音频调试 (api_audio.c)
+ * ========================================================================= */
+int handle_audio_status(const http_req_t *req, http_resp_t *resp);
+int handle_audio_record(const http_req_t *req, http_resp_t *resp);
+int handle_audio_play(const http_req_t *req, http_resp_t *resp);
+int handle_audio_loopback(const http_req_t *req, http_resp_t *resp);
+int handle_audio_volume(const http_req_t *req, http_resp_t *resp);
+int handle_audio_download(const http_req_t *req, http_resp_t *resp);
+int handle_audio_asr_test(const http_req_t *req, http_resp_t *resp);
+int handle_audio_tts_test(const http_req_t *req, http_resp_t *resp);
+int handle_audio_tts_download(const http_req_t *req, http_resp_t *resp);
+
 /** 批量将上述所有 API 控制器注册到 web_router */
 void web_api_register_all(void);
 

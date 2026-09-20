@@ -653,6 +653,7 @@
     <button class="tab-btn" onclick="switchView('settings')">⚙️ 大模型 & 系统配置</button>
     <button class="tab-btn" onclick="switchView('storage')">📁 TF卡文件管理</button>
     <button class="tab-btn" onclick="switchView('terminal')">📜 实时系统日志终端</button>
+    <button class="tab-btn" onclick="switchView('audio')">🎙️ 声学实验室 (Audio Lab)</button>
   </nav>
 
   <!-- 主体视图容器 -->
@@ -1008,10 +1009,165 @@
           </div>
           <input type="range" id="tempRange" min="10" max="100" value="70" oninput="document.getElementById('tempTxt').innerText=(this.value/100).toFixed(1)">
         </div>
+      </div>
 
-        <!-- 动作按钮栏 -->
-        <div style="display:flex; flex-wrap:wrap; gap:10px;">
-          <button style="flex:1; min-width:200px;" onclick="saveAgentConfig()">💾 保存并热加载至开发板</button>
+      <!-- ASR 语音转文本模型配置卡片 -->
+      <div class="card highlight">
+        <div class="card-head">
+          <div class="card-title">🎙️ 语音转文本 (ASR) 模型配置与手动实测</div>
+          <span class="status-badge" id="asrBackendBadge">Whisper</span>
+        </div>
+
+        <div style="font-size:11px; color:var(--muted); font-weight:600; margin-bottom:8px;">一键填入主流 ASR 语音识别服务商预设:</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px; margin-bottom:16px;">
+          <div class="preset-card" onclick="applyAsrPreset('groq')">
+            <div style="font-weight:bold; color:var(--accent); font-size:12.5px;">⚡ Groq Whisper (极速推荐)</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:3px;">whisper-large-v3 (~200ms)</div>
+          </div>
+          <div class="preset-card" onclick="applyAsrPreset('openai')">
+            <div style="font-weight:bold; color:var(--accent-sub); font-size:12.5px;">🌐 OpenAI 官方 Whisper</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:3px;">whisper-1 官方标准端点</div>
+          </div>
+          <div class="preset-card" onclick="applyAsrPreset('sensevoice')">
+            <div style="font-weight:bold; color:#f1fa8c; font-size:12.5px;">🀄 SenseVoice 阿里开源</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:3px;">sensevoice-v1 丰富多语种</div>
+          </div>
+          <div class="preset-card" onclick="applyAsrPreset('mock')">
+            <div style="font-weight:bold; color:#ff79c6; font-size:12.5px;">🧪 离线模拟 (Mock 测试)</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:3px;">无需联网，离线验证闭环</div>
+          </div>
+        </div>
+
+        <!-- ASR 详细表单 -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px; margin-bottom:14px;">
+          <div>
+            <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;">ASR API Endpoint (Base URL):</div>
+            <input id="asrBaseUrl" type="text" placeholder="如 https://api.groq.com/openai/v1/audio/transcriptions">
+          </div>
+          <div>
+            <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;">ASR 模型名称 (Model):</div>
+            <input id="asrModelName" type="text" placeholder="如 whisper-large-v3 或 whisper-1">
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px; margin-bottom:14px;">
+          <div>
+            <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;">ASR API Key (留空则尝试复用大模型 Key):</div>
+            <div style="display:flex; gap:8px;">
+              <input id="asrApiKey" type="password" placeholder="输入 ASR 专用 API Key">
+              <button class="btn-secondary" style="white-space:nowrap; padding:0 12px;" onclick="toggleAsrKeyVisibility()" id="toggleAsrKeyBtn">👁️ 显示</button>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;">运行后端 (Backend):</div>
+            <select id="asrBackendSelect" style="width:100%;">
+              <option value="cloud">☁️ Cloud (云端 HTTP 接口)</option>
+              <option value="mock">🧪 Mock (端侧离线模拟模式)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- ASR 连通性测试与手动实测区 -->
+        <div style="background:var(--card-inner); border:1px solid #20314f; border-radius:8px; padding:12px; margin-bottom:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+            <div style="font-size:13px; font-weight:600; color:var(--accent);">🔬 ASR 功能手动实测</div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn-secondary" style="padding:6px 12px; font-size:11.5px; color:var(--accent); border-color:#204068;" onclick="testAsrPing()" id="asrPingBtn">⚡ 测试连通性</button>
+              <button class="btn-primary" style="padding:6px 14px; font-size:11.5px;" onclick="testAsrTranscribe()" id="asrTranscribeBtn">🎙️ 立即执行转写测试</button>
+            </div>
+          </div>
+          <div id="asrPingResultBadge" style="margin-bottom:8px; font-size:12px; display:none;"></div>
+          <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">📥 识别输出结果 (Recognized Text):</div>
+          <div id="asrTestResult" style="background:#05080f; padding:10px; border-radius:6px; font-family:var(--font-mono); font-size:12px; color:#8be9fd; min-height:36px; border:1px solid #1c2a44;">点击上方 "立即执行转写测试" 验证端云 ASR 识别通路...</div>
+        </div>
+      </div>
+
+      <!-- TTS 文本转语音模型配置卡片 -->
+      <div class="card highlight">
+        <div class="card-head">
+          <div class="card-title">🔊 文本转语音 (TTS) 模型配置与手动实测</div>
+          <span class="status-badge" id="ttsBackendBadge">TTS-1</span>
+        </div>
+
+        <div style="font-size:11px; color:var(--muted); font-weight:600; margin-bottom:8px;">一键填入主流 TTS 语音合成服务商预设:</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px; margin-bottom:16px;">
+          <div class="preset-card" onclick="applyTtsPreset('openai')">
+            <div style="font-weight:bold; color:var(--accent); font-size:12.5px;">🌐 OpenAI 官方 TTS</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:3px;">tts-1 (alloy / echo / fable)</div>
+          </div>
+          <div class="preset-card" onclick="applyTtsPreset('siliconflow')">
+            <div style="font-weight:bold; color:var(--accent-sub); font-size:12.5px;">⚡ 硅基流动 CosyVoice</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:3px;">CosyVoice2-0.5B 超自然</div>
+          </div>
+          <div class="preset-card" onclick="applyTtsPreset('edge')">
+            <div style="font-weight:bold; color:#f1fa8c; font-size:12.5px;">🎙️ Edge-TTS 兼容网关</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:3px;">zh-CN-XiaoxiaoNeural 甜美女声</div>
+          </div>
+          <div class="preset-card" onclick="applyTtsPreset('mock')">
+            <div style="font-weight:bold; color:#ff79c6; font-size:12.5px;">🧪 离线模拟 (Mock 和弦)</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:3px;">无需联网，生成测试 WAV</div>
+          </div>
+        </div>
+
+        <!-- TTS 详细表单 -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px; margin-bottom:14px;">
+          <div>
+            <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;">TTS API Endpoint (Base URL):</div>
+            <input id="ttsBaseUrl" type="text" placeholder="如 https://api.openai.com/v1/audio/speech">
+          </div>
+          <div>
+            <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;">TTS 模型名称 (Model):</div>
+            <input id="ttsModelName" type="text" placeholder="如 tts-1 或 CosyVoice2-0.5B">
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:14px; margin-bottom:14px;">
+          <div>
+            <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;">发音人音色 (Voice):</div>
+            <input id="ttsVoiceName" type="text" placeholder="如 alloy, echo, zh-CN-XiaoxiaoNeural">
+          </div>
+          <div>
+            <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;">TTS API Key (留空则复用大模型 Key):</div>
+            <div style="display:flex; gap:8px;">
+              <input id="ttsApiKey" type="password" placeholder="输入 TTS 专用 API Key">
+              <button class="btn-secondary" style="white-space:nowrap; padding:0 12px;" onclick="toggleTtsKeyVisibility()" id="toggleTtsKeyBtn">👁️ 显示</button>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;">运行后端 (Backend):</div>
+            <select id="ttsBackendSelect" style="width:100%;">
+              <option value="cloud">☁️ Cloud (云端 HTTP 接口)</option>
+              <option value="mock">🧪 Mock (端侧离线模拟模式)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- TTS 连通性测试与手动实测区 -->
+        <div style="background:var(--card-inner); border:1px solid #20314f; border-radius:8px; padding:12px; margin-bottom:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+            <div style="font-size:13px; font-weight:600; color:var(--accent-sub);">🔬 TTS 语音合成手动实测</div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn-secondary" style="padding:6px 12px; font-size:11.5px; color:var(--accent-sub); border-color:#20503f;" onclick="testTtsPing()" id="ttsPingBtn">⚡ 测试连通性</button>
+              <button class="btn-primary" style="padding:6px 14px; font-size:11.5px;" onclick="testTtsSpeak()" id="ttsSpeakBtn">🔊 合成并播放语音</button>
+            </div>
+          </div>
+          <div id="ttsPingResultBadge" style="margin-bottom:8px; font-size:12px; display:none;"></div>
+          <div style="margin-bottom:8px;">
+            <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">输入待合成的文本内容:</div>
+            <input id="ttsTestInput" type="text" value="你好，我是桌面灵眸数字生命体！" style="width:100%;">
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <label style="font-size:12px; color:var(--text); display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="ttsPlayOnDevice" checked> 尝试在开发板扬声器上播放
+            </label>
+            <!-- 浏览器在线试听播放器 -->
+            <audio id="ttsAudioPlayer" controls style="flex:1; min-width:200px; height:32px; outline:none; border-radius:6px; display:none;"></audio>
+          </div>
+        </div>
+
+        <!-- 动作按钮栏 (统一保存) -->
+        <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:20px;">
+          <button style="flex:1; min-width:240px; font-size:14px; padding:12px;" onclick="saveAgentConfig()">💾 保存并热加载所有配置至开发板 (LLM + ASR + TTS)</button>
           <button class="btn-warn" onclick="resetWifi()">📡 重置 Wi-Fi 并返回配网热点</button>
         </div>
       </div>
@@ -1137,6 +1293,105 @@
       </div>
     </div>
 
+    <!-- ================================================================= -->
+    <!-- 视图 6: 🎙️ 声学实验室 (Audio Lab) -->
+    <!-- ================================================================= -->
+    <div class="view-panel" id="view-audio">
+      <div class="card highlight">
+        <div class="card-head">
+          <div class="card-title">🎙️ 全志 R528-S3 声学实验室 (Audio Diagnostics Lab)</div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="status-badge" id="audioStateBadge">● 状态: 空闲 (IDLE)</span>
+          </div>
+        </div>
+        <div style="font-size:12px; color:var(--muted); margin-bottom:16px;">
+          硬件节点: 拾音 <code style="color:var(--accent); font-family:var(--font-mono)">/dev/audio/pcm0c</code> | 放音 <code style="color:var(--accent-sub); font-family:var(--font-mono)">/dev/audio/pcm0p</code> (16kHz 16-bit Mono 标准语音管线)
+        </div>
+
+        <div class="grid-2">
+          <!-- 录音测试卡片 -->
+          <div class="card" style="background:var(--card-inner); border-color:#20314f; margin-bottom:0;">
+            <div style="font-size:14px; font-weight:600; color:var(--accent); margin-bottom:12px; display:flex; justify-content:space-between;">
+              <span>🎤 麦克风录音与能量拾音分析</span>
+              <span style="font-size:12px; color:var(--muted)" id="audioRecordDurTxt">已录: 0.0s / 10.0s</span>
+            </div>
+
+            <!-- 实时能量音量柱 -->
+            <div style="margin-bottom:14px;">
+              <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-bottom:4px;">
+                <span>实时输入能量 (RMS)</span>
+                <span id="audioEnergyVal" style="font-family:var(--font-mono); color:var(--accent);">0%</span>
+              </div>
+              <div style="background:#070a12; border:1px solid #1c2a44; border-radius:6px; height:18px; position:relative; overflow:hidden;">
+                <div id="audioEnergyBar" style="width:0%; height:100%; background:linear-gradient(90deg, #00ff88 0%, #f1fa8c 70%, #ff5555 100%); transition:width 0.1s linear;"></div>
+              </div>
+            </div>
+
+            <!-- 录音控制按钮组 -->
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+              <button class="btn-warn" id="btnRecStart5" onclick="audioRecord(5000)" style="flex:1; min-width:110px;">🔴 录音 5 秒</button>
+              <button class="btn-warn" id="btnRecStart10" onclick="audioRecord(10000)" style="flex:1; min-width:110px;">🔴 录音 10 秒</button>
+              <button class="btn-secondary" id="btnRecStop" onclick="audioRecordStop()" style="flex:1; min-width:90px;">⏹️ 停止录音</button>
+            </div>
+
+            <!-- 录音回放与下载 -->
+            <div style="border-top:1px solid var(--border-light); padding-top:12px;">
+              <div style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:8px;">🎧 录音数据操作与试听</div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+                <button class="btn-primary" id="btnPlayRec" onclick="audioPlayRecord()" style="flex:1; min-width:130px;">▶️ 设备端扬声器回放</button>
+                <button class="btn-secondary" id="btnDownloadWav" onclick="audioDownloadWav()" style="flex:1; min-width:130px;">💾 下载 WAV 录音文件</button>
+              </div>
+              <!-- 浏览器在线试听 -->
+              <audio id="browserAudioPlayer" controls style="width:100%; height:36px; outline:none; border-radius:6px;"></audio>
+            </div>
+          </div>
+
+          <!-- 放音与耳返测试卡片 -->
+          <div class="card" style="background:var(--card-inner); border-color:#20314f; margin-bottom:0;">
+            <div style="font-size:14px; font-weight:600; color:var(--accent-sub); margin-bottom:12px;">
+              🔊 扬声器放音、蜂鸣纯音与实时耳返
+            </div>
+
+            <!-- 1000Hz 纯音测试 -->
+            <div style="margin-bottom:14px;">
+              <div style="font-size:12px; color:var(--muted); margin-bottom:6px;">DAC / 功放通道通断检测 (1000Hz 正弦纯音):</div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn-secondary" onclick="audioPlayTone(1000, 1000)" style="flex:1; min-width:110px;">🔔 纯音 1 秒 (1kHz)</button>
+                <button class="btn-secondary" onclick="audioPlayTone(1000, 3000)" style="flex:1; min-width:110px;">🔔 纯音 3 秒 (1kHz)</button>
+                <button class="btn-secondary" onclick="audioPlayStop()" style="flex:1; min-width:90px;">⏹️ 停止放音</button>
+              </div>
+            </div>
+
+            <!-- 实时耳返回环开关 -->
+            <div style="background:#0b1120; border:1px solid #1f355a; border-radius:8px; padding:12px; margin-bottom:14px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                  <div style="font-size:13px; font-weight:600; color:var(--text);">🎧 实时麦克风耳返 (Loopback)</div>
+                  <div style="font-size:11px; color:var(--muted);">麦克风输入直通扬声器输出，零延迟检验端侧音频通路</div>
+                </div>
+                <button class="btn-secondary" id="btnLoopbackToggle" onclick="audioToggleLoopback()" style="padding:6px 14px; font-size:12px;">开启耳返</button>
+              </div>
+            </div>
+
+            <!-- 主硬件音量控制 -->
+            <div style="border-top:1px solid var(--border-light); padding-top:12px;">
+              <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:6px;">
+                <span>硬件主音量调节</span>
+                <span id="audioVolumeTxt" style="font-family:var(--font-mono); color:var(--accent);">80%</span>
+              </div>
+              <input type="range" id="audioVolumeSlider" min="0" max="100" value="80" oninput="audioOnVolumeSlide(this.value)" onchange="audioSetVolume(this.value)" style="width:100%; margin-bottom:8px;">
+              <div style="display:flex; gap:6px;">
+                <button class="btn-secondary" style="flex:1; padding:4px; font-size:11px;" onclick="audioSetVolume(0)">静音 (0%)</button>
+                <button class="btn-secondary" style="flex:1; padding:4px; font-size:11px;" onclick="audioSetVolume(50)">50%</button>
+                <button class="btn-secondary" style="flex:1; padding:4px; font-size:11px;" onclick="audioSetVolume(80)">80%</button>
+                <button class="btn-secondary" style="flex:1; padding:4px; font-size:11px;" onclick="audioSetVolume(100)">100%</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <div class="toast" id="toastMsg"></div>
@@ -1175,7 +1430,7 @@
     function switchView(viewId) {
       currentView = viewId;
       document.querySelectorAll('.tab-btn').forEach((b, idx) => {
-        const ids = ['overview', 'agent', 'settings', 'storage', 'terminal'];
+        const ids = ['overview', 'agent', 'settings', 'storage', 'terminal', 'audio'];
         b.classList.toggle('active', ids[idx] === viewId);
       });
       document.querySelectorAll('.view-panel').forEach(p => {
@@ -1191,6 +1446,13 @@
 
       if (viewId === 'storage') {
         sdcardRefreshList();
+      }
+
+      // 仅在切入 Audio Lab 时开启音频状态与能量条轮询
+      if (viewId === 'audio') {
+        startAudioPolling();
+      } else {
+        stopAudioPolling();
       }
     }
 
@@ -1908,10 +2170,14 @@
     /* ========================================================
      * 大模型配置中心 (LLM Settings) & 连通性测试 (Ping)
      * ======================================================== */
+    /* ========================================================
+     * 大模型配置中心 (LLM Settings) & 连通性测试 (Ping)
+     * ======================================================== */
     function loadAgentConfig() {
       fetch('/api/config')
         .then(r => r.json())
         .then(d => {
+          // LLM 字段
           if (d.base_url) document.getElementById('baseUrl').value = d.base_url;
           if (d.model) {
             document.getElementById('modelName').value = d.model;
@@ -1925,14 +2191,31 @@
             document.getElementById('tempRange').value = d.temperature;
             document.getElementById('tempTxt').innerText = (d.temperature / 100).toFixed(1);
           }
-          if (d.volume !== undefined) {
-            document.getElementById('volRange').value = d.volume;
-            document.getElementById('volTxt').innerText = d.volume + '%';
+
+          // ASR 字段
+          if (d.asr_base_url) document.getElementById('asrBaseUrl').value = d.asr_base_url;
+          if (d.asr_model) {
+            document.getElementById('asrModelName').value = d.asr_model;
+            const b = document.getElementById('asrBackendBadge');
+            if (b) b.innerText = d.asr_model;
           }
-          if (d.brightness !== undefined) {
-            document.getElementById('brightRange').value = d.brightness;
-            document.getElementById('brightTxt').innerText = d.brightness + '%';
+          if (d.has_asr_key && d.asr_api_key_masked) {
+            document.getElementById('asrApiKey').placeholder = '已配置 (' + d.asr_api_key_masked + ')';
           }
+          if (d.asr_backend) document.getElementById('asrBackendSelect').value = d.asr_backend;
+
+          // TTS 字段
+          if (d.tts_base_url) document.getElementById('ttsBaseUrl').value = d.tts_base_url;
+          if (d.tts_model) {
+            document.getElementById('ttsModelName').value = d.tts_model;
+            const b = document.getElementById('ttsBackendBadge');
+            if (b) b.innerText = d.tts_model;
+          }
+          if (d.tts_voice) document.getElementById('ttsVoiceName').value = d.tts_voice;
+          if (d.has_tts_key && d.tts_api_key_masked) {
+            document.getElementById('ttsApiKey').placeholder = '已配置 (' + d.tts_api_key_masked + ')';
+          }
+          if (d.tts_backend) document.getElementById('ttsBackendSelect').value = d.tts_backend;
         })
         .catch(() => {});
     }
@@ -1956,6 +2239,54 @@
       showToast('已填入 ' + type + ' 预设');
     }
 
+    function applyAsrPreset(type) {
+      const urlEl = document.getElementById('asrBaseUrl');
+      const modelEl = document.getElementById('asrModelName');
+      const backendEl = document.getElementById('asrBackendSelect');
+      if (type === 'groq') {
+        urlEl.value = 'https://api.groq.com/openai/v1/audio/transcriptions';
+        modelEl.value = 'whisper-large-v3';
+        backendEl.value = 'cloud';
+      } else if (type === 'openai') {
+        urlEl.value = 'https://api.openai.com/v1/audio/transcriptions';
+        modelEl.value = 'whisper-1';
+        backendEl.value = 'cloud';
+      } else if (type === 'sensevoice') {
+        urlEl.value = 'https://api.siliconflow.cn/v1/audio/transcriptions';
+        modelEl.value = 'FunAudioLLM/SenseVoiceSmall';
+        backendEl.value = 'cloud';
+      } else if (type === 'mock') {
+        backendEl.value = 'mock';
+      }
+      showToast('已填入 ASR ' + type + ' 预设');
+    }
+
+    function applyTtsPreset(type) {
+      const urlEl = document.getElementById('ttsBaseUrl');
+      const modelEl = document.getElementById('ttsModelName');
+      const voiceEl = document.getElementById('ttsVoiceName');
+      const backendEl = document.getElementById('ttsBackendSelect');
+      if (type === 'openai') {
+        urlEl.value = 'https://api.openai.com/v1/audio/speech';
+        modelEl.value = 'tts-1';
+        voiceEl.value = 'alloy';
+        backendEl.value = 'cloud';
+      } else if (type === 'siliconflow') {
+        urlEl.value = 'https://api.siliconflow.cn/v1/audio/speech';
+        modelEl.value = 'FunAudioLLM/CosyVoice2-0.5B';
+        voiceEl.value = 'alex';
+        backendEl.value = 'cloud';
+      } else if (type === 'edge') {
+        urlEl.value = 'https://api.openai.com/v1/audio/speech';
+        modelEl.value = 'tts-1';
+        voiceEl.value = 'zh-CN-XiaoxiaoNeural';
+        backendEl.value = 'cloud';
+      } else if (type === 'mock') {
+        backendEl.value = 'mock';
+      }
+      showToast('已填入 TTS ' + type + ' 预设');
+    }
+
     function setPromptTemplate(type) {
       const p = document.getElementById('agentPrompt');
       if (type === 'geek') {
@@ -1970,6 +2301,30 @@
     function toggleApiKeyVisibility() {
       const k = document.getElementById('apiKey');
       const btn = document.getElementById('toggleKeyBtn');
+      if (k.type === 'password') {
+        k.type = 'text';
+        btn.innerText = '🔒 隐藏';
+      } else {
+        k.type = 'password';
+        btn.innerText = '👁️ 显示';
+      }
+    }
+
+    function toggleAsrKeyVisibility() {
+      const k = document.getElementById('asrApiKey');
+      const btn = document.getElementById('toggleAsrKeyBtn');
+      if (k.type === 'password') {
+        k.type = 'text';
+        btn.innerText = '🔒 隐藏';
+      } else {
+        k.type = 'password';
+        btn.innerText = '👁️ 显示';
+      }
+    }
+
+    function toggleTtsKeyVisibility() {
+      const k = document.getElementById('ttsApiKey');
+      const btn = document.getElementById('toggleTtsKeyBtn');
       if (k.type === 'password') {
         k.type = 'text';
         btn.innerText = '🔒 隐藏';
@@ -2001,9 +2356,9 @@
         btn.disabled = false;
         btn.innerText = '⚡ 测试连通性';
         if (d.success) {
-          badge.innerHTML = `<span style="color:var(--accent-sub); font-weight:bold;">✅ 连通成功！HTTP ${d.http_status || 200} (往返延时: ${d.latency_ms || 0} ms)</span>`;
+          badge.innerHTML = `<span style="color:var(--accent-sub); font-weight:bold;">✅ LLM 连通成功！HTTP ${d.http_status || 200} (往返延时: ${d.latency_ms || 0} ms)</span>`;
         } else {
-          badge.innerHTML = `<span style="color:var(--accent-danger); font-weight:bold;">❌ 连通失败: ${escapeHtml(d.error || '无法访问服务')} (HTTP ${d.http_status || 0})</span>`;
+          badge.innerHTML = `<span style="color:var(--accent-danger); font-weight:bold;">❌ LLM 连通失败: ${escapeHtml(d.error || '无法访问服务')} (HTTP ${d.http_status || 0})</span>`;
         }
       })
       .catch(e => {
@@ -2013,12 +2368,168 @@
       });
     }
 
+    function testAsrPing() {
+      const btn = document.getElementById('asrPingBtn');
+      const badge = document.getElementById('asrPingResultBadge');
+      const url = document.getElementById('asrBaseUrl').value.trim();
+      const model = document.getElementById('asrModelName').value.trim();
+      const key = document.getElementById('asrApiKey').value.trim();
+
+      btn.disabled = true;
+      btn.innerText = '⏳ 探测中...';
+      badge.style.display = 'block';
+      badge.innerHTML = '<span style="color:#f1fa8c">正在向 ASR 语音识别端点探测连通性...</span>';
+
+      fetch('/api/config/test', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({asr_base_url: url, asr_model: model, asr_api_key: key})
+      })
+      .then(r => r.json())
+      .then(d => {
+        btn.disabled = false;
+        btn.innerText = '⚡ 测试连通性';
+        if (d.asr_success) {
+          badge.innerHTML = `<span style="color:var(--accent-sub); font-weight:bold;">✅ ASR 端点连通正常！HTTP ${d.asr_http_status || 200} (延时: ${d.asr_latency_ms || 0} ms)</span>`;
+        } else {
+          badge.innerHTML = `<span style="color:var(--accent-danger); font-weight:bold;">❌ ASR 探测失败: ${escapeHtml(d.asr_error || '无法访问')} (HTTP ${d.asr_http_status || 0})</span>`;
+        }
+      })
+      .catch(e => {
+        btn.disabled = false;
+        btn.innerText = '⚡ 测试连通性';
+        badge.innerHTML = `<span style="color:var(--accent-danger);">❌ 请求失败: ${e}</span>`;
+      });
+    }
+
+    function testAsrTranscribe() {
+      const btn = document.getElementById('asrTranscribeBtn');
+      const resBox = document.getElementById('asrTestResult');
+      btn.disabled = true;
+      btn.innerText = '⏳ 正在转写音频...';
+      resBox.innerText = '正在调用 ASR 模型进行语音转文字识别...';
+
+      fetch('/api/audio/asr_test', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+      })
+      .then(r => r.json())
+      .then(d => {
+        btn.disabled = false;
+        btn.innerText = '🎙️ 立即执行转写测试';
+        if (d.success) {
+          resBox.innerText = `[识别成功 (${Math.round((d.wav_bytes||0)/1024)} KB)] "${d.text}"`;
+          showToast('✅ ASR 语音转文字识别成功！');
+        } else {
+          resBox.innerText = '❌ 识别失败: ' + (d.error || '未知错误');
+          showToast('⚠️ ASR 转写失败');
+        }
+      })
+      .catch(e => {
+        btn.disabled = false;
+        btn.innerText = '🎙️ 立即执行转写测试';
+        resBox.innerText = '❌ 网络请求错误: ' + e;
+      });
+    }
+
+    function testTtsPing() {
+      const btn = document.getElementById('ttsPingBtn');
+      const badge = document.getElementById('ttsPingResultBadge');
+      const url = document.getElementById('ttsBaseUrl').value.trim();
+      const model = document.getElementById('ttsModelName').value.trim();
+      const voice = document.getElementById('ttsVoiceName').value.trim();
+      const key = document.getElementById('ttsApiKey').value.trim();
+
+      btn.disabled = true;
+      btn.innerText = '⏳ 探测中...';
+      badge.style.display = 'block';
+      badge.innerHTML = '<span style="color:#f1fa8c">正在向 TTS 语音合成端点探测连通性...</span>';
+
+      fetch('/api/config/test', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({tts_base_url: url, tts_model: model, tts_voice: voice, tts_api_key: key})
+      })
+      .then(r => r.json())
+      .then(d => {
+        btn.disabled = false;
+        btn.innerText = '⚡ 测试连通性';
+        if (d.tts_success) {
+          badge.innerHTML = `<span style="color:var(--accent-sub); font-weight:bold;">✅ TTS 端点连通正常！HTTP ${d.tts_http_status || 200} (延时: ${d.tts_latency_ms || 0} ms)</span>`;
+        } else {
+          badge.innerHTML = `<span style="color:var(--accent-danger); font-weight:bold;">❌ TTS 探测失败: ${escapeHtml(d.tts_error || '无法访问')} (HTTP ${d.tts_http_status || 0})</span>`;
+        }
+      })
+      .catch(e => {
+        btn.disabled = false;
+        btn.innerText = '⚡ 测试连通性';
+        badge.innerHTML = `<span style="color:var(--accent-danger);">❌ 请求失败: ${e}</span>`;
+      });
+    }
+
+    function testTtsSpeak() {
+      const btn = document.getElementById('ttsSpeakBtn');
+      const text = document.getElementById('ttsTestInput').value.trim();
+      const playOnDev = document.getElementById('ttsPlayOnDevice').checked;
+      const player = document.getElementById('ttsAudioPlayer');
+
+      if (!text) {
+        showToast('请输入待合成的文本内容');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = '⏳ 正在合成语音...';
+
+      fetch('/api/audio/tts_test', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text: text, play_on_device: playOnDev})
+      })
+      .then(r => r.json())
+      .then(d => {
+        btn.disabled = false;
+        btn.innerText = '🔊 合成并播放语音';
+        if (d.success) {
+          showToast(`✅ TTS 合成成功 (${Math.round((d.wav_bytes||0)/1024)} KB)`);
+          if (player) {
+            player.style.display = 'block';
+            player.src = (d.audio_url || '/api/audio/tts_download') + '?t=' + Date.now();
+            player.load();
+            player.play().catch(() => {});
+          }
+        } else {
+          showToast('⚠️ TTS 合成失败: ' + (d.error || ''));
+        }
+      })
+      .catch(e => {
+        btn.disabled = false;
+        btn.innerText = '🔊 合成并播放语音';
+        showToast('网络错误: ' + e);
+      });
+    }
+
     function saveAgentConfig() {
+      // LLM
       const url = document.getElementById('baseUrl').value.trim();
       const model = document.getElementById('modelName').value.trim();
       const key = document.getElementById('apiKey').value.trim();
       const pr = document.getElementById('agentPrompt').value.trim();
       const temp = parseInt(document.getElementById('tempRange').value);
+
+      // ASR
+      const asrUrl = document.getElementById('asrBaseUrl').value.trim();
+      const asrModel = document.getElementById('asrModelName').value.trim();
+      const asrKey = document.getElementById('asrApiKey').value.trim();
+      const asrBackend = document.getElementById('asrBackendSelect').value;
+
+      // TTS
+      const ttsUrl = document.getElementById('ttsBaseUrl').value.trim();
+      const ttsModel = document.getElementById('ttsModelName').value.trim();
+      const ttsVoice = document.getElementById('ttsVoiceName').value.trim();
+      const ttsKey = document.getElementById('ttsApiKey').value.trim();
+      const ttsBackend = document.getElementById('ttsBackendSelect').value;
 
       fetch('/api/config', {
         method: 'POST',
@@ -2028,12 +2539,21 @@
           model: model,
           api_key: key,
           prompt: pr,
-          temperature: temp
+          temperature: temp,
+          asr_base_url: asrUrl,
+          asr_model: asrModel,
+          asr_api_key: asrKey,
+          asr_backend: asrBackend,
+          tts_base_url: ttsUrl,
+          tts_model: ttsModel,
+          tts_voice: ttsVoice,
+          tts_api_key: ttsKey,
+          tts_backend: ttsBackend
         })
       })
       .then(r => r.json())
       .then(d => {
-        showToast('✅ 大模型与 Agent 配置已热加载至开发板！');
+        showToast('✅ LLM、ASR、TTS 全套配置已热加载至开发板！');
         loadAgentConfig();
       })
       .catch(() => alert('保存配置失败'));
@@ -2385,6 +2905,209 @@
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({timestamp: ts})
       }).catch(() => {});
+    }
+
+    /* ========================================================
+     * 声学实验室 (Audio Lab) 交互与实时状态轮询
+     * ======================================================== */
+    let audioPollTimer = null;
+    let audioLoopbackActive = false;
+
+    function startAudioPolling() {
+      if (audioPollTimer) clearInterval(audioPollTimer);
+      audioPollStatus();
+      audioPollTimer = setInterval(audioPollStatus, 500);
+    }
+
+    function stopAudioPolling() {
+      if (audioPollTimer) {
+        clearInterval(audioPollTimer);
+        audioPollTimer = null;
+      }
+    }
+
+    function audioPollStatus() {
+      fetch('/api/audio/status')
+        .then(r => r.json())
+        .then(d => {
+          if (!d.success) return;
+
+          // 状态徽章
+          const badge = document.getElementById('audioStateBadge');
+          if (badge) {
+            let stateTxt = '● 空闲 (IDLE)';
+            let color = 'var(--muted)';
+            if (d.state_str === 'RECORDING') {
+              stateTxt = '🔴 正在录音 (RECORDING)';
+              color = 'var(--accent-danger)';
+            } else if (d.state_str === 'PLAYING_REC') {
+              stateTxt = '▶️ 正在回放录音 (PLAYING)';
+              color = 'var(--accent-sub)';
+            } else if (d.state_str === 'PLAYING_TONE') {
+              stateTxt = '🔔 正在播放 1kHz 纯音';
+              color = 'var(--accent)';
+            }
+            if (d.loopback_active) {
+              stateTxt += ' [耳返开启]';
+            }
+            badge.innerText = stateTxt;
+            badge.style.color = color;
+          }
+
+          // 实时能量柱
+          const bar = document.getElementById('audioEnergyBar');
+          const valTxt = document.getElementById('audioEnergyVal');
+          if (bar && valTxt) {
+            const energy = Math.min(100, Math.max(0, d.current_energy || 0));
+            bar.style.width = energy + '%';
+            valTxt.innerText = energy + '%';
+          }
+
+          // 已录制时长
+          const durTxt = document.getElementById('audioRecordDurTxt');
+          if (durTxt) {
+            const sec = ((d.record_duration_ms || 0) / 1000).toFixed(1);
+            durTxt.innerText = `已录: ${sec}s / 10.0s (${Math.round((d.recorded_bytes || 0) / 1024)} KB)`;
+          }
+
+          // 耳返开关
+          audioLoopbackActive = !!d.loopback_active;
+          const lbBtn = document.getElementById('btnLoopbackToggle');
+          if (lbBtn) {
+            lbBtn.innerText = audioLoopbackActive ? '关闭耳返' : '开启耳返';
+            lbBtn.className = audioLoopbackActive ? 'btn-warn' : 'btn-secondary';
+          }
+
+          // 硬件音量
+          if (typeof d.volume === 'number') {
+            const slider = document.getElementById('audioVolumeSlider');
+            const volTxt = document.getElementById('audioVolumeTxt');
+            if (slider && document.activeElement !== slider) slider.value = d.volume;
+            if (volTxt) volTxt.innerText = d.volume + '%';
+          }
+        })
+        .catch(() => {});
+    }
+
+    function audioRecord(durationMs) {
+      showToast(`🔴 开始麦克风录音 (${durationMs / 1000}s)...`);
+      fetch('/api/audio/record', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'start', duration_ms: durationMs})
+      })
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) audioPollStatus();
+        else showToast('⚠️ 启动录音失败: ' + (d.error || '忙'));
+      })
+      .catch(e => showToast('网络错误: ' + e));
+    }
+
+    function audioRecordStop() {
+      showToast('⏹️ 停止录音');
+      fetch('/api/audio/record', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'stop'})
+      })
+      .then(() => audioPollStatus())
+      .catch(() => {});
+    }
+
+    function audioPlayRecord() {
+      showToast('▶️ 设备端扬声器回放录音...');
+      fetch('/api/audio/play', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'start', type: 'recording'})
+      })
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) audioPollStatus();
+        else showToast('⚠️ 回放失败: ' + (d.error || '无录音数据'));
+      })
+      .catch(e => showToast('网络错误: ' + e));
+    }
+
+    function audioPlayTone(freqHz, durationMs) {
+      showToast(`🔔 播放 ${freqHz}Hz 纯音 (${durationMs / 1000}s)...`);
+      fetch('/api/audio/play', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'start', type: 'tone', freq_hz: freqHz, duration_ms: durationMs})
+      })
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) audioPollStatus();
+        else showToast('⚠️ 播放失败: ' + (d.error || '忙'));
+      })
+      .catch(e => showToast('网络错误: ' + e));
+    }
+
+    function audioPlayStop() {
+      showToast('⏹️ 停止播放');
+      fetch('/api/audio/play', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'stop'})
+      })
+      .then(() => audioPollStatus())
+      .catch(() => {});
+    }
+
+    function audioToggleLoopback() {
+      const nextState = !audioLoopbackActive;
+      showToast(nextState ? '🎧 开启麦克风实时耳返' : '🔇 关闭耳返');
+      fetch('/api/audio/loopback', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enable: nextState})
+      })
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) audioPollStatus();
+      })
+      .catch(() => {});
+    }
+
+    function audioOnVolumeSlide(val) {
+      const volTxt = document.getElementById('audioVolumeTxt');
+      if (volTxt) volTxt.innerText = val + '%';
+    }
+
+    function audioSetVolume(val) {
+      const v = parseInt(val, 10);
+      fetch('/api/audio/volume', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({volume: v})
+      })
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) {
+          showToast(`🔊 硬件音量已设为: ${v}%`);
+          audioPollStatus();
+        }
+      })
+      .catch(() => {});
+    }
+
+    function audioDownloadWav() {
+      const url = '/api/audio/download?t=' + Date.now();
+      const player = document.getElementById('browserAudioPlayer');
+      if (player) {
+        player.src = url;
+        player.load();
+        player.play().catch(() => {});
+      }
+      showToast('💾 正在下载/加载录音 WAV...');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'phoenix_mic_record.wav';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     }
 
     // 页面可见性挂起策略：离开浏览器前台时降频轮询

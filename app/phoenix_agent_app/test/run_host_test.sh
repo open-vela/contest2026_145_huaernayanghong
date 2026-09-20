@@ -47,6 +47,7 @@ $COMPILER -O2 -Wall -Wextra -std=gnu99 \
     "$APP_DIR/core/config.c" \
     "$APP_DIR/core/weather_service.c" \
     "$APP_DIR/core/todo_mgr.c" \
+    "$APP_DIR/core/audio_test_service.c" \
     "$APP_DIR/core/expression.c" \
     "$APP_DIR/core/intent_router.c" \
     "$APP_DIR/core/cartridge_mgr.c" \
@@ -67,6 +68,7 @@ $COMPILER -O2 -Wall -Wextra -std=gnu99 \
     "$APP_DIR/core/web_api/api_agent.c" \
     "$APP_DIR/core/web_api/api_weather.c" \
     "$APP_DIR/core/web_api/api_todo.c" \
+    "$APP_DIR/core/web_api/api_audio.c" \
     "$APP_DIR/core/web_portal.c" \
     "$APP_DIR/core/app.c" \
     "$APP_DIR/core/agent_core.c" \
@@ -93,6 +95,7 @@ $COMPILER -O2 -Wall -Wextra -std=gnu99 \
     "$APP_DIR/harness/llm_cloud_backend.c" \
     "$APP_DIR/harness/llm_provider.c" \
     "$APP_DIR/harness/asr_provider.c" \
+    "$APP_DIR/harness/tts_provider.c" \
     "$CJSON_DIR/cJSON.c" \
     -o "$BIN_OUT" -lpthread -lm -lcurl
 
