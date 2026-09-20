@@ -11,6 +11,8 @@
 #include "../hal/network_mgr.h"
 #include "../hal/ble_prov_service.h"
 #include "../hal/hal_system.h"
+#include "../hal/hal_sdcard.h"
+#include "../hal/hal_manager.h"
 #include "../hal/hal_actuator.h"
 #include "../utils/log_utils.h"
 #include <stdio.h>
@@ -30,12 +32,11 @@ static void on_ble_toggle_clicked(lv_event_t *e);
 static void on_wifi_refresh_clicked(lv_event_t *e);
 static void on_wifi_forget_clicked(lv_event_t *e);
 static void on_wifi_item_clicked(lv_event_t *e);
+static void on_wifi_ap_mode_clicked(lv_event_t *e);
 static void on_pwd_close_clicked(lv_event_t *e);
 static void on_pwd_connect_clicked(lv_event_t *e);
 static void on_pwd_eye_clicked(lv_event_t *e);
-static void on_dhcp_close_clicked(lv_event_t *e);
-static void on_dhcp_renew_clicked(lv_event_t *e);
-static void on_wifi_status_label_clicked(lv_event_t *e);
+static void on_pwd_kb_event(lv_event_t *e);
 
 /* 音频调试事件回调声明 */
 static void on_audio_rec_clicked(lv_event_t *e);
@@ -1430,7 +1431,7 @@ void ui_settings_refresh_data(ui_settings_t *settings)
 
     if (settings->lbl_menu_ble_sub) {
         if (ble_prov_service_is_active()) {
-            ble_prov_state_t bst = ble_prov_service_get_state();
+            bst = ble_prov_service_get_state();
             if (bst == BLE_PROV_STATE_CONNECTED) {
                 lv_label_set_text(settings->lbl_menu_ble_sub, "Web已在线 >");
                 lv_obj_set_style_text_color(settings->lbl_menu_ble_sub, lv_color_hex(0x00E5FF), 0);
@@ -1512,11 +1513,13 @@ void ui_settings_refresh_data(ui_settings_t *settings)
             char rec_buf[64];
             if (ast.state == AUDIO_TEST_STATE_RECORDING) {
                 snprintf(rec_buf, sizeof(rec_buf), "录音中 %02u:%02u (能量: %d%%)",
-                         (ast.record_duration_ms / 1000) / 60, (ast.record_duration_ms / 1000) % 60, ast.current_energy);
+                         (unsigned int)((ast.record_duration_ms / 1000) / 60),
+                         (unsigned int)((ast.record_duration_ms / 1000) % 60),
+                         ast.current_energy);
                 lv_obj_set_style_text_color(settings->lbl_audio_rec_status, lv_color_hex(0xFFB700), 0);
             } else if (ast.recorded_bytes > 0) {
                 snprintf(rec_buf, sizeof(rec_buf), "就绪 (已录制 %zu 字节, %ums)",
-                         ast.recorded_bytes, ast.record_duration_ms);
+                         ast.recorded_bytes, (unsigned int)ast.record_duration_ms);
                 lv_obj_set_style_text_color(settings->lbl_audio_rec_status, lv_color_hex(0x00FF88), 0);
             } else {
                 snprintf(rec_buf, sizeof(rec_buf), "待命 (16kHz 16bit 单声道)");
