@@ -27,11 +27,24 @@ extern "C" {
 int phoenix_register_builtin_tools(void);
 
 /* Pomodoro Background Service APIs */
-void     pomodoro_service_tick_1s(void);
-bool     pomodoro_service_is_active(void);
-uint16_t pomodoro_service_get_remaining(void);
-int      pomodoro_service_start(uint16_t duration_minutes);
-int      pomodoro_service_stop(void);
+typedef enum {
+    POMODORO_MODE_FOCUS = 0,   /* 专注模式 (例如 25 分钟) */
+    POMODORO_MODE_SHORT_BREAK, /* 短休息 (例如 5 分钟) */
+    POMODORO_MODE_LONG_BREAK   /* 长休息 (例如 15 分钟) */
+} pomodoro_mode_t;
+
+void            pomodoro_service_tick_1s(void);
+bool            pomodoro_service_is_active(void);
+bool            pomodoro_service_is_paused(void);
+uint16_t        pomodoro_service_get_remaining(void);
+uint16_t        pomodoro_service_get_total_duration(void);
+pomodoro_mode_t pomodoro_service_get_mode(void);
+void            pomodoro_service_set_mode(pomodoro_mode_t mode);
+int             pomodoro_service_start(uint16_t duration_minutes);
+int             pomodoro_service_pause(void);
+int             pomodoro_service_resume(void);
+int             pomodoro_service_stop(void);
+int             pomodoro_service_reset(void);
 
 #ifdef __cplusplus
 }

@@ -28,13 +28,15 @@
 #  include <netutils/cJSON.h>
 #endif
 
-static bool     g_pomodoro_active = false;
-static uint16_t g_remaining_s = 0;
-static uint16_t g_total_duration_s = 25 * 60;
+static bool            g_pomodoro_active = false;
+static bool            g_pomodoro_paused = false;
+static pomodoro_mode_t g_pomodoro_mode = POMODORO_MODE_FOCUS;
+static uint16_t        g_remaining_s = 0;
+static uint16_t        g_total_duration_s = 25 * 60;
 
 void pomodoro_service_tick_1s(void)
 {
-    if (!g_pomodoro_active) return;
+    if (!g_pomodoro_active || g_pomodoro_paused) return;
 
     if (g_remaining_s > 0) {
         g_remaining_s--;
@@ -49,9 +51,12 @@ void pomodoro_service_tick_1s(void)
 
         if (g_remaining_s == 0) {
             g_pomodoro_active = false;
+            g_pomodoro_paused = false;
 
-            /* 累加持久化数据 */
-            phoenix_store_add_pomodoro(g_total_duration_s);
+            /* 累加持久化数据 (仅当处于专注模式时累加番茄战绩) */
+            if (g_pomodoro_mode == POMODORO_MODE_FOCUS) {
+                phoenix_store_add_pomodoro(g_total_duration_s);
+            }
 
             /* 触觉微马达脉冲与庆祝提示音 */
             hal_actuator_trigger_haptic(HAL_HAPTIC_PULSE);
@@ -61,7 +66,11 @@ void pomodoro_service_tick_1s(void)
             phoenix_event_data_t fly_evt;
             memset(&fly_evt, 0, sizeof(fly_evt));
             fly_evt.type = PHOENIX_EVT_FLYING_TEXT;
-            fly_evt.data.flying_text.text = "🎉 专注达成！灵眸提醒休息片刻";
+            if (g_pomodoro_mode == POMODORO_MODE_FOCUS) {
+                fly_evt.data.flying_text.text = "🎉 专注达成！灵眸提醒休息片刻";
+            } else {
+                fly_evt.data.flying_text.text = "☕ 休息结束！精力充沛准备开启新专注";
+            }
             fly_evt.data.flying_text.color_rgb = 0xffd700;
             phoenix_event_publish(&fly_evt);
 
@@ -80,15 +89,44 @@ bool pomodoro_service_is_active(void)
     return g_pomodoro_active;
 }
 
+bool pomodoro_service_is_paused(void)
+{
+    return g_pomodoro_active && g_pomodoro_paused;
+}
+
 uint16_t pomodoro_service_get_remaining(void)
 {
     return g_remaining_s;
+}
+
+uint16_t pomodoro_service_get_total_duration(void)
+{
+    return g_total_duration_s;
+}
+
+pomodoro_mode_t pomodoro_service_get_mode(void)
+{
+    return g_pomodoro_mode;
+}
+
+void pomodoro_service_set_mode(pomodoro_mode_t mode)
+{
+    g_pomodoro_mode = mode;
+    uint16_t def_mins = 25;
+    if (mode == POMODORO_MODE_SHORT_BREAK) def_mins = 5;
+    else if (mode == POMODORO_MODE_LONG_BREAK) def_mins = 15;
+
+    g_total_duration_s = def_mins * 60;
+    if (!g_pomodoro_active || g_remaining_s == 0) {
+        g_remaining_s = g_total_duration_s;
+    }
 }
 
 int pomodoro_service_start(uint16_t duration_minutes)
 {
     if (duration_minutes == 0) duration_minutes = 25;
     g_pomodoro_active = true;
+    g_pomodoro_paused = false;
     g_total_duration_s = duration_minutes * 60;
     g_remaining_s = g_total_duration_s;
 
@@ -105,9 +143,41 @@ int pomodoro_service_start(uint16_t duration_minutes)
     return 0;
 }
 
+int pomodoro_service_pause(void)
+{
+    if (!g_pomodoro_active) return -1;
+    g_pomodoro_paused = true;
+    hal_actuator_trigger_haptic(HAL_HAPTIC_CLICK);
+    return 0;
+}
+
+int pomodoro_service_resume(void)
+{
+    if (!g_pomodoro_active) return -1;
+    g_pomodoro_paused = false;
+    hal_actuator_trigger_haptic(HAL_HAPTIC_CLICK);
+    return 0;
+}
+
+int pomodoro_service_reset(void)
+{
+    g_pomodoro_active = false;
+    g_pomodoro_paused = false;
+    g_remaining_s = g_total_duration_s;
+
+    phoenix_event_data_t tick_evt;
+    memset(&tick_evt, 0, sizeof(tick_evt));
+    tick_evt.type = PHOENIX_EVT_POMODORO_TICK;
+    tick_evt.data.stats.is_active = false;
+    tick_evt.data.stats.remaining_s = g_remaining_s;
+    phoenix_event_publish(&tick_evt);
+    return 0;
+}
+
 int pomodoro_service_stop(void)
 {
     g_pomodoro_active = false;
+    g_pomodoro_paused = false;
     g_remaining_s = 0;
 
     phoenix_event_data_t tick_evt;
@@ -145,6 +215,32 @@ static int tool_pomodoro_exec(const char *args_json, char *result_out, size_t ma
         if (result_out && max_len > 0) {
             snprintf(result_out, max_len, "{\"status\":\"stopped\"}");
         }
+    } else if (strcmp(action, "pause") == 0) {
+        pomodoro_service_pause();
+        if (result_out && max_len > 0) {
+            snprintf(result_out, max_len, "{\"status\":\"paused\",\"remaining_seconds\":%u}", g_remaining_s);
+        }
+    } else if (strcmp(action, "resume") == 0) {
+        pomodoro_service_resume();
+        if (result_out && max_len > 0) {
+            snprintf(result_out, max_len, "{\"status\":\"resumed\",\"remaining_seconds\":%u}", g_remaining_s);
+        }
+    } else if (strcmp(action, "reset") == 0) {
+        pomodoro_service_reset();
+        if (result_out && max_len > 0) {
+            snprintf(result_out, max_len, "{\"status\":\"reset\",\"duration_seconds\":%u}", g_total_duration_s);
+        }
+    } else if (strcmp(action, "status") == 0) {
+        if (result_out && max_len > 0) {
+            snprintf(result_out, max_len,
+                     "{\"status\":\"%s\",\"is_active\":%s,\"is_paused\":%s,\"mode\":%d,\"remaining_seconds\":%u,\"total_seconds\":%u}",
+                     g_pomodoro_active ? (g_pomodoro_paused ? "paused" : "running") : "idle",
+                     g_pomodoro_active ? "true" : "false",
+                     g_pomodoro_paused ? "true" : "false",
+                     (int)g_pomodoro_mode,
+                     g_remaining_s,
+                     g_total_duration_s);
+        }
     } else {
         pomodoro_service_start((uint16_t)minutes);
         if (result_out && max_len > 0) {
@@ -157,7 +253,7 @@ static int tool_pomodoro_exec(const char *args_json, char *result_out, size_t ma
 
 const phoenix_tool_desc_t g_tool_pomodoro = {
     .name = "manage_pomodoro",
-    .description = "管理桌面开发者沉浸专注流番茄钟（支持开启、暂停或指定专注时长）",
-    .parameters_schema = "{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\",\"enum\":[\"start\",\"stop\"],\"description\":\"动作: start 或 stop\"},\"duration_minutes\":{\"type\":\"integer\",\"description\":\"专注时长(分钟)，默认为25\"}},\"required\":[]}",
+    .description = "管理桌面开发者沉浸专注流番茄钟（支持开启、暂停、恢复、重置或查看状态）",
+    .parameters_schema = "{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\",\"enum\":[\"start\",\"stop\",\"pause\",\"resume\",\"reset\",\"status\"],\"description\":\"动作\"},\"duration_minutes\":{\"type\":\"integer\",\"description\":\"专注时长(分钟)，默认为25\"}},\"required\":[]}",
     .execute = tool_pomodoro_exec
 };

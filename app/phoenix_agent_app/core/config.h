@@ -27,6 +27,13 @@ extern "C" {
 #define PHOENIX_CFG_PROACTIVE_TIMEOUT "proactive_timeout_s"
 #define PHOENIX_CFG_WEATHER_CITY      "weather_city"
 
+/* ASR 语音转文本配置项 */
+#define PHOENIX_CFG_ASR_BACKEND       "asr_backend"       /* "cloud" | "mock" */
+#define PHOENIX_CFG_ASR_BASE_URL      "asr_base_url"      /* 默认: https://api.groq.com/openai/v1/audio/transcriptions */
+#define PHOENIX_CFG_ASR_API_KEY       "asr_api_key"       /* ASR 独立 Key (为空时可复用 llm_api_key) */
+#define PHOENIX_CFG_ASR_MODEL         "asr_model"         /* 默认: "whisper-large-v3" 或 "sensevoice-v1" */
+
+
 /**
  * @brief Initialize configuration subsystem
  * @param storage_dir Base directory to persist config.json

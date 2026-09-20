@@ -72,6 +72,7 @@ if(CONFIG_LVX_USE_DEMO_CONTEST2026_145_PHOENIX_AGENT_APP)
       harness/llm_mock_backend.c
       harness/llm_cloud_backend.c
       harness/llm_provider.c
+      harness/asr_provider.c
       test/test_autodrive.c)
 
   nuttx_add_application(

@@ -38,6 +38,7 @@ static const lv_font_t lv_font_montserrat_32 = {0};
 
 #define LV_PART_MAIN      0
 #define LV_PART_INDICATOR 1
+#define LV_PART_KNOB      2
 
 typedef enum {
     LV_ALIGN_TOP_LEFT = 0,
@@ -140,6 +141,17 @@ static inline void lv_label_set_long_mode(lv_obj_t *obj, lv_label_long_mode_t mo
 static inline lv_obj_t* lv_bar_create(lv_obj_t *parent) { (void)parent; return (lv_obj_t*)malloc(16); }
 static inline void lv_bar_set_value(lv_obj_t *obj, int32_t value, int32_t anim) { (void)obj; (void)value; (void)anim; }
 static inline void lv_bar_set_range(lv_obj_t *obj, int32_t min, int32_t max) { (void)obj; (void)min; (void)max; }
+
+/* Arc */
+static inline lv_obj_t* lv_arc_create(lv_obj_t *parent) { (void)parent; return (lv_obj_t*)malloc(16); }
+static inline void lv_arc_set_rotation(lv_obj_t *obj, uint16_t rotation) { (void)obj; (void)rotation; }
+static inline void lv_arc_set_bg_angles(lv_obj_t *obj, uint16_t start, uint16_t end) { (void)obj; (void)start; (void)end; }
+static inline void lv_arc_set_range(lv_obj_t *obj, int32_t min, int32_t max) { (void)obj; (void)min; (void)max; }
+static inline void lv_arc_set_value(lv_obj_t *obj, int32_t value) { (void)obj; (void)value; }
+static inline void lv_obj_set_style_arc_width(lv_obj_t *obj, int32_t width, uint32_t selector) { (void)obj; (void)width; (void)selector; }
+static inline void lv_obj_set_style_arc_color(lv_obj_t *obj, lv_color_t color, uint32_t selector) { (void)obj; (void)color; (void)selector; }
+static inline void lv_obj_set_style_arc_rounded(lv_obj_t *obj, bool rounded, uint32_t selector) { (void)obj; (void)rounded; (void)selector; }
+static inline void lv_obj_set_style_opa(lv_obj_t *obj, uint8_t opa, uint32_t selector) { (void)obj; (void)opa; (void)selector; }
 
 /* Animation mock */
 typedef struct lv_anim_s {

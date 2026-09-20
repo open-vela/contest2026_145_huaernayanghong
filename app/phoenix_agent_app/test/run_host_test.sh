@@ -92,6 +92,7 @@ $COMPILER -O2 -Wall -Wextra -std=gnu99 \
     "$APP_DIR/harness/llm_mock_backend.c" \
     "$APP_DIR/harness/llm_cloud_backend.c" \
     "$APP_DIR/harness/llm_provider.c" \
+    "$APP_DIR/harness/asr_provider.c" \
     "$CJSON_DIR/cJSON.c" \
     -o "$BIN_OUT" -lpthread -lm -lcurl
 

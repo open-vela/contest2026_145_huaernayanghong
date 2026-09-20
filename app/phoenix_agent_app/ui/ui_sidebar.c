@@ -19,7 +19,7 @@ static const char *get_cartridge_icon(const char *id) {
   if (strcmp(id, "home") == 0)
     return "主";
   if (strcmp(id, "clock") == 0)
-    return "钟";
+    return "茄";
   if (strcmp(id, "zen") == 0)
     return "禅";
   if (strcmp(id, "memo") == 0)

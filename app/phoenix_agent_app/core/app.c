@@ -18,9 +18,11 @@
 #include "../cartridges/cartridge_memo.h"
 #include "../cartridges/cartridge_agent.h"
 #include "web_portal.h"
+#include "agent_core.h"
 #include "../utils/time_utils.h"
 #include "../tools/tools.h"
 #include "../harness/llm_provider.h"
+#include "../harness/asr_provider.h"
 #include "../hal/hal_manager.h"
 #include "../perception/perception.h"
 #include "../voice/voice_pipeline.h"
@@ -32,6 +34,20 @@
 #define TAG "PhoenixApp"
 
 static bool g_app_initialized = false;
+
+static void on_voice_recognized_text(const char *recognized_text, void *user_data)
+{
+    (void)user_data;
+    if (!recognized_text || recognized_text[0] == '\0') {
+        return;
+    }
+    LOG_I(TAG, "🎙️ 语音唤醒并识别到输入: \"%s\"", recognized_text);
+    phoenix_agent_ctx_t *agent = phoenix_agent_get_instance();
+    if (agent) {
+        phoenix_agent_chat_async(agent, recognized_text);
+    }
+}
+
 
 int phoenix_app_init(const phoenix_app_config_t *config)
 {
@@ -96,7 +112,7 @@ int phoenix_app_init(const phoenix_app_config_t *config)
     }
 
     /* 6. Voice Pipeline Engine */
-    phoenix_voice_pipeline_init(NULL, NULL);
+    phoenix_voice_pipeline_init(on_voice_recognized_text, NULL);
     phoenix_voice_pipeline_start();
 
     /* 7. Tool Registry */
@@ -144,6 +160,21 @@ int phoenix_app_init(const phoenix_app_config_t *config)
         phoenix_llm_provider_init(NULL);
         LOG_I(TAG, "💡 本地未配置 API Key, 初始化离线具身仿真驱动模式");
     }
+
+    /* 9.1 ASR (Speech-to-Text) Provider 初始化 */
+    char asr_saved_key[128] = {0};
+    phoenix_config_get_str(PHOENIX_CFG_ASR_API_KEY, "", asr_saved_key, sizeof(asr_saved_key));
+    if (asr_saved_key[0] == '\0' && saved_key[0] != '\0') {
+        /* 未独立配置 ASR Key 时复用 LLM Key */
+        strncpy(asr_saved_key, saved_key, sizeof(asr_saved_key) - 1);
+    }
+    phoenix_asr_config_t asr_cfg;
+    memset(&asr_cfg, 0, sizeof(asr_cfg));
+    strncpy(asr_cfg.api_key, asr_saved_key, sizeof(asr_cfg.api_key) - 1);
+    phoenix_config_get_str(PHOENIX_CFG_ASR_BACKEND, "cloud", asr_cfg.backend, sizeof(asr_cfg.backend));
+    phoenix_config_get_str(PHOENIX_CFG_ASR_BASE_URL, "https://api.groq.com/openai/v1/audio/transcriptions", asr_cfg.base_url, sizeof(asr_cfg.base_url));
+    phoenix_config_get_str(PHOENIX_CFG_ASR_MODEL, "whisper-large-v3", asr_cfg.model_name, sizeof(asr_cfg.model_name));
+    phoenix_asr_init(&asr_cfg);
 
     /* 10. Embedded Web Portal (Optional) */
     if (config && config->enable_web_portal) {
@@ -209,6 +240,7 @@ void phoenix_app_deinit(void)
     net_mgr_deinit();
     phoenix_web_portal_stop();
     phoenix_voice_pipeline_deinit();
+    phoenix_asr_deinit();
     phoenix_llm_provider_deinit();
     phoenix_tool_registry_deinit();
     phoenix_perception_deinit();

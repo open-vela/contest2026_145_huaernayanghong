@@ -717,7 +717,7 @@
         <button class="chip active" id="pill-cartridge-home" style="padding:7px 14px; font-size:12px;" onclick="switchCartridge('home')">🏠 极客主页</button>
         <button class="chip" id="pill-cartridge-familiar" style="padding:7px 14px; font-size:12px;" onclick="switchCartridge('familiar')">🐱 桌面使魔</button>
         <button class="chip" id="pill-cartridge-memo" style="padding:7px 14px; font-size:12px;" onclick="switchCartridge('memo')">💡 灵感外脑</button>
-        <button class="chip" id="pill-cartridge-clock" style="padding:7px 14px; font-size:12px;" onclick="switchCartridge('clock')">⏰ 翻页时钟</button>
+        <button class="chip" id="pill-cartridge-clock" style="padding:7px 14px; font-size:12px;" onclick="switchCartridge('clock')">🍅 番茄时钟</button>
         <button class="chip" id="pill-cartridge-zen" style="padding:7px 14px; font-size:12px;" onclick="switchCartridge('zen')">🪷 赛博木鱼</button>
         <button class="chip" id="pill-cartridge-agent" style="padding:7px 14px; font-size:12px;" onclick="switchCartridge('agent')">🤖 灵眸AI</button>
       </div>
@@ -755,10 +755,10 @@
           </div>
         </div>
 
-        <!-- 机械翻页钟 -->
+        <!-- 番茄专注时钟 -->
         <div class="card" id="card-clock">
           <div class="card-head">
-            <div class="card-title">⏰ 翻页时钟 & 番茄专注</div>
+            <div class="card-title">🍅 番茄专注时钟</div>
             <div style="display:flex; gap:6px; align-items:center;">
               <span class="status-badge" id="pomoStatusTag">待命</span>
               <button class="btn-secondary" style="padding:3px 8px; font-size:11px;" onclick="switchCartridge('clock')">📺 投到屏幕</button>
@@ -768,7 +768,7 @@
             <div class="m-block"><div class="m-lbl">专注倒计时</div><div class="m-val" id="pomoRemain">25:00</div></div>
             <div class="m-block"><div class="m-lbl">历史专注轮次</div><div class="m-val" id="pomoCycles">3 轮</div></div>
           </div>
-          <button class="btn-secondary" style="width:100%" onclick="doCartridgeAction('pomo_toggle')">🍅 开启 / 暂停番茄专注</button>
+          <button class="btn-secondary" style="width:100%" onclick="doCartridgeAction('pomo_toggle')">🍅 开启 / 暂停 / 继续专注</button>
         </div>
 
         <!-- 赛博木鱼 -->
@@ -1234,7 +1234,7 @@
 
           // 当前卡带
           if (d.active_cartridge) {
-            const names = { familiar: '使魔萌宠', memo: '灵感外脑', clock: '翻页时钟', zen: '赛博木鱼', home: '主页', agent: '灵眸AI' };
+            const names = { familiar: '使魔萌宠', memo: '灵感外脑', clock: '番茄时钟', zen: '赛博木鱼', home: '主页', agent: '灵眸AI' };
             document.getElementById('activeCartridgeHint').innerText = '当前真机屏幕: ' + (names[d.active_cartridge] || d.active_cartridge);
             document.querySelectorAll('[id^="pill-cartridge-"]').forEach(p => {
               p.classList.toggle('active', p.id === 'pill-cartridge-' + d.active_cartridge);

@@ -20,6 +20,7 @@
 #  include "../core/web_portal.h"
 #  include "../tools/tools.h"
 #  include "../harness/llm_provider.h"
+#  include "../harness/asr_provider.h"
 #  include "../harness/llm_mock_backend.h"
 #  include "../harness/llm_cloud_backend.h"
 #  include "../ui/eye_anim.h"
@@ -1713,7 +1714,12 @@ static void run_test_four_cartridges(void)
     char status_buf[256];
     assert(cur->ops.get_web_status && cur->ops.get_web_status(cur, status_buf, sizeof(status_buf)) == 0);
     assert(strstr(status_buf, "remain_s") != NULL);
-    printf("  -> Cartridge 2 [clock - 拟物机械翻页钟] Pomodoro & Status: %s\n", status_buf);
+    assert(strstr(status_buf, "is_pomodoro") != NULL);
+    /* 测试双击敲击切换模式 */
+    if (cur->ops.on_knock) cur->ops.on_knock(cur, 1, 2);
+    assert(cartridge_clock_set_mode(1) == 0); /* 切换短休 5m */
+    assert(cartridge_clock_toggle() == 0);    /* 启停控制 */
+    printf("  -> Cartridge 2 [clock - 番茄专注时钟 & 环形表盘 & 敲击交互] Pomodoro & Status: %s\n", status_buf);
 
     /* 4. Switch to agent & test proactive voice interaction */
     time_utils_sleep_ms(510);
@@ -2616,6 +2622,41 @@ static void run_test_weather_subsystem(void)
     printf("  -> Weather Service Subsystem PASSED!\n");
 }
 
+/* ========================================================================= */
+/* [TEST 36] ASR (Speech-to-Text) Provider Subsystem                         */
+/* ========================================================================= */
+static void run_test_asr_provider(void)
+{
+    printf("\n[TEST 36] Testing ASR Provider Subsystem (Speech-to-Text)...\n");
+    phoenix_asr_config_t cfg = {
+        .backend = "mock",
+        .base_url = "https://api.groq.com/openai/v1/audio/transcriptions",
+        .api_key = "mock-key",
+        .model_name = "whisper-large-v3"
+    };
+    int ret = phoenix_asr_init(&cfg);
+    assert(ret == 0);
+
+    uint32_t latency = 0;
+    int status = 0;
+    char err[64] = {0};
+    ret = phoenix_asr_ping(&latency, &status, err, sizeof(err));
+    assert(ret == 0);
+    assert(status == 200);
+
+    /* Test transcribe with mock WAV data */
+    uint8_t dummy_wav[100];
+    memset(dummy_wav, 0x55, sizeof(dummy_wav));
+    char recognized_text[128] = {0};
+    ret = phoenix_asr_transcribe(dummy_wav, sizeof(dummy_wav), recognized_text, sizeof(recognized_text));
+    assert(ret == 0);
+    assert(strlen(recognized_text) > 0);
+    printf("  -> ASR Transcribe output: \"%s\"\n", recognized_text);
+
+    phoenix_asr_deinit();
+    printf("  -> ASR Provider Subsystem PASSED!\n");
+}
+
 int main(int argc, char *argv[])
 {
     printf("====================================================\n");
@@ -2664,8 +2705,10 @@ int main(int argc, char *argv[])
     run_test_four_moats_hardening();
     run_test_todo_subsystem();
     run_test_weather_subsystem();
+    run_test_asr_provider();
 
-    printf("\n🎉 ALL 35 UNIT TESTS PASSED SUCCESSFULLY!\n");
+    printf("\n🎉 ALL 36 UNIT TESTS PASSED SUCCESSFULLY!\n");
+
 
     /* If --repl or -i passed, enter interactive mode */
     if (argc > 1 && (strcmp(argv[1], "-i") == 0 || strcmp(argv[1], "--repl") == 0)) {
