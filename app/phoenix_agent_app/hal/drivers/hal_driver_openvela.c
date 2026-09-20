@@ -463,11 +463,13 @@ static int openvela_audio_in_deinit(void)
 static int openvela_audio_in_start_stream(void)
 {
     if (s_capture_fd < 0) {
-        s_capture_fd = open(AUDIO_DEV_CAPTURE, O_RDONLY);
+        /* O_NONBLOCK: 防止 read() 阻塞卡死主循环（5ms tick 周期） */
+        s_capture_fd = open(AUDIO_DEV_CAPTURE, O_RDONLY | O_NONBLOCK);
         if (s_capture_fd < 0) {
             printf("[HAL:Audio] ❌ 无法打开录音设备 %s (errno=%d)\n", AUDIO_DEV_CAPTURE, errno);
             return -1;
         }
+        printf("[HAL:Audio] ✅ 录音设备已打开: %s (fd=%d)\n", AUDIO_DEV_CAPTURE, s_capture_fd);
     }
     s_capture_streaming = true;
     return 0;
@@ -491,7 +493,7 @@ static int openvela_audio_in_read_frame(hal_audio_pcm_frame_t *frame_out, uint32
         return 0;
     }
 
-    /* 从 /dev/audio/pcm0c 读取一帧 PCM 数据 */
+    /* 从 /dev/audio/pcm0c 非阻塞读取一帧 PCM 数据 */
     ssize_t nread = read(s_capture_fd, s_capture_buf, AUDIO_IN_FRAME_BYTES);
     if (nread > 0) {
         frame_out->pcm_data = s_capture_buf;
@@ -507,6 +509,7 @@ static int openvela_audio_in_read_frame(hal_audio_pcm_frame_t *frame_out, uint32
         uint32_t rms = (count > 0) ? (uint32_t)sqrt((double)sum_sq / count) : 0;
         frame_out->is_speech = (rms > 500);
     }
+    /* nread <= 0: EAGAIN/EWOULDBLOCK 表示暂无数据，正常返回空帧 */
 
     return 0;
 }
