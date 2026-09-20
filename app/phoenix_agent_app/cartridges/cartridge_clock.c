@@ -495,7 +495,6 @@ static void clock_enter(cartridge_t *self, void *stage_view)
 {
     (void)self;
     clock_on_load((lv_obj_t *)stage_view);
-    update_pomodoro_ui(&s_ui);
 }
 
 static void clock_exit(cartridge_t *self)

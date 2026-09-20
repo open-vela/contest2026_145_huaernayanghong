@@ -396,6 +396,10 @@ static int cloud_backend_chat(phoenix_llm_backend_t *self,
     for (size_t i = 0; i < msg_count; i++) {
         cJSON *m = cJSON_CreateObject();
         switch (messages[i].role) {
+            case PHOENIX_ROLE_SYSTEM:
+                cJSON_AddStringToObject(m, "role", "system");
+                cJSON_AddStringToObject(m, "content", messages[i].content ? messages[i].content : "");
+                break;
             case PHOENIX_ROLE_USER:
                 cJSON_AddStringToObject(m, "role", "user");
                 cJSON_AddStringToObject(m, "content", messages[i].content ? messages[i].content : "");

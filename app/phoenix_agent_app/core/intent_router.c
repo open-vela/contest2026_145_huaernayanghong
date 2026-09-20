@@ -65,17 +65,57 @@ phoenix_intent_result_t phoenix_intent_route(const char *input_text)
         return res;
     }
 
-    /* 2. Fast-path: Pomodoro Focus Session */
+    /* 2. Fast-path: Pomodoro Focus Session & Management */
     if (contains_str(cmd_ptr, "番茄") || contains_str(cmd_ptr, "专注") ||
         contains_str(cmd_ptr, "pomodoro") || contains_str(cmd_ptr, "focus")) {
         res.category = INTENT_TYPE_FASTPATH;
         res.tool_name = "manage_pomodoro";
-        res.tool_args_json = "{\"action\":\"start\",\"minutes\":25}";
-        res.fast_reply = "【极速直达】已为你启动25分钟极客番茄专注流！";
+        if (contains_str(cmd_ptr, "停") || contains_str(cmd_ptr, "关") || contains_str(cmd_ptr, "stop")) {
+            res.tool_args_json = "{\"action\":\"stop\"}";
+            res.fast_reply = "【极速直达】已为你停止番茄专注钟！";
+        } else if (contains_str(cmd_ptr, "暂") || contains_str(cmd_ptr, "pause")) {
+            res.tool_args_json = "{\"action\":\"pause\"}";
+            res.fast_reply = "【极速直达】番茄钟已暂停！";
+        } else if (contains_str(cmd_ptr, "恢复") || contains_str(cmd_ptr, "resume")) {
+            res.tool_args_json = "{\"action\":\"resume\"}";
+            res.fast_reply = "【极速直达】番茄钟已恢复运行！";
+        } else if (contains_str(cmd_ptr, "状态") || contains_str(cmd_ptr, "多久") || contains_str(cmd_ptr, "status")) {
+            res.tool_args_json = "{\"action\":\"status\"}";
+            res.fast_reply = "【极速直达】已获取番茄专注钟实时状态！";
+        } else {
+            res.tool_args_json = "{\"action\":\"start\",\"duration_minutes\":25}";
+            res.fast_reply = "【极速直达】已为你启动25分钟极客番茄专注流！";
+        }
         return res;
     }
 
-    /* 3. Fast-path: Embedded Telemetry & Health Inspection */
+    /* 3. Fast-path: Todo List Management */
+    if (contains_str(cmd_ptr, "待办") || contains_str(cmd_ptr, "todo") ||
+        contains_str(cmd_ptr, "备忘") || contains_str(cmd_ptr, "清单")) {
+        res.category = INTENT_TYPE_FASTPATH;
+        res.tool_name = "manage_todo";
+        if (contains_str(cmd_ptr, "清理") || contains_str(cmd_ptr, "清空") || contains_str(cmd_ptr, "clear")) {
+            res.tool_args_json = "{\"action\":\"clear_done\"}";
+            res.fast_reply = "【极速直达】已清理所有已完成的待办条目！";
+        } else {
+            res.tool_args_json = "{\"action\":\"list\"}";
+            res.fast_reply = "【极速直达】已为你调取桌面待办事项清单！";
+        }
+        return res;
+    }
+
+    /* 4. Fast-path: Ambient Environment & Sensor Telemetry */
+    if (contains_str(cmd_ptr, "温湿度") || contains_str(cmd_ptr, "温度") ||
+        contains_str(cmd_ptr, "湿度") || contains_str(cmd_ptr, "环境") ||
+        contains_str(cmd_ptr, "光照") || contains_str(cmd_ptr, "env")) {
+        res.category = INTENT_TYPE_FASTPATH;
+        res.tool_name = "query_environment";
+        res.tool_args_json = "{}";
+        res.fast_reply = "【极速直达】已读取板载环境温湿度与光照传感器数据！";
+        return res;
+    }
+
+    /* 5. Fast-path: Embedded Telemetry & Health Inspection */
     if (contains_str(cmd_ptr, "巡检") || contains_str(cmd_ptr, "健康") ||
         contains_str(cmd_ptr, "电量") || contains_str(cmd_ptr, "内存") ||
         contains_str(cmd_ptr, "telemetry") || contains_str(cmd_ptr, "health")) {

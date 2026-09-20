@@ -35,7 +35,40 @@ static int mock_reasoning_eval(const char *user_prompt, phoenix_chat_resp_t *res
         return 0;
     }
 
-    /* 3. 系统健康巡检意图 */
+    /* 3. 待办事项管理意图 */
+    if (strstr(user_prompt, "待办") || strstr(user_prompt, "todo") || strstr(user_prompt, "备忘")) {
+        resp_out->is_tool_use = true;
+        resp_out->tool_name = strdup("manage_todo");
+        resp_out->tool_call_id = strdup("call_mock_todo_001");
+        if (strstr(user_prompt, "添加") || strstr(user_prompt, "新增")) {
+            resp_out->tool_input = strdup("{\"action\":\"add\",\"title\":\"智能体规划待办\",\"time_str\":\"今日\"}");
+            resp_out->reasoning_content = strdup("【思维链】用户要求新增待办，规划调度 manage_todo 工具添加待办条目。");
+            resp_out->content = strdup("正在为你添加到待办清单...");
+        } else if (strstr(user_prompt, "清理") || strstr(user_prompt, "清空")) {
+            resp_out->tool_input = strdup("{\"action\":\"clear_done\"}");
+            resp_out->reasoning_content = strdup("【思维链】清理已完成待办，规划调度 manage_todo clear_done。");
+            resp_out->content = strdup("正在为你清理已完成的待办条目...");
+        } else {
+            resp_out->tool_input = strdup("{\"action\":\"list\"}");
+            resp_out->reasoning_content = strdup("【思维链】用户查询待办清单，规划调度 manage_todo list 获取最新待办列表。");
+            resp_out->content = strdup("正在为你获取待办清单...");
+        }
+        return 0;
+    }
+
+    /* 4. 环境温湿度与传感器感知意图 */
+    if (strstr(user_prompt, "温湿度") || strstr(user_prompt, "温度") || strstr(user_prompt, "湿度") ||
+        strstr(user_prompt, "光照") || strstr(user_prompt, "环境")) {
+        resp_out->is_tool_use = true;
+        resp_out->tool_name = strdup("query_environment");
+        resp_out->tool_call_id = strdup("call_mock_env_001");
+        resp_out->tool_input = strdup("{}");
+        resp_out->reasoning_content = strdup("【思维链】用户询问当前环境状态，调度 query_environment 读取板载传感器数据。");
+        resp_out->content = strdup("正在为你采集板载温湿度及光照传感器数据...");
+        return 0;
+    }
+
+    /* 5. 系统健康巡检意图 */
     if (strstr(user_prompt, "状态") || strstr(user_prompt, "健康") || strstr(user_prompt, "系统")) {
         resp_out->is_tool_use = true;
         resp_out->tool_name = strdup("query_system_health");

@@ -21,6 +21,10 @@
 #    include <cJSON/cJSON.h>
 #  elif __has_include(<cjson/cJSON.h>)
 #    include <cjson/cJSON.h>
+#  elif __has_include(<cJSON.h>)
+#    include <cJSON.h>
+#  elif __has_include("../../../../apps/netutils/cjson/cJSON/cJSON.h")
+#    include "../../../../apps/netutils/cjson/cJSON/cJSON.h"
 #  else
 #    include <cJSON.h>
 #  endif
@@ -203,6 +207,7 @@ static int tool_pomodoro_exec(const char *args_json, char *result_out, size_t ma
                 action[sizeof(action) - 1] = '\0';
             }
             cJSON *m = cJSON_GetObjectItem(root, "duration_minutes");
+            if (!m) m = cJSON_GetObjectItem(root, "minutes");
             if (m && m->type == cJSON_Number && m->valueint > 0) {
                 minutes = m->valueint;
             }
@@ -213,38 +218,48 @@ static int tool_pomodoro_exec(const char *args_json, char *result_out, size_t ma
     if (strcmp(action, "stop") == 0) {
         pomodoro_service_stop();
         if (result_out && max_len > 0) {
-            snprintf(result_out, max_len, "{\"status\":\"stopped\"}");
+            snprintf(result_out, max_len, "{\"status\":\"stopped\",\"message\":\"番茄钟已停止\"}");
         }
     } else if (strcmp(action, "pause") == 0) {
         pomodoro_service_pause();
         if (result_out && max_len > 0) {
-            snprintf(result_out, max_len, "{\"status\":\"paused\",\"remaining_seconds\":%u}", g_remaining_s);
+            snprintf(result_out, max_len, "{\"status\":\"paused\",\"remaining_seconds\":%u,\"formatted_remaining\":\"%02u:%02u\"}",
+                     g_remaining_s, g_remaining_s / 60, g_remaining_s % 60);
         }
     } else if (strcmp(action, "resume") == 0) {
         pomodoro_service_resume();
         if (result_out && max_len > 0) {
-            snprintf(result_out, max_len, "{\"status\":\"resumed\",\"remaining_seconds\":%u}", g_remaining_s);
+            snprintf(result_out, max_len, "{\"status\":\"resumed\",\"remaining_seconds\":%u,\"formatted_remaining\":\"%02u:%02u\"}",
+                     g_remaining_s, g_remaining_s / 60, g_remaining_s % 60);
         }
     } else if (strcmp(action, "reset") == 0) {
         pomodoro_service_reset();
         if (result_out && max_len > 0) {
-            snprintf(result_out, max_len, "{\"status\":\"reset\",\"duration_seconds\":%u}", g_total_duration_s);
+            snprintf(result_out, max_len, "{\"status\":\"reset\",\"duration_seconds\":%u,\"formatted_duration\":\"%02u:%02u\"}",
+                     g_total_duration_s, g_total_duration_s / 60, g_total_duration_s % 60);
         }
     } else if (strcmp(action, "status") == 0) {
+        const char *mode_str = "focus";
+        if (g_pomodoro_mode == POMODORO_MODE_SHORT_BREAK) mode_str = "short_break";
+        else if (g_pomodoro_mode == POMODORO_MODE_LONG_BREAK) mode_str = "long_break";
+
         if (result_out && max_len > 0) {
             snprintf(result_out, max_len,
-                     "{\"status\":\"%s\",\"is_active\":%s,\"is_paused\":%s,\"mode\":%d,\"remaining_seconds\":%u,\"total_seconds\":%u}",
+                     "{\"status\":\"%s\",\"is_active\":%s,\"is_paused\":%s,\"mode\":\"%s\",\"remaining_seconds\":%u,\"formatted_remaining\":\"%02u:%02u\",\"total_seconds\":%u}",
                      g_pomodoro_active ? (g_pomodoro_paused ? "paused" : "running") : "idle",
                      g_pomodoro_active ? "true" : "false",
                      g_pomodoro_paused ? "true" : "false",
-                     (int)g_pomodoro_mode,
+                     mode_str,
                      g_remaining_s,
+                     g_remaining_s / 60,
+                     g_remaining_s % 60,
                      g_total_duration_s);
         }
     } else {
         pomodoro_service_start((uint16_t)minutes);
         if (result_out && max_len > 0) {
-            snprintf(result_out, max_len, "{\"status\":\"started\",\"remaining_seconds\":%u}", g_remaining_s);
+            snprintf(result_out, max_len, "{\"status\":\"started\",\"duration_minutes\":%d,\"remaining_seconds\":%u,\"formatted_remaining\":\"%02u:%02u\"}",
+                     minutes, g_remaining_s, g_remaining_s / 60, g_remaining_s % 60);
         }
     }
 
@@ -253,7 +268,7 @@ static int tool_pomodoro_exec(const char *args_json, char *result_out, size_t ma
 
 const phoenix_tool_desc_t g_tool_pomodoro = {
     .name = "manage_pomodoro",
-    .description = "管理桌面开发者沉浸专注流番茄钟（支持开启、暂停、恢复、重置或查看状态）",
-    .parameters_schema = "{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\",\"enum\":[\"start\",\"stop\",\"pause\",\"resume\",\"reset\",\"status\"],\"description\":\"动作\"},\"duration_minutes\":{\"type\":\"integer\",\"description\":\"专注时长(分钟)，默认为25\"}},\"required\":[]}",
+    .description = "管理桌面开发者沉浸专注流番茄钟（支持开启start、停止stop、暂停pause、恢复resume、重置reset或查看状态status）",
+    .parameters_schema = "{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\",\"enum\":[\"start\",\"stop\",\"pause\",\"resume\",\"reset\",\"status\"],\"description\":\"动作类型：start(开启), stop(停止), pause(暂停), resume(恢复), reset(重置), status(查看状态)\"},\"duration_minutes\":{\"type\":\"integer\",\"description\":\"专注时长(分钟)，默认为25\"},\"minutes\":{\"type\":\"integer\",\"description\":\"专注时长别名(分钟)\"}},\"required\":[]}",
     .execute = tool_pomodoro_exec
 };

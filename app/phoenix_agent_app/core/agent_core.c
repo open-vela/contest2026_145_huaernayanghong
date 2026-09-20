@@ -11,6 +11,14 @@
 #include "web_portal.h"
 #include "intent_router.h"
 #include "expression.h"
+#include "todo_mgr.h"
+#if defined(__has_include) && __has_include("../hal/hal_sensor.h")
+#  include "../hal/hal_sensor.h"
+#  include "../tools/tools.h"
+#else
+#  include "hal/hal_sensor.h"
+#  include "tools/tools.h"
+#endif
 #if defined(__has_include) && __has_include("../harness/llm_provider.h")
 #  include "../harness/llm_provider.h"
 #else
@@ -237,6 +245,68 @@ void phoenix_agent_set_state(phoenix_agent_ctx_t *ctx, phoenix_core_state_t new_
     phoenix_event_publish(&evt);
 }
 
+/**
+ * @brief 采集并组装当前设备与环境实时快照 (温湿度、光照、番茄钟、待办及记忆摘要)
+ */
+static void agent_build_system_context(const phoenix_agent_ctx_t *ctx, char *out_buf, size_t max_len)
+{
+    if (!out_buf || max_len == 0) return;
+
+    /* 1. 环境温湿度 (板载SHTC3/驱动) */
+    hal_env_data_t env;
+    memset(&env, 0, sizeof(env));
+    hal_sensor_read_env(&env);
+
+    /* 2. 环境光照 (Lux) */
+    hal_light_data_t light;
+    memset(&light, 0, sizeof(light));
+    hal_sensor_read_light(&light);
+
+    /* 3. 番茄钟状态 */
+    bool pomo_active = pomodoro_service_is_active();
+    bool pomo_paused = pomodoro_service_is_paused();
+    uint16_t pomo_rem = pomodoro_service_get_remaining();
+    char pomo_str[64];
+    if (pomo_active) {
+        snprintf(pomo_str, sizeof(pomo_str), "%s(剩余%02u:%02u)",
+                 pomo_paused ? "已暂停" : "专注进行中", pomo_rem / 60, pomo_rem % 60);
+    } else {
+        snprintf(pomo_str, sizeof(pomo_str), "空闲未启动");
+    }
+
+    /* 4. 待办事项概况 */
+    size_t done_cnt = 0;
+    size_t total_cnt = todo_mgr_get_counts(&done_cnt);
+    size_t pending_cnt = total_cnt > done_cnt ? (total_cnt - done_cnt) : 0;
+    todo_item_t todos[TODO_MAX_ITEMS];
+    size_t actual_items = todo_mgr_get_all(todos, TODO_MAX_ITEMS);
+    char todo_summary[256] = {0};
+    size_t t_offset = 0;
+    for (size_t i = 0; i < actual_items && t_offset < sizeof(todo_summary) - 40; i++) {
+        if (!todos[i].done) {
+            t_offset += snprintf(todo_summary + t_offset, sizeof(todo_summary) - t_offset,
+                                 "#%d %s%s%s; ", todos[i].id, todos[i].title,
+                                 todos[i].time_str[0] ? "@" : "", todos[i].time_str);
+        }
+    }
+
+    /* 5. 拼装为结构化系统上下文 */
+    snprintf(out_buf, max_len,
+             "【当前设备与环境实时快照】"
+             "环境温湿度: %.1f℃ / %.1f%%RH | "
+             "光照: %u Lux%s | "
+             "番茄钟: %s | "
+             "待办: 共%zu项(待办%zu,已完成%zu%s%s)%s%s",
+             env.temperature_c, env.humidity_pct,
+             light.lux, light.is_dark_environment ? "(弱光)" : (light.is_direct_sunlight ? "(强光)" : ""),
+             pomo_str,
+             total_cnt, pending_cnt, done_cnt,
+             pending_cnt > 0 ? "; 未完: " : "",
+             todo_summary,
+             (ctx && ctx->context_summary && ctx->context_summary[0]) ? " | 【前情长程记忆摘要】" : "",
+             (ctx && ctx->context_summary && ctx->context_summary[0]) ? ctx->context_summary : "");
+}
+
 int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_input, phoenix_agent_trace_t *trace_out)
 {
     if (!ctx || !user_input || strlen(user_input) == 0) {
@@ -367,20 +437,18 @@ int phoenix_agent_chat_with_trace(phoenix_agent_ctx_t *ctx, const char *user_inp
         phoenix_chat_resp_t resp;
         memset(&resp, 0, sizeof(resp));
 
-        /* 构造注入两级前情记忆卡片的消息序列 */
+        /* 构造注入设备实时快照与两级前情记忆卡片的消息序列 */
         phoenix_chat_msg_t send_msgs[PHOENIX_MAX_MESSAGES + 1];
         size_t send_count = 0;
-        char summary_item_buf[600];
+        char system_context_buf[768];
 
-        if (ctx->context_summary && ctx->context_summary[0]) {
-            snprintf(summary_item_buf, sizeof(summary_item_buf), "【前情长程记忆摘要】%s", ctx->context_summary);
-            send_msgs[0].role = PHOENIX_ROLE_SYSTEM;
-            send_msgs[0].content = summary_item_buf;
-            send_msgs[0].tool_call_id = NULL;
-            send_msgs[0].tool_name = NULL;
-            send_msgs[0].reasoning_content = NULL;
-            send_count = 1;
-        }
+        agent_build_system_context(ctx, system_context_buf, sizeof(system_context_buf));
+        send_msgs[0].role = PHOENIX_ROLE_SYSTEM;
+        send_msgs[0].content = system_context_buf;
+        send_msgs[0].tool_call_id = NULL;
+        send_msgs[0].tool_name = NULL;
+        send_msgs[0].reasoning_content = NULL;
+        send_count = 1;
 
         for (size_t i = 0; i < ctx->history_count && send_count < (PHOENIX_MAX_MESSAGES + 1); i++) {
             send_msgs[send_count++] = ctx->history[i];

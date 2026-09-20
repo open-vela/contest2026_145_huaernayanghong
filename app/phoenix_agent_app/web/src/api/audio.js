@@ -8,5 +8,6 @@ export const audioApi = {
   playTone: (freq_hz, duration_ms) => api.post('/api/audio/play', { action: 'start', type: 'tone', freq_hz, duration_ms }),
   playStop: () => api.post('/api/audio/play', { action: 'stop' }),
   setLoopback: (enable) => api.post('/api/audio/loopback', { enable }),
-  setVolume: (volume) => api.post('/api/audio/volume', { volume })
+  setVolume: (volume) => api.post('/api/audio/volume', { volume }),
+  asrTranscribe: () => api.post('/api/audio/asr_test', {}, { showErrorToast: false, timeout: 20000 })
 };

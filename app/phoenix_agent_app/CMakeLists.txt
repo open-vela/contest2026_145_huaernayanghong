@@ -71,6 +71,8 @@ if(CONFIG_LVX_USE_DEMO_CONTEST2026_145_PHOENIX_AGENT_APP)
       tools/tool_eye_emotion.c
       tools/tool_system_health.c
       tools/tool_launch_app.c
+      tools/tool_todo.c
+      tools/tool_environment.c
       harness/llm_mock_backend.c
       harness/llm_cloud_backend.c
       harness/llm_provider.c

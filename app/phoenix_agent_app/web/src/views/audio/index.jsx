@@ -12,13 +12,24 @@ export function Audio({ isActive }) {
     volume: 80
   });
   const [audioPlayerSrc, setAudioPlayerSrc] = useState('');
+  const [isPlayingWeb, setIsPlayingWeb] = useState(false);
+  const [webPlayTime, setWebPlayTime] = useState(0);
+  const [webDuration, setWebDuration] = useState(0);
+  const [transcription, setTranscription] = useState('');
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const playerRef = useRef(null);
+  const prevRecordedBytesRef = useRef(0);
 
   const pollStatus = async () => {
     try {
       const d = await audioApi.getStatus();
       if (d && d.success) {
         setAudioState(d);
+        // 若检测到产生新的录音，自动同步网页音频源
+        if (d.recorded_bytes > 0 && d.recorded_bytes !== prevRecordedBytesRef.current) {
+          prevRecordedBytesRef.current = d.recorded_bytes;
+          setAudioPlayerSrc('/api/audio/download?t=' + Date.now());
+        }
       }
     } catch (e) {}
   };
@@ -53,12 +64,60 @@ export function Audio({ isActive }) {
     } catch (e) {}
   };
 
+  // 网页端直接在线播放/暂停
+  const handleTogglePlayWeb = () => {
+    if (!audioState.recorded_bytes && (!playerRef.current || !playerRef.current.src)) {
+      showToast('⚠️ 暂无录音数据，请先录音');
+      return;
+    }
+    if (!audioPlayerSrc) {
+      const url = '/api/audio/download?t=' + Date.now();
+      setAudioPlayerSrc(url);
+    }
+
+    if (playerRef.current) {
+      if (isPlayingWeb) {
+        playerRef.current.pause();
+        setIsPlayingWeb(false);
+      } else {
+        playerRef.current.play().then(() => {
+          setIsPlayingWeb(true);
+        }).catch((err) => {
+          showToast('⚠️ 播放受阻: ' + err.message);
+        });
+      }
+    }
+  };
+
+  // 语音识别转写 ASR 查看
+  const handleTranscribe = async () => {
+    if (!audioState.recorded_bytes) {
+      showToast('⚠️ 暂无录音数据，请先录音');
+      return;
+    }
+    setIsTranscribing(true);
+    showToast('📝 正在请求 ASR 语音识别转写...');
+    try {
+      const d = await audioApi.asrTranscribe();
+      if (d && d.success) {
+        setTranscription(d.text || '(未识别到清晰语音)');
+        showToast('✅ ASR 语音识别转写完成！');
+      } else {
+        showToast('⚠️ 语音转写失败: ' + (d?.error || '服务暂不可用'));
+      }
+    } catch (e) {
+      showToast('网络错误: ' + e.message);
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
   const handlePlayRecord = async () => {
-    showToast('▶️ 设备端扬声器回放录音...');
+    showToast('▶️ 触发设备端扬声器回放...');
     try {
       const d = await audioApi.playRecord();
       if (d.success) pollStatus();
-      else showToast('⚠️ 回放失败: ' + (d.error || '无录音数据'));
+      else showToast('⚠️ 回放失败: ' + (d.error || '无录音数据或硬件忙'));
     } catch (e) {
       showToast('网络错误: ' + e.message);
     }
@@ -108,15 +167,21 @@ export function Audio({ isActive }) {
     setAudioPlayerSrc(url);
     if (playerRef.current) {
       playerRef.current.load();
-      playerRef.current.play().catch(() => {});
     }
-    showToast('💾 正在下载/加载录音 WAV...');
+    showToast('💾 正在下载 WAV 录音文件...');
     const a = document.createElement('a');
     a.href = url;
     a.download = 'phoenix_mic_record.wav';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  };
+
+  const formatTime = (sec) => {
+    if (!sec || isNaN(sec)) return '00:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
   // 状态显示
@@ -138,6 +203,7 @@ export function Audio({ isActive }) {
 
   const energy = Math.min(100, Math.max(0, audioState.current_energy || 0));
   const recordSec = ((audioState.record_duration_ms || 0) / 1000).toFixed(1);
+  const hasRecording = (audioState.recorded_bytes || 0) > 0;
 
   return (
     <div className="card highlight">
@@ -192,20 +258,127 @@ export function Audio({ isActive }) {
             </button>
           </div>
 
-          {/* 录音回放与下载 */}
+          {/* 录音查看、Web试听与数据操作 */}
           <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '12px' }}>
-            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)', marginBottom: '8px' }}>
-              🎧 录音数据操作与试听
+            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}>
+              <span>🎧 录音数据查看与 Web 在线试听</span>
+              {hasRecording && (
+                <span style={{ fontSize: '11px', color: '#00ff88', fontWeight: 'normal' }}>
+                  ● 录音已就绪 (免板载音响)
+                </span>
+              )}
             </div>
+
+            {/* 无音响贴心提示条 */}
+            <div style={{
+              background: hasRecording ? '#0a1d33' : '#0c1220',
+              border: `1px solid ${hasRecording ? '#1f487a' : '#182436'}`,
+              borderRadius: '6px',
+              padding: '8px 10px',
+              marginBottom: '10px',
+              fontSize: '11px',
+              color: hasRecording ? '#9ecaff' : 'var(--muted)',
+              lineHeight: 1.4
+            }}>
+              {hasRecording ? (
+                <>💡 <strong>录音已同步</strong>：开发板未接扬声器时，可直接点击下方<strong>「网页直接播放」</strong>试听，或使用<strong>「ASR 转文字」</strong>直接查看内容。</>
+              ) : (
+                <>💡 设备端或 Web 端启动录音后，数据会自动同步至此处，可直接在浏览器播放或查看文本，无需依赖板载音响。</>
+              )}
+            </div>
+
+            {/* 主要交互按钮组 */}
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
-              <button className="btn-primary" style={{ flex: 1, minWidth: '130px' }} onClick={handlePlayRecord}>
-                ▶️ 设备端扬声器回放
+              <button
+                className={isPlayingWeb ? 'btn-warn' : 'btn-primary'}
+                style={{ flex: '1 1 120px', fontWeight: 600 }}
+                onClick={handleTogglePlayWeb}
+                disabled={!hasRecording}
+              >
+                {isPlayingWeb ? '⏸️ 网页暂停播放' : '▶️ 网页直接播放'}
               </button>
-              <button className="btn-secondary" style={{ flex: 1, minWidth: '130px' }} onClick={handleDownloadWav}>
-                💾 下载 WAV 录音文件
+              <button
+                className="btn-warn"
+                style={{ flex: '1 1 120px' }}
+                onClick={handleTranscribe}
+                disabled={!hasRecording || isTranscribing}
+              >
+                {isTranscribing ? '⏳ 正在识别...' : '📝 语音转文字 (ASR)'}
+              </button>
+              <button
+                className="btn-secondary"
+                style={{ flex: '1 1 90px' }}
+                onClick={handleDownloadWav}
+                disabled={!hasRecording}
+              >
+                💾 下载 WAV
               </button>
             </div>
-            <audio ref={playerRef} controls src={audioPlayerSrc} style={{ width: '100%', height: '36px', outline: 'none', borderRadius: '6px' }} />
+
+            {/* 板载扬声器辅助选项 */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+              <button
+                className="btn-secondary"
+                style={{ flex: 1, fontSize: '11px', color: 'var(--muted)', borderColor: '#1d2c46' }}
+                onClick={handlePlayRecord}
+                disabled={!hasRecording}
+                title="若开发板外接了喇叭/功放，可由此测试板载播放"
+              >
+                🔊 板载扬声器回放 (需外接喇叭)
+              </button>
+            </div>
+
+            {/* 原生浏览器音频控件 (用于即时试听与精准拖动进度) */}
+            <audio
+              ref={playerRef}
+              controls
+              src={audioPlayerSrc}
+              onPlay={() => setIsPlayingWeb(true)}
+              onPause={() => setIsPlayingWeb(false)}
+              onEnded={() => { setIsPlayingWeb(false); setWebPlayTime(0); }}
+              onTimeUpdate={(e) => setWebPlayTime(e.target.currentTime)}
+              onLoadedMetadata={(e) => setWebDuration(e.target.duration)}
+              style={{ width: '100%', height: '36px', outline: 'none', borderRadius: '6px' }}
+            />
+
+            {/* ASR 语音识别转写文本结果展示区 */}
+            {transcription && (
+              <div style={{
+                background: '#071224',
+                border: '1px solid #1c3d6c',
+                borderRadius: '6px',
+                padding: '10px 12px',
+                marginTop: '10px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>
+                    📝 ASR 语音识别结果 (直接查看):
+                  </span>
+                  <button
+                    className="btn-secondary"
+                    style={{ padding: '2px 8px', fontSize: '11px' }}
+                    onClick={() => {
+                      navigator.clipboard?.writeText(transcription);
+                      showToast('📋 已复制识别文本');
+                    }}
+                  >
+                    📋 复制文本
+                  </button>
+                </div>
+                <div style={{
+                  fontSize: '13px',
+                  color: '#e6edf3',
+                  background: '#0a1a33',
+                  padding: '8px 10px',
+                  borderRadius: '4px',
+                  borderLeft: '3px solid var(--accent)',
+                  lineHeight: 1.5,
+                  wordBreak: 'break-all'
+                }}>
+                  "{transcription}"
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

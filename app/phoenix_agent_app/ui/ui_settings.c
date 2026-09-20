@@ -742,7 +742,7 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     s->lbl_audio_play_status = lv_label_create(card_play);
     lv_obj_align(s->lbl_audio_play_status, LV_ALIGN_TOP_LEFT, 4, 1);
     if (s->font) lv_obj_set_style_text_font(s->lbl_audio_play_status, s->font, 0);
-    lv_label_set_text(s->lbl_audio_play_status, "扬声器放音 (/dev/audio/pcm0p)");
+    lv_label_set_text(s->lbl_audio_play_status, "录音试听 (Web 看板直接查看/试听)");
     lv_obj_set_style_text_color(s->lbl_audio_play_status, lv_color_hex(0x00E5FF), 0);
 
     /* 回放按钮 */
@@ -1530,8 +1530,8 @@ void ui_settings_refresh_data(ui_settings_t *settings)
                          ast.current_energy);
                 lv_obj_set_style_text_color(settings->lbl_audio_rec_status, lv_color_hex(0xFFB700), 0);
             } else if (ast.recorded_bytes > 0) {
-                snprintf(rec_buf, sizeof(rec_buf), "就绪 (已录制 %zu 字节, %ums)",
-                         ast.recorded_bytes, (unsigned int)ast.record_duration_ms);
+                snprintf(rec_buf, sizeof(rec_buf), "就绪 (%zuKB) 可在Web端直接试听",
+                         ast.recorded_bytes / 1024);
                 lv_obj_set_style_text_color(settings->lbl_audio_rec_status, lv_color_hex(0x00FF88), 0);
             } else {
                 snprintf(rec_buf, sizeof(rec_buf), "待命 (16kHz 16bit 单声道)");
@@ -1541,14 +1541,25 @@ void ui_settings_refresh_data(ui_settings_t *settings)
         }
         if (settings->lbl_audio_play_status) {
             if (ast.state == AUDIO_TEST_STATE_PLAYING_REC) {
-                lv_label_set_text(settings->lbl_audio_play_status, "正在回放录音...");
+                lv_label_set_text(settings->lbl_audio_play_status, "正在回放录音 (或在Web端播放)...");
                 lv_obj_set_style_text_color(settings->lbl_audio_play_status, lv_color_hex(0x00FF88), 0);
             } else if (ast.state == AUDIO_TEST_STATE_PLAYING_TONE) {
                 lv_label_set_text(settings->lbl_audio_play_status, "正在播放 1kHz 纯音...");
                 lv_obj_set_style_text_color(settings->lbl_audio_play_status, lv_color_hex(0xFFD700), 0);
-            } else {
-                lv_label_set_text(settings->lbl_audio_play_status, "扬声器放音 (/dev/audio/pcm0p)");
+            } else if (ast.recorded_bytes > 0) {
+                char ip_buf[32] = {0};
+                net_mgr_get_ip(ip_buf, sizeof(ip_buf));
+                char web_hint[64];
+                if (ip_buf[0]) {
+                    snprintf(web_hint, sizeof(web_hint), "🌐 Web试听: http://%s:8080", ip_buf);
+                } else {
+                    snprintf(web_hint, sizeof(web_hint), "🌐 录音就绪，请在Web看板直接查看试听");
+                }
+                lv_label_set_text(settings->lbl_audio_play_status, web_hint);
                 lv_obj_set_style_text_color(settings->lbl_audio_play_status, lv_color_hex(0x00E5FF), 0);
+            } else {
+                lv_label_set_text(settings->lbl_audio_play_status, "录音试听 (Web 看板直接查看/试听)");
+                lv_obj_set_style_text_color(settings->lbl_audio_play_status, lv_color_hex(0x8B9EB5), 0);
             }
         }
         if (settings->lbl_audio_rec_btn) {

@@ -168,6 +168,8 @@ static void run_test_tool_registry(void)
     assert(strstr(schema_json, "set_eye_emotion") != NULL);
     assert(strstr(schema_json, "query_system_health") != NULL);
     assert(strstr(schema_json, "launch_system_app") != NULL);
+    assert(strstr(schema_json, "manage_todo") != NULL);
+    assert(strstr(schema_json, "query_environment") != NULL);
 
     printf("  -> Generated Tools JSON Schema (length: %zu bytes)\n", strlen(schema_json));
     free(schema_json);
@@ -2884,6 +2886,110 @@ static void run_test_tts_and_voice_config(void)
     printf("  -> TTS Provider & Web Voice Configuration Subsystem PASSED!\n");
 }
 
+/* ---- 39. Agent Todo, Pomodoro & Environmental Context Enhancement Test ---- */
+static void run_test_agent_todo_pomodoro_env_enhancement(void)
+{
+    printf("\n[TEST 39] Testing Agent Todo Management, Pomodoro Status & Environmental Context Injection...\n");
+
+    phoenix_event_bus_init();
+    phoenix_tool_registry_init();
+    phoenix_register_builtin_tools();
+
+    /* 1. 测试 manage_todo 独立执行与 CRUD 闭环 */
+    system("rm -rf /tmp/test_phoenix_agent_enhancement");
+    todo_mgr_init("/tmp/test_phoenix_agent_enhancement");
+    char result_buf[512] = {0};
+
+    /* 1.1 添加待办 */
+    int ret = phoenix_tool_execute("manage_todo", "{\"action\":\"add\",\"title\":\"极客外脑调优\",\"time_str\":\"14:30\"}", result_buf, sizeof(result_buf));
+    assert(ret == 0);
+    assert(strstr(result_buf, "success") != NULL);
+    assert(strstr(result_buf, "极客外脑调优") != NULL);
+    printf("  -> manage_todo (add) PASSED: %s\n", result_buf);
+
+    /* 1.2 查询待办列表 */
+    ret = phoenix_tool_execute("manage_todo", "{\"action\":\"list\"}", result_buf, sizeof(result_buf));
+    assert(ret == 0);
+    assert(strstr(result_buf, "极客外脑调优") != NULL);
+    printf("  -> manage_todo (list) PASSED\n");
+
+    /* 1.3 切换完成状态 */
+    ret = phoenix_tool_execute("manage_todo", "{\"action\":\"toggle\",\"id\":5}", result_buf, sizeof(result_buf));
+    assert(ret == 0);
+    assert(strstr(result_buf, "toggle") != NULL);
+    printf("  -> manage_todo (toggle) PASSED\n");
+
+    /* 1.4 清理已完成 */
+    ret = phoenix_tool_execute("manage_todo", "{\"action\":\"clear_done\"}", result_buf, sizeof(result_buf));
+    assert(ret == 0);
+    assert(strstr(result_buf, "clear_done") != NULL);
+    printf("  -> manage_todo (clear_done) PASSED\n");
+
+    /* 2. 测试 query_environment 独立执行 */
+    ret = phoenix_tool_execute("query_environment", "{}", result_buf, sizeof(result_buf));
+    assert(ret == 0);
+    assert(strstr(result_buf, "temperature_c") != NULL);
+    assert(strstr(result_buf, "humidity_pct") != NULL);
+    assert(strstr(result_buf, "light_lux") != NULL);
+    assert(strstr(result_buf, "battery_pct") != NULL);
+    printf("  -> query_environment PASSED: %s\n", result_buf);
+
+    /* 3. 测试 manage_pomodoro status 详细状态回读 */
+    ret = phoenix_tool_execute("manage_pomodoro", "{\"action\":\"status\"}", result_buf, sizeof(result_buf));
+    assert(ret == 0);
+    assert(strstr(result_buf, "formatted_remaining") != NULL);
+    assert(strstr(result_buf, "mode") != NULL);
+    printf("  -> manage_pomodoro (status) PASSED: %s\n", result_buf);
+
+    /* 4. 测试 Fast-path 意图路由扩展 */
+    phoenix_intent_result_t intent1 = phoenix_intent_route("fast:待办");
+    assert(intent1.category == INTENT_TYPE_FASTPATH);
+    assert(strcmp(intent1.tool_name, "manage_todo") == 0);
+    printf("  -> Intent Fast-path (fast:待办) PASSED\n");
+
+    phoenix_intent_result_t intent2 = phoenix_intent_route("fast:温湿度");
+    assert(intent2.category == INTENT_TYPE_FASTPATH);
+    assert(strcmp(intent2.tool_name, "query_environment") == 0);
+    printf("  -> Intent Fast-path (fast:温湿度) PASSED\n");
+
+    phoenix_intent_result_t intent3 = phoenix_intent_route("fast:停止番茄");
+    assert(intent3.category == INTENT_TYPE_FASTPATH);
+    assert(strcmp(intent3.tool_name, "manage_pomodoro") == 0);
+    assert(strstr(intent3.tool_args_json, "stop") != NULL);
+    printf("  -> Intent Fast-path (fast:停止番茄) PASSED\n");
+
+    /* 5. 测试 Agent 对话时 System Prompt 动态上下文注入与 Tool Call 回环 */
+    phoenix_llm_provider_init(NULL);
+    phoenix_agent_ctx_t *agent = phoenix_agent_core_init();
+    assert(agent != NULL);
+
+    phoenix_agent_trace_t trace;
+    memset(&trace, 0, sizeof(trace));
+
+    /* 5.1 测试自然语言触发待办事项工具 */
+    ret = phoenix_agent_chat_with_trace(agent, "帮我添加待办事项：下午准备开题报告", &trace);
+    assert(ret == 0);
+    assert(trace.has_tool_call == true);
+    assert(strcmp(trace.tool_name, "manage_todo") == 0);
+    printf("  -> Agent ReAct Tool Call (manage_todo) PASSED\n");
+
+    /* 5.2 测试自然语言触发环境温湿度感知工具 */
+    memset(&trace, 0, sizeof(trace));
+    ret = phoenix_agent_chat_with_trace(agent, "查询当前环境温湿度和光照", &trace);
+    assert(ret == 0);
+    assert(trace.has_tool_call == true);
+    assert(strcmp(trace.tool_name, "query_environment") == 0);
+    printf("  -> Agent ReAct Tool Call (query_environment) PASSED\n");
+
+    phoenix_agent_core_destroy(agent);
+    phoenix_llm_provider_deinit();
+    todo_mgr_deinit();
+    phoenix_tool_registry_deinit();
+    phoenix_event_bus_deinit();
+
+    printf("  -> Agent Todo, Pomodoro & Environmental Context Enhancement PASSED!\n");
+}
+
 int main(int argc, char *argv[])
 {
     printf("====================================================\n");
@@ -2935,8 +3041,9 @@ int main(int argc, char *argv[])
     run_test_asr_provider();
     run_test_audio_test_service();
     run_test_tts_and_voice_config();
+    run_test_agent_todo_pomodoro_env_enhancement();
 
-    printf("\n🎉 ALL 38 UNIT TESTS PASSED SUCCESSFULLY!\n");
+    printf("\n🎉 ALL 39 UNIT TESTS PASSED SUCCESSFULLY!\n");
 
 
     /* If --repl or -i passed, enter interactive mode */

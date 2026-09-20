@@ -20,6 +20,14 @@ extern "C" {
 #  include "tool_registry.h"
 #endif
 
+extern const phoenix_tool_desc_t g_tool_wooden_fish;
+extern const phoenix_tool_desc_t g_tool_pomodoro;
+extern const phoenix_tool_desc_t g_tool_eye_emotion;
+extern const phoenix_tool_desc_t g_tool_system_health;
+extern const phoenix_tool_desc_t g_tool_launch_app;
+extern const phoenix_tool_desc_t g_tool_todo;
+extern const phoenix_tool_desc_t g_tool_environment;
+
 /**
  * @brief Register all built-in embodied tools into Phoenix Tool Registry
  * @return 0 on success
