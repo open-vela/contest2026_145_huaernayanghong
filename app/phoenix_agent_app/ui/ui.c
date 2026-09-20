@@ -427,31 +427,8 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
             refresh_status_capsule(ui);
 
             if (ui->settings) {
-                if (mode == 1 /* NET_MODE_STA_CONNECTING */) {
-                    /* 仅在初次进入配网状态时展开并切换至配网详情页，避免循环重试时重复抢焦锁死交互 */
-                    if (state_changed) {
-                        if (!ui_settings_is_open(ui->settings)) {
-                            ui_settings_open(ui->settings);
-                            if (ui->stage && ui->stage->container) {
-                                lv_obj_add_flag(ui->stage->container, LV_OBJ_FLAG_HIDDEN);
-                            }
-                            if (ui->sidebar) {
-                                ui_sidebar_set_settings_active(ui->sidebar, true);
-                            }
-                        }
-                        /* 切换并直接展开进入配网二级详情页 */
-                        ui_settings_switch_tab(ui->settings, UI_SETTINGS_TAB_HOTSPOT);
-                    }
-                    /* 仅更新文本与步骤提示，不重置页面焦点与交互 */
-                    ui_settings_update_net_progress(ui->settings, mode, ssid, ip, msg);
-                } else if (mode == 2 /* NET_MODE_STA_CONNECTED */) {
-                    ui_settings_update_net_progress(ui->settings, mode, ssid, ip, msg);
-                    ui_settings_refresh_data(ui->settings);
-                } else if (mode == 3 /* NET_MODE_SOFTAP_CONFIG */) {
-                    ui_settings_update_net_progress(ui->settings, mode, ssid, ip, msg);
-                    ui_settings_refresh_data(ui->settings);
-                } else {
-                    ui_settings_update_net_progress(ui->settings, mode, ssid, ip, msg);
+                ui_settings_update_net_progress(ui->settings, mode, ssid, ip, msg);
+                if (mode != 1 /* NET_MODE_STA_CONNECTING */) {
                     ui_settings_refresh_data(ui->settings);
                 }
             }
@@ -485,8 +462,8 @@ static void on_event_bus_event(const phoenix_event_data_t *event, void *user_dat
                     ui_capsule_update_telemetry(ui->capsule, "AP", ui->battery_pct);
                 }
             } else {
-                phoenix_ui_show_flying_text(ui, "连网超时", lv_color_hex(0xFF5252));
-                phoenix_ui_show_bubble(ui, "Wi-Fi 连接失败，已恢复独立热点", 4000);
+                phoenix_ui_show_flying_text(ui, "连网失败", lv_color_hex(0xFF5252));
+                phoenix_ui_show_bubble(ui, "Wi-Fi 连接失败，请检查密码或重试", 4000);
                 if (ui->capsule) {
                     ui_capsule_update_telemetry(ui->capsule, "--", ui->battery_pct);
                 }

@@ -471,7 +471,7 @@ static void* sta_connect_worker_thread(void *arg)
 
     pthread_mutex_lock(&s_lock);
     s_mode = NET_MODE_STA_CONNECTING;
-    notify_state_changed_with_msg_unlocked("热点已关闭，正在关联 Wi-Fi...");
+    notify_state_changed_with_msg_unlocked("正在连接 Wi-Fi...");
     pthread_mutex_unlock(&s_lock);
 
     /* 2. 激活 wlan0 为 Managed 模式并关闭省电与自适应干扰，确保射频处于最佳状态 */
@@ -614,7 +614,7 @@ static void* sta_connect_worker_thread(void *arg)
         time_sync_trigger_ntp();
         start_link_watchdog();
     } else {
-        LOG_W(TAG, "⚠️ [Worker] Wi-Fi 握手或 DHCP 超时，通知界面并保持未连网状态 (需在设置中手动开启热点配网)");
+        LOG_W(TAG, "⚠️ [Worker] Wi-Fi 握手或 DHCP 超时，通知界面并保持未连网状态");
         s_mode = NET_MODE_DISCONNECTED;
         if (!associated) {
             notify_state_changed_with_msg_unlocked("Wi-Fi 关联失败(无法连接AP或密码错误)");
@@ -1146,6 +1146,17 @@ static void mini_dhcpd_stop(void)
 
 int net_mgr_stop_softap(void)
 {
+    pthread_mutex_lock(&s_lock);
+    if (s_mode != NET_MODE_SOFTAP_CONFIG) {
+        pthread_mutex_unlock(&s_lock);
+        return 0;
+    }
+    s_mode = NET_MODE_DISCONNECTED;
+    s_current_ip[0] = '\0';
+    s_current_ssid[0] = '\0';
+    notify_state_changed_with_msg_unlocked("热点已关闭");
+    pthread_mutex_unlock(&s_lock);
+
     LOG_I(TAG, "🛑 关闭 SoftAP 独立热点 (wlan1) 与内嵌 DHCP 服务...");
 #if !defined(HOST_TEST_RUNNER)
     mini_dhcpd_stop();
@@ -1161,16 +1172,7 @@ int net_mgr_stop_softap(void)
     }
 #endif
 
-    pthread_mutex_lock(&s_lock);
-    if (s_mode == NET_MODE_SOFTAP_CONFIG) {
-        s_mode = NET_MODE_DISCONNECTED;
-        s_current_ip[0] = '\0';
-        s_current_ssid[0] = '\0';
-        notify_state_changed_with_msg_unlocked("热点已关闭");
-        phoenix_web_portal_stop();
-    }
-    pthread_mutex_unlock(&s_lock);
-
+    phoenix_web_portal_stop();
     return 0;
 }
 

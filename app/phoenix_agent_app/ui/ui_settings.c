@@ -355,7 +355,7 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     s->ta_pwd_input = lv_textarea_create(s->dlg_pwd_modal);
     lv_obj_set_size(s->ta_pwd_input, 190, 32);
     lv_obj_set_pos(s->ta_pwd_input, 8, 32);
-    lv_textarea_set_password_mode(s->ta_pwd_input, true);
+    lv_textarea_set_password_mode(s->ta_pwd_input, false);
     lv_textarea_set_one_line(s->ta_pwd_input, true);
     lv_textarea_set_max_length(s->ta_pwd_input, 63);
     lv_textarea_set_placeholder_text(s->ta_pwd_input, "输入密码");
@@ -364,7 +364,7 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     lv_obj_set_style_border_width(s->ta_pwd_input, 1, 0);
     lv_obj_set_style_radius(s->ta_pwd_input, 4, 0);
     lv_obj_set_style_text_color(s->ta_pwd_input, lv_color_hex(0xFFFFFF), 0);
-    s->is_pwd_obscure = true;
+    s->is_pwd_obscure = false;
 
     s->btn_pwd_eye = lv_btn_create(s->dlg_pwd_modal);
     lv_obj_set_size(s->btn_pwd_eye, 36, 32);
@@ -377,9 +377,9 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
 
     s->lbl_pwd_eye = lv_label_create(s->btn_pwd_eye);
     lv_obj_center(s->lbl_pwd_eye);
-    lv_label_set_text(s->lbl_pwd_eye, "密");
+    lv_label_set_text(s->lbl_pwd_eye, "明");
     if (s->font) lv_obj_set_style_text_font(s->lbl_pwd_eye, s->font, 0);
-    lv_obj_set_style_text_color(s->lbl_pwd_eye, lv_color_hex(0x7E92AD), 0);
+    lv_obj_set_style_text_color(s->lbl_pwd_eye, lv_color_hex(0x00E5FF), 0);
 
     s->btn_pwd_connect = lv_btn_create(s->dlg_pwd_modal);
     lv_obj_set_size(s->btn_pwd_connect, 66, 32);
@@ -1523,13 +1523,13 @@ void ui_settings_show_password_dialog(ui_settings_t *settings, const char *ssid)
 
     if (settings->ta_pwd_input) {
         lv_textarea_set_text(settings->ta_pwd_input, "");
-        lv_textarea_set_password_mode(settings->ta_pwd_input, true);
-        settings->is_pwd_obscure = true;
+        lv_textarea_set_password_mode(settings->ta_pwd_input, false);
+        settings->is_pwd_obscure = false;
     }
 
     if (settings->lbl_pwd_eye) {
-        lv_label_set_text(settings->lbl_pwd_eye, "密");
-        lv_obj_set_style_text_color(settings->lbl_pwd_eye, lv_color_hex(0x7E92AD), 0);
+        lv_label_set_text(settings->lbl_pwd_eye, "明");
+        lv_obj_set_style_text_color(settings->lbl_pwd_eye, lv_color_hex(0x00E5FF), 0);
     }
 
     if (settings->lbl_pwd_hint) {
