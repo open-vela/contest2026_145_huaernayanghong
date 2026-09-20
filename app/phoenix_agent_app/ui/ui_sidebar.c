@@ -28,6 +28,8 @@ static const char *get_cartridge_icon(const char *id) {
     return "AI";
   if (strcmp(id, "familiar") == 0)
     return "宠";
+  if (strcmp(id, "voice") == 0 || strcmp(id, "audio") == 0)
+    return "语";
   return "卡";
 }
 
@@ -36,7 +38,13 @@ static void on_item_clicked(lv_event_t *e) {
   if (!item || !item->id[0])
     return;
 
-  LOG_I(TAG, "用户点击侧边栏切换卡带: [%s]", item->id);
+  ui_sidebar_t *sb = (ui_sidebar_t *)item->parent_sidebar;
+  LOG_I(TAG, "用户点击侧边栏功能项: [%s]", item->id);
+  if (sb && sb->on_action_cb) {
+    if (sb->on_action_cb(item->id, sb->action_user_data)) {
+      return;
+    }
+  }
   cartridge_mgr_switch_to(item->id);
 }
 
@@ -61,7 +69,7 @@ ui_sidebar_t *ui_sidebar_create(lv_obj_t *parent, const lv_font_t *font) {
 
   sb->font = font;
 
-  /* 1. 侧边栏垂直容器 (宽 36px, 高 216px, x=0, y=24) */
+  /* 1. 侧边栏垂直容器 (宽 46px, 高 216px, x=0, y=24) */
   sb->container = lv_obj_create(parent);
   lv_obj_set_size(sb->container, UI_SIDEBAR_WIDTH, 216);
   lv_obj_set_pos(sb->container, 0, 24);
@@ -99,9 +107,9 @@ void ui_sidebar_refresh(ui_sidebar_t *sidebar) {
   sidebar->lbl_settings = NULL;
   sidebar->sep_line = NULL;
 
-  /* 黄金三大超级核心卡带：主页全景 [主]、机械翻页钟 [钟]、使魔灵眸生命体 [宠] */
-  static const char *s_golden_trio[] = {"home", "clock", "familiar"};
-  const size_t golden_count = sizeof(s_golden_trio) / sizeof(s_golden_trio[0]);
+  /* 核心常驻功能大磁贴：主页 [主]、番茄钟 [茄]、使魔 [宠]、语音声学实验室 [语] */
+  static const char *s_nav_items[] = {"home", "clock", "familiar", "voice"};
+  const size_t nav_count = sizeof(s_nav_items) / sizeof(s_nav_items[0]);
 
   /* 获取当前活跃卡带 ID，支持兼容性合体映射 */
   cartridge_t *cur = cartridge_mgr_get_current();
@@ -114,33 +122,39 @@ void ui_sidebar_refresh(ui_sidebar_t *sidebar) {
   } else if (strcmp(cur_id, "memo") == 0) {
     mapped_active_id = "home";
   }
-  strncpy(sidebar->active_id, mapped_active_id, sizeof(sidebar->active_id) - 1);
 
-  /* 黄金三大卡带大磁贴排布 (容器高 216px: 38x36px, 步进 46px, 底部设置 38x44px) */
-  const lv_coord_t btn_h = 36;
-  const lv_coord_t start_y = 8;
-  const lv_coord_t step_y = 46;
-  const lv_coord_t sep_y = 152;
-  const lv_coord_t set_y = 160;
-  const lv_coord_t set_h = 44;
+  /* 若当前选中的不是独立功能 voice，则同步活跃卡带映射 */
+  if (strcmp(sidebar->active_id, "voice") != 0) {
+    strncpy(sidebar->active_id, mapped_active_id, sizeof(sidebar->active_id) - 1);
+  }
 
-  /* 1. 顶部卡带大按钮区域 (3 项) */
-  for (size_t i = 0; i < golden_count; i++) {
-    const char *cid = s_golden_trio[i];
-    cartridge_t *c = cartridge_mgr_get_by_id(cid);
-    if (!c || c->ops.id[0] == '\0') {
-      /* 兜底以防特定环境顺序 */
-      c = cartridge_mgr_get_by_index(i);
+  /* 4 个功能大磁贴排布 (容器高 216px: 38x32px, 步进 38px, 底部设置 38x38px) */
+  const lv_coord_t btn_h = 32;
+  const lv_coord_t start_y = 6;
+  const lv_coord_t step_y = 38;
+  const lv_coord_t sep_y = 158;
+  const lv_coord_t set_y = 164;
+  const lv_coord_t set_h = 38;
+
+  /* 1. 顶部卡带大按钮区域 (4 项) */
+  for (size_t i = 0; i < nav_count; i++) {
+    const char *cid = s_nav_items[i];
+    if (strcmp(cid, "voice") != 0) {
+      cartridge_t *c = cartridge_mgr_get_by_id(cid);
+      if (!c || c->ops.id[0] == '\0') {
+        c = cartridge_mgr_get_by_index(i);
+      }
+      if (!c || c->ops.id[0] == '\0')
+        continue;
     }
-    if (!c || c->ops.id[0] == '\0')
-      continue;
 
     ui_sidebar_item_t *it = &sidebar->items[sidebar->item_count];
     memset(it, 0, sizeof(ui_sidebar_item_t));
+    it->parent_sidebar = sidebar;
     strncpy(it->id, cid, sizeof(it->id) - 1);
     strncpy(it->icon, get_cartridge_icon(cid), sizeof(it->icon) - 1);
 
-    /* 若设置处于激活态，则卡带按钮不高亮 */
+    /* 若设置处于激活态且未选中此项，则不高亮 */
     bool is_active = (!sidebar->is_settings_active &&
                       strcmp(it->id, sidebar->active_id) == 0);
 
@@ -241,6 +255,14 @@ void ui_sidebar_set_settings_cb(ui_sidebar_t *sidebar,
     return;
   sidebar->on_settings_cb = cb;
   sidebar->settings_user_data = user_data;
+}
+
+void ui_sidebar_set_action_cb(ui_sidebar_t *sidebar,
+                              ui_sidebar_action_cb_t cb, void *user_data) {
+  if (!sidebar)
+    return;
+  sidebar->on_action_cb = cb;
+  sidebar->action_user_data = user_data;
 }
 
 void ui_sidebar_set_settings_active(ui_sidebar_t *sidebar, bool active) {

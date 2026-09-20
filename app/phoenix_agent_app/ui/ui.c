@@ -210,6 +210,51 @@ static void on_capsule_clicked(lv_event_t *e)
     }
 }
 
+/* 侧边栏功能项/卡带点击处理 */
+static bool on_sidebar_item_action(const char *id, void *user_data)
+{
+    phoenix_ui_t *ui = (phoenix_ui_t *)user_data;
+    if (!ui || !id) return false;
+
+    if (strcmp(id, "voice") == 0) {
+        /* 如果设置处于打开状态且已经在音频实验室，再次点击则关闭抽屉返回主舞台卡带 */
+        if (ui_settings_is_open(ui->settings) && 
+            ui_settings_get_page(ui->settings) == UI_SETTINGS_TAB_AUDIO) {
+            ui_settings_close(ui->settings);
+            if (ui->stage && ui->stage->container) {
+                lv_obj_clear_flag(ui->stage->container, LV_OBJ_FLAG_HIDDEN);
+            }
+            if (ui->sidebar) {
+                cartridge_t *cur = cartridge_mgr_get_current();
+                ui_sidebar_set_active(ui->sidebar, (cur && cur->ops.id[0]) ? cur->ops.id : "home");
+            }
+        } else {
+            /* 隐藏主舞台，打开设置面板并直达音频/语音实验室 */
+            if (ui->stage && ui->stage->container) {
+                lv_obj_add_flag(ui->stage->container, LV_OBJ_FLAG_HIDDEN);
+            }
+            ui_settings_open_detail(ui->settings, UI_SETTINGS_TAB_AUDIO);
+            if (ui->sidebar) {
+                ui_sidebar_set_active(ui->sidebar, "voice");
+            }
+        }
+        return true;
+    } else {
+        /* 用户点击了常规卡带项 (home, clock, familiar)，如果当前在设置抽屉中则关闭抽屉返回主舞台 */
+        if (ui_settings_is_open(ui->settings)) {
+            ui_settings_close(ui->settings);
+            if (ui->stage && ui->stage->container) {
+                lv_obj_clear_flag(ui->stage->container, LV_OBJ_FLAG_HIDDEN);
+            }
+        }
+        cartridge_mgr_switch_to(id);
+        if (ui->sidebar) {
+            ui_sidebar_set_active(ui->sidebar, id);
+        }
+        return true;
+    }
+}
+
 /* 侧边栏底部设置按钮点击: 与卡带完全同级切换 */
 static void on_sidebar_settings_clicked(void *user_data)
 {
@@ -223,6 +268,8 @@ static void on_sidebar_settings_clicked(void *user_data)
         }
         if (ui->sidebar) {
             ui_sidebar_set_settings_active(ui->sidebar, false);
+            cartridge_t *cur = cartridge_mgr_get_current();
+            ui_sidebar_set_active(ui->sidebar, (cur && cur->ops.id[0]) ? cur->ops.id : "home");
         }
     } else {
         if (ui->stage && ui->stage->container) {
@@ -245,6 +292,8 @@ static void on_settings_closed(void *user_data)
         }
         if (ui->sidebar) {
             ui_sidebar_set_settings_active(ui->sidebar, false);
+            cartridge_t *cur = cartridge_mgr_get_current();
+            ui_sidebar_set_active(ui->sidebar, (cur && cur->ops.id[0]) ? cur->ops.id : "home");
         }
     }
 }
@@ -547,6 +596,7 @@ phoenix_ui_t* phoenix_ui_create(lv_obj_t *parent, phoenix_agent_ctx_t *core)
     ui->sidebar = ui_sidebar_create(ui->screen, ui->font_chinese);
     if (ui->sidebar) {
         ui_sidebar_set_settings_cb(ui->sidebar, on_sidebar_settings_clicked, ui);
+        ui_sidebar_set_action_cb(ui->sidebar, on_sidebar_item_action, ui);
     }
 
     /* 4. 顶部极窄微状态胶囊 (22px，半透明常驻，点击呼出控制中心，热区外扩 12px) */

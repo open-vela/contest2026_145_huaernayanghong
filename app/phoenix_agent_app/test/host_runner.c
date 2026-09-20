@@ -643,7 +643,7 @@ static void run_test_web_portal(void)
     assert(strstr(resp_buf, "HTTP/1.1 200 OK") != NULL);
     assert(strstr(resp_buf, "Phoenix HoloDesk-S1 Geek Dashboard") != NULL);
     assert(strstr(resp_buf, "极客伴侣看板") != NULL);
-    assert(strstr(resp_buf, "switchView") != NULL);
+    assert(strstr(resp_buf, "data-view") != NULL);
     assert(strstr(resp_buf, "</html>") != NULL);
     printf("  -> GET / (Static Geek Dashboard) PASSED! (Length: %d bytes)\n", resp_len);
 

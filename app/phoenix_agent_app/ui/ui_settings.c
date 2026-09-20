@@ -894,10 +894,22 @@ ui_settings_page_t ui_settings_get_page(const ui_settings_t *settings)
 /*                   单列菜单列表与二级下钻详情交互引擎                      */
 /* ========================================================================= */
 
+void ui_settings_open_detail(ui_settings_t *settings, ui_settings_tab_t tab)
+{
+    if (!settings || !settings->container) return;
+
+    settings->is_open = true;
+    lv_obj_clear_flag(settings->container, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(settings->container);
+
+    ui_settings_enter_detail(settings, tab);
+    LOG_I(TAG, "设置同级视图已激活展示(直达标签页: %d)", (int)tab);
+}
+
 void ui_settings_enter_detail(ui_settings_t *settings, ui_settings_tab_t tab)
 {
     if (!settings) return;
-    if ((int)tab > 5) tab = UI_SETTINGS_TAB_NET;
+    if ((int)tab > 6 || (int)tab < 0) tab = UI_SETTINGS_TAB_NET;
 
     settings->is_in_detail = true;
     settings->current_tab = tab;

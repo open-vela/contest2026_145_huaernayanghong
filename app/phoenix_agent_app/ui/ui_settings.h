@@ -280,6 +280,13 @@ void ui_settings_destroy(ui_settings_t *settings);
 void ui_settings_open(ui_settings_t *settings);
 
 /**
+ * @brief 直接打开设置面板并跳转到指定子详情页
+ * @param settings 设置上下文
+ * @param tab 目标标签页 (例如 UI_SETTINGS_TAB_AUDIO)
+ */
+void ui_settings_open_detail(ui_settings_t *settings, ui_settings_tab_t tab);
+
+/**
  * @brief 关闭/切出设置视图
  */
 void ui_settings_close(ui_settings_t *settings);

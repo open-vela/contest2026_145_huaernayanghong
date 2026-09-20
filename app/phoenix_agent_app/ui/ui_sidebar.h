@@ -22,9 +22,11 @@ typedef struct {
     char icon[8];
     lv_obj_t *btn;
     lv_obj_t *lbl;
+    void *parent_sidebar;
 } ui_sidebar_item_t;
 
 typedef void (*ui_sidebar_settings_cb_t)(void *user_data);
+typedef bool (*ui_sidebar_action_cb_t)(const char *id, void *user_data);
 
 typedef struct {
     lv_obj_t *container;
@@ -41,6 +43,9 @@ typedef struct {
 
     ui_sidebar_settings_cb_t on_settings_cb;
     void *settings_user_data;
+
+    ui_sidebar_action_cb_t on_action_cb;
+    void *action_user_data;
 } ui_sidebar_t;
 
 /**
@@ -68,6 +73,11 @@ void ui_sidebar_set_active(ui_sidebar_t *sidebar, const char *cartridge_id);
  * @brief 注册底部控制中心按钮点击回调
  */
 void ui_sidebar_set_settings_cb(ui_sidebar_t *sidebar, ui_sidebar_settings_cb_t cb, void *user_data);
+
+/**
+ * @brief 注册卡带/功能项点击回调（若回调返回 true 则表示已处理，不再调用默认 cartridge_mgr_switch_to）
+ */
+void ui_sidebar_set_action_cb(ui_sidebar_t *sidebar, ui_sidebar_action_cb_t cb, void *user_data);
 
 /**
  * @brief 设置底部控制中心高亮选中态
