@@ -97,6 +97,7 @@ $COMPILER -O2 -Wall -Wextra -std=gnu99 \
     "$APP_DIR/tools/tool_launch_app.c" \
     "$APP_DIR/tools/tool_todo.c" \
     "$APP_DIR/tools/tool_environment.c" \
+    "$APP_DIR/tools/tool_blink_led.c" \
     "$APP_DIR/harness/llm_mock_backend.c" \
     "$APP_DIR/harness/llm_cloud_backend.c" \
     "$APP_DIR/harness/llm_provider.c" \

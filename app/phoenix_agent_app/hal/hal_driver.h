@@ -31,6 +31,7 @@ typedef struct {
     void (*set_volume)(uint8_t volume_pct);
     int (*trigger_haptic)(hal_haptic_pattern_t pattern);
     int (*set_led)(hal_led_mode_t mode, uint32_t rgb, uint8_t brightness);
+    int (*blink_led)(int count, uint32_t interval_ms);
 } hal_actuator_ops_t;
 
 /** 系统服务驱动操作虚表 */

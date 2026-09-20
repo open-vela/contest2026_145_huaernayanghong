@@ -142,6 +142,26 @@ phoenix_intent_result_t phoenix_intent_route(const char *input_text)
         return res;
     }
 
+    /* Fast-path: Board LED Blink & Control */
+    if (contains_str(cmd_ptr, "闪灯") || contains_str(cmd_ptr, "闪烁") ||
+        contains_str(cmd_ptr, "指示灯") || contains_str(cmd_ptr, "blink") ||
+        contains_str(cmd_ptr, "led") || contains_str(cmd_ptr, "灯") ||
+        contains_str(cmd_ptr, "light")) {
+        res.category = INTENT_TYPE_FASTPATH;
+        res.tool_name = "blink_led";
+        if (contains_str(cmd_ptr, "关") || contains_str(cmd_ptr, "灭") || contains_str(cmd_ptr, "off")) {
+            res.tool_args_json = "{\"state\":\"off\"}";
+            res.fast_reply = "【极速直达】已为你熄灭板载 LED 指示灯！";
+        } else if (contains_str(cmd_ptr, "常亮") || contains_str(cmd_ptr, "开灯") || contains_str(cmd_ptr, "on")) {
+            res.tool_args_json = "{\"state\":\"on\"}";
+            res.fast_reply = "【极速直达】已为你点亮板载 LED 指示灯！";
+        } else {
+            res.tool_args_json = "{\"state\":\"blink\",\"count\":3,\"interval_ms\":200}";
+            res.fast_reply = "【极速直达】灵眸为你闪烁开发板硬件指示灯3次！";
+        }
+        return res;
+    }
+
     /* 5. Fast-path: Launch System Apps */
     if (contains_str(cmd_ptr, "日历") || contains_str(cmd_ptr, "calendar")) {
         res.category = INTENT_TYPE_FASTPATH;

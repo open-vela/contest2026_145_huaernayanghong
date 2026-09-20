@@ -68,6 +68,19 @@ static int mock_reasoning_eval(const char *user_prompt, phoenix_chat_resp_t *res
         return 0;
     }
 
+    /* 4.1 板载 LED 闪灯与指示灯控制意图 */
+    if (strstr(user_prompt, "闪灯") || strstr(user_prompt, "闪烁") ||
+        strstr(user_prompt, "指示灯") || strstr(user_prompt, "blink") ||
+        strstr(user_prompt, "led") || strstr(user_prompt, "LED")) {
+        resp_out->is_tool_use = true;
+        resp_out->tool_name = strdup("blink_led");
+        resp_out->tool_call_id = strdup("call_mock_blink_001");
+        resp_out->tool_input = strdup("{\"state\":\"blink\",\"count\":3,\"interval_ms\":200}");
+        resp_out->reasoning_content = strdup("【思维链】用户请求控制指示灯，调度 blink_led 工具触发板载物理 LED 闪烁。");
+        resp_out->content = strdup("灵眸正在为你闪烁开发板硬件指示灯...");
+        return 0;
+    }
+
     /* 5. 系统健康巡检意图 */
     if (strstr(user_prompt, "状态") || strstr(user_prompt, "健康") || strstr(user_prompt, "系统")) {
         resp_out->is_tool_use = true;

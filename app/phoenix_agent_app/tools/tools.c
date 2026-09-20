@@ -29,6 +29,7 @@ int phoenix_register_builtin_tools(void)
     phoenix_tool_register(&g_tool_launch_app);
     phoenix_tool_register(&g_tool_todo);
     phoenix_tool_register(&g_tool_environment);
+    phoenix_tool_register(&g_tool_blink_led);
 
     LOG_I(TAG, "%zu built-in embodied tools registered.", phoenix_tool_get_count());
     return 0;

@@ -16,6 +16,7 @@
 #include <sys/ioctl.h>
 #include <errno.h>
 #include <math.h>
+#include <pthread.h>
 
 #ifdef __NUTTX__
 #include <nuttx/config.h>
@@ -290,10 +291,72 @@ static int openvela_actuator_trigger_haptic(hal_haptic_pattern_t pattern)
     return 0;
 }
 
+typedef struct {
+    int count;
+    uint32_t interval_ms;
+} openvela_blink_args_t;
+
+static void* openvela_blink_thread(void *arg)
+{
+    openvela_blink_args_t *b = (openvela_blink_args_t *)arg;
+    int count = (b->count <= 0) ? 3 : (b->count > 30 ? 30 : b->count);
+    uint32_t interval_us = (b->interval_ms < 20 ? 200 : b->interval_ms) * 1000;
+    free(b);
+
+    int fd = open("/dev/userleds", O_WRONLY);
+    for (int i = 0; i < count; i++) {
+        if (fd >= 0) {
+            uint32_t on = 1;
+            write(fd, &on, sizeof(on));
+        }
+        usleep(interval_us);
+
+        if (fd >= 0) {
+            uint32_t off = 0;
+            write(fd, &off, sizeof(off));
+        }
+        usleep(interval_us);
+    }
+
+    if (fd >= 0) {
+        close(fd);
+    }
+    return NULL;
+}
+
 static int openvela_actuator_set_led(hal_led_mode_t mode, uint32_t rgb, uint8_t brightness)
 {
     printf("[HAL:OpenVela] 💡 RGB LED ring: Mode %d, RGB #%06X, Brightness %d\n",
            (int)mode, (unsigned int)rgb, brightness);
+    int fd = open("/dev/userleds", O_WRONLY);
+    if (fd >= 0) {
+        uint32_t val = (mode != HAL_LED_OFF) ? 1 : 0;
+        write(fd, &val, sizeof(val));
+        close(fd);
+    }
+    return 0;
+}
+
+static int openvela_actuator_blink_led(int count, uint32_t interval_ms)
+{
+    printf("[HAL:OpenVela] 💡 Board SYS_LED blinking: count=%d, interval=%u ms\n",
+           count, (unsigned)interval_ms);
+
+    openvela_blink_args_t *args = (openvela_blink_args_t *)malloc(sizeof(openvela_blink_args_t));
+    if (!args) return -1;
+    args->count = count;
+    args->interval_ms = interval_ms;
+
+    pthread_t tid;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    int rc = pthread_create(&tid, &attr, openvela_blink_thread, args);
+    pthread_attr_destroy(&attr);
+
+    if (rc != 0) {
+        openvela_blink_thread(args);
+    }
     return 0;
 }
 
@@ -544,7 +607,8 @@ const hal_driver_t g_hal_driver_openvela = {
         .play_sound = openvela_actuator_play_sound,
         .set_volume = openvela_actuator_set_volume,
         .trigger_haptic = openvela_actuator_trigger_haptic,
-        .set_led = openvela_actuator_set_led
+        .set_led = openvela_actuator_set_led,
+        .blink_led = openvela_actuator_blink_led
     },
     .system_ops = {
         .init = openvela_system_init,

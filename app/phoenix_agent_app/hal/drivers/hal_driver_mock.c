@@ -173,6 +173,13 @@ static int mock_actuator_set_led(hal_led_mode_t mode, uint32_t rgb, uint8_t brig
     return 0;
 }
 
+static int mock_actuator_blink_led(int count, uint32_t interval_ms)
+{
+    printf("[HAL:Mock] 💡 Board LED mock blink: %d times, interval %u ms\n",
+           count, (unsigned)interval_ms);
+    return 0;
+}
+
 /* ========================================================================= */
 /* System Ops Implementation                                                 */
 /* ========================================================================= */
@@ -288,7 +295,8 @@ const hal_driver_t g_hal_driver_mock = {
         .play_sound = mock_actuator_play_sound,
         .set_volume = mock_actuator_set_volume,
         .trigger_haptic = mock_actuator_trigger_haptic,
-        .set_led = mock_actuator_set_led
+        .set_led = mock_actuator_set_led,
+        .blink_led = mock_actuator_blink_led
     },
     .system_ops = {
         .init = mock_system_init,

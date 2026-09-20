@@ -27,6 +27,7 @@ extern const phoenix_tool_desc_t g_tool_system_health;
 extern const phoenix_tool_desc_t g_tool_launch_app;
 extern const phoenix_tool_desc_t g_tool_todo;
 extern const phoenix_tool_desc_t g_tool_environment;
+extern const phoenix_tool_desc_t g_tool_blink_led;
 
 /**
  * @brief Register all built-in embodied tools into Phoenix Tool Registry

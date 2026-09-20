@@ -31,6 +31,9 @@ int hal_actuator_trigger_haptic(hal_haptic_pattern_t pattern);
 /** 设置灵眸外环 RGB/LED 状态 */
 int hal_actuator_set_led(hal_led_mode_t mode, uint32_t rgb, uint8_t brightness);
 
+/** 控制板载物理 LED 指示灯闪烁 */
+int hal_actuator_blink_led(int count, uint32_t interval_ms);
+
 /* ========================================================================= */
 /* 兼容宏与别名 (与原 audio_ctl.h 平滑兼容)                           */
 /* ========================================================================= */

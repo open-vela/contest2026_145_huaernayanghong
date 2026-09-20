@@ -122,3 +122,21 @@ int hal_actuator_set_led(hal_led_mode_t mode, uint32_t rgb, uint8_t brightness)
     pthread_mutex_unlock(&g_actuator_mutex);
     return ret;
 }
+
+int hal_actuator_blink_led(int count, uint32_t interval_ms)
+{
+    pthread_mutex_lock(&g_actuator_mutex);
+    const hal_driver_t *drv = hal_get_active_driver();
+    int ret = 0;
+    if (drv && drv->actuator_ops.blink_led) {
+        ret = drv->actuator_ops.blink_led(count, interval_ms);
+    } else {
+        LOG_I(TAG, "💡 LED Blink: count %d, interval %u ms", count, (unsigned)interval_ms);
+        if (drv && drv->actuator_ops.set_led) {
+            drv->actuator_ops.set_led(HAL_LED_PULSE, 0x00E5FF, 100);
+        }
+    }
+    pthread_mutex_unlock(&g_actuator_mutex);
+    return ret;
+}
+

@@ -424,6 +424,8 @@ static void agent_exit(cartridge_t *self)
         s_ui.emotion_timer = NULL;
     }
     if (s_ui.eye) {
+        s_ui.eye->container = NULL; /* container 作为子对象交由 s_ui.container 统一递归释放 */
+        phoenix_eye_destroy(s_ui.eye);
         s_ui.eye = NULL;
     }
     if (s_ui.container) {

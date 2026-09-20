@@ -69,7 +69,10 @@ app/phoenix_agent_app/
 │   ├── tool_pomodoro.c                   #    沉浸专注流 25 分钟番茄钟
 │   ├── tool_eye_emotion.c                #    灵眸情绪微表情与颜色控制
 │   ├── tool_system_health.c              #    基于 HAL 真实系统指标动态遥测
-│   └── tool_launch_app.c                 #    基于 HAL 系统服务的原生应用调度
+│   ├── tool_launch_app.c                 #    基于 HAL 系统服务的原生应用调度
+│   ├── tool_todo.c                       #    极客待办清单与备忘录服务
+│   ├── tool_environment.c                #    温湿度与光照环境传感器遥测
+│   └── tool_blink_led.c                  #    开发板物理指示灯闪烁与状态控制 (全志 R528 SYS_LED)
 ├── ui/                                   # 🎨 6. 视觉交互与多媒体层
 │   ├── ui.h / .c                 #    LVGL 桌面看板 UI、飞字动画与事件总线监听
 │   ├── eye_anim.h / .c           #    灵眸眼球矢量渲染引擎与微表情动画

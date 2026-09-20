@@ -3003,6 +3003,86 @@ static void run_test_agent_todo_pomodoro_env_enhancement(void)
     printf("  -> Agent Todo, Pomodoro & Environmental Context Enhancement PASSED!\n");
 }
 
+static void run_test_blink_led_subsystem(void)
+{
+    printf("\n[TEST 40] Testing Embodied Tool: blink_led & Physical Actuator Integration...\n");
+
+    phoenix_event_bus_init();
+    phoenix_tool_registry_init();
+    phoenix_register_builtin_tools();
+
+    /* 1. 验证工具是否已注册 */
+    const phoenix_tool_desc_t *desc = phoenix_tool_find("blink_led");
+    assert(desc != NULL);
+    assert(strcmp(desc->name, "blink_led") == 0);
+    assert(desc->execute != NULL);
+    printf("  -> blink_led Tool Registration Verified: \"%s\"\n", desc->description);
+
+    /* 2. 验证 Schema 格式正确 */
+    char *schema = phoenix_tool_build_schema_json();
+    assert(schema != NULL);
+    assert(strstr(schema, "blink_led") != NULL);
+    assert(strstr(schema, "interval_ms") != NULL);
+    free(schema);
+    printf("  -> blink_led JSON Schema serialization OK\n");
+
+    /* 3. 独立执行 blink_led (闪烁模式) */
+    char result_buf[512] = {0};
+    int ret = phoenix_tool_execute("blink_led", "{\"count\":3,\"interval_ms\":100,\"color\":\"cyan\"}", result_buf, sizeof(result_buf));
+    assert(ret == 0);
+    assert(strstr(result_buf, "\"state\":\"blink\"") != NULL);
+    assert(strstr(result_buf, "\"count\":3") != NULL);
+    assert(strstr(result_buf, "\"interval_ms\":100") != NULL);
+    printf("  -> phoenix_tool_execute(blink_led, count=3) PASSED: %s\n", result_buf);
+
+    /* 4. 独立执行 blink_led (常亮与熄灭) */
+    memset(result_buf, 0, sizeof(result_buf));
+    ret = phoenix_tool_execute("blink_led", "{\"state\":\"on\"}", result_buf, sizeof(result_buf));
+    assert(ret == 0);
+    assert(strstr(result_buf, "\"state\":\"on\"") != NULL);
+    printf("  -> phoenix_tool_execute(blink_led, on) PASSED\n");
+
+    memset(result_buf, 0, sizeof(result_buf));
+    ret = phoenix_tool_execute("blink_led", "{\"state\":\"off\"}", result_buf, sizeof(result_buf));
+    assert(ret == 0);
+    assert(strstr(result_buf, "\"state\":\"off\"") != NULL);
+    printf("  -> phoenix_tool_execute(blink_led, off) PASSED\n");
+
+    /* 5. Fast-Path 意图匹配测试 */
+    phoenix_intent_result_t intent1 = phoenix_intent_route("fast:闪灯");
+    assert(intent1.category == INTENT_TYPE_FASTPATH);
+    assert(strcmp(intent1.tool_name, "blink_led") == 0);
+    assert(strstr(intent1.tool_args_json, "blink") != NULL);
+    printf("  -> Intent Fast-path (fast:闪灯) PASSED\n");
+
+    phoenix_intent_result_t intent2 = phoenix_intent_route("fast:关灯");
+    assert(intent2.category == INTENT_TYPE_FASTPATH);
+    assert(strcmp(intent2.tool_name, "blink_led") == 0);
+    assert(strstr(intent2.tool_args_json, "off") != NULL);
+    printf("  -> Intent Fast-path (fast:关灯) PASSED\n");
+
+    /* 6. 端到端 Agent 调度闭环测试 */
+    phoenix_llm_provider_init(NULL);
+    phoenix_agent_ctx_t *agent = phoenix_agent_core_init();
+    assert(agent != NULL);
+
+    phoenix_agent_trace_t trace;
+    memset(&trace, 0, sizeof(trace));
+    ret = phoenix_agent_chat_with_trace(agent, "帮我把开发板指示灯闪烁3次", &trace);
+    assert(ret == 0);
+    assert(trace.has_tool_call == true);
+    assert(strcmp(trace.tool_name, "blink_led") == 0);
+    printf("  -> Agent ReAct Tool Call (blink_led) PASSED: tool=%s, reasoning=%s\n",
+           trace.tool_name, trace.reasoning_content);
+
+    phoenix_agent_core_destroy(agent);
+    phoenix_llm_provider_deinit();
+    phoenix_tool_registry_deinit();
+    phoenix_event_bus_deinit();
+
+    printf("  -> Embodied Tool blink_led Subsystem PASSED!\n");
+}
+
 int main(int argc, char *argv[])
 {
     printf("====================================================\n");
@@ -3055,8 +3135,9 @@ int main(int argc, char *argv[])
     run_test_audio_test_service();
     run_test_tts_and_voice_config();
     run_test_agent_todo_pomodoro_env_enhancement();
+    run_test_blink_led_subsystem();
 
-    printf("\n🎉 ALL 39 UNIT TESTS PASSED SUCCESSFULLY!\n");
+    printf("\n🎉 ALL 40 UNIT TESTS PASSED SUCCESSFULLY!\n");
 
 
     /* If --repl or -i passed, enter interactive mode */

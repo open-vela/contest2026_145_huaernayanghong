@@ -125,16 +125,18 @@ static void run_agent_selftest(phoenix_agent_ctx_t *agent)
 
     /* Step 3: Tool Execution Unit Tests */
     total++;
-    printf("[Test 3/4] 5 大内置具身工具独立单元测试:\n");
+    printf("[Test 3/4] 内置具身工具独立单元测试:\n");
     const char *test_tools[][2] = {
         {"knock_wooden_fish", "{\"count\":2}"},
         {"manage_pomodoro", "{\"action\":\"status\"}"},
         {"set_eye_emotion", "{\"emotion\":\"happy\"}"},
         {"system_health", "{}"},
-        {"launch_app", "{\"app_id\":\"zen\"}"}
+        {"launch_app", "{\"app_id\":\"zen\"}"},
+        {"blink_led", "{\"count\":2,\"interval_ms\":100}"}
     };
     bool tools_all_ok = true;
-    for (size_t i = 0; i < 5; i++) {
+    size_t num_test_tools = sizeof(test_tools) / sizeof(test_tools[0]);
+    for (size_t i = 0; i < num_test_tools; i++) {
         char out_buf[256] = {0};
         int trc = phoenix_tool_execute(test_tools[i][0], test_tools[i][1], out_buf, sizeof(out_buf));
         bool tok = (trc == 0 && strlen(out_buf) > 0);

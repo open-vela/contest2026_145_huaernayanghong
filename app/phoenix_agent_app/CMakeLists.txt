@@ -73,6 +73,7 @@ if(CONFIG_LVX_USE_DEMO_CONTEST2026_145_PHOENIX_AGENT_APP)
       tools/tool_launch_app.c
       tools/tool_todo.c
       tools/tool_environment.c
+      tools/tool_blink_led.c
       harness/llm_mock_backend.c
       harness/llm_cloud_backend.c
       harness/llm_provider.c
