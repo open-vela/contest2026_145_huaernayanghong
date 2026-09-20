@@ -269,6 +269,8 @@ ui_settings_t* ui_settings_create(lv_obj_t *parent, const lv_font_t *font)
     lv_obj_set_style_radius(s->list_wifi, 6, 0);
     lv_obj_set_style_pad_all(s->list_wifi, 3, 0);
     lv_obj_set_scroll_dir(s->list_wifi, LV_DIR_VER);
+    lv_obj_set_flex_flow(s->list_wifi, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(s->list_wifi, 4, 0);
 
     s->lbl_wifi_empty = lv_label_create(s->list_wifi);
     lv_obj_align(s->lbl_wifi_empty, LV_ALIGN_CENTER, 0, 0);
@@ -1033,6 +1035,17 @@ void ui_settings_refresh_data(ui_settings_t *settings)
         }
     }
 
+    /* 当处于 Wi-Fi 网络详情页时，后台扫描完成或有结果更新自动刷新条目列表 */
+    if (settings->is_in_detail && settings->current_tab == UI_SETTINGS_TAB_NET && settings->list_wifi) {
+        uint32_t child_cnt = lv_obj_get_child_cnt(settings->list_wifi);
+        if (child_cnt <= 1 && !net_mgr_is_scanning()) {
+            net_wifi_ap_info_t check_aps[1];
+            if (net_mgr_get_cached_scan_results(check_aps, 1) > 0) {
+                ui_settings_refresh_wifi_list(settings);
+            }
+        }
+    }
+
     /* 兼容保留历史步进状态机提示 */
     if (mode == NET_MODE_STA_CONNECTING || mode == NET_MODE_STA_CONNECTED) {
         ui_settings_update_net_progress(settings, mode, ssid_buf, ip_buf, NULL);
@@ -1577,13 +1590,16 @@ void ui_settings_refresh_wifi_list(ui_settings_t *settings)
     }
 
     /* 4. 遍历创建 Wi-Fi 列表条目 */
+    int valid_idx = 0;
     for (int i = 0; i < count; i++) {
         if (aps[i].ssid[0] == '\0') continue;
 
         lv_obj_t *btn_ap = lv_btn_create(settings->list_wifi);
         lv_obj_set_size(btn_ap, 248, 30);
+        lv_obj_set_pos(btn_ap, 1, (lv_coord_t)(valid_idx * 34));
         lv_obj_set_style_radius(btn_ap, 4, 0);
         lv_obj_set_style_pad_all(btn_ap, 2, 0);
+        valid_idx++;
 
         bool is_connected = (cur_mode == NET_MODE_STA_CONNECTED && strcmp(cur_ssid, aps[i].ssid) == 0);
         if (is_connected) {

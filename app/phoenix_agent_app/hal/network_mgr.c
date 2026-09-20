@@ -1759,6 +1759,9 @@ static void* async_scan_worker_thread(void *arg)
     }
     s_is_scanning = false;
     pthread_mutex_unlock(&s_scan_lock);
+
+    /* 扫描圆满完成后，主动通知系统事件总线与 UI 层，实现瞬时响应 */
+    notify_state_changed_with_msg(count > 0 ? "周边 Wi-Fi 扫描完成" : "未搜索到周边 Wi-Fi");
     return NULL;
 }
 
